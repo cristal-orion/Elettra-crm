@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
+/* Tema CRM Elettra — allineato ai colori del brand (sito elettragroup).
+   Blu Elettra come accento primario, arancio come pop sporadico, neutri chiari. */
+@theme {
+  /* Neutri (dal sito: bg #F7F7F7, bordi #E6E9EB, testo #191817/#2B2B2B) */
+  --color-paper: #f7f7f7;
+  --color-panel: #ffffff;
+  --color-ink: #191817;
+  --color-ink-soft: #4a4f56;
+  --color-ink-faint: #8a9098;
+  --color-line: #e6e9eb;
+
+  /* Brand blu */
+  --color-brand: #1b5583; /* Power  — accento primario */
+  --color-brand-deep: #143f61; /* hover / testo accento su fondo chiaro */
+  --color-brand-soft: #e7eef5; /* sfondo tenue */
+  --color-brand-light: #5e86c1; /* System — accento su fondo scuro */
+  --color-teal: #0095b6; /* Green */
+  --color-indigo: #343a90; /* HighVolt */
+
+  /* Accento pop (uso sporadico: evidenze, badge urgenti) */
+  --color-accent-orange: #fc5220;
+  --color-accent-orange-soft: #ffe7df;
+
+  /* Chrome scuro (sidebar, pannello login): navy del brand */
+  --color-slatepanel: #15243a;
+
+  /* Semantici */
+  --color-ok: #2f7d4e;
+  --color-ok-soft: #e4f1e8;
+  --color-warn: #c98a0e;
+  --color-warn-soft: #fbf1da;
+  --color-danger: #b23a2e;
+  --color-danger-soft: #f6e4e1;
+  --color-lead-soft: #eef1f4;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo,
+    Consolas, monospace;
+}
+
+/* Gradiente principale del sito Elettra (84°: power → system → green → highvolt) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gradient-elettra: linear-gradient(
+    84deg,
+    #1b5583 -29.72%,
+    #5e86c1 15.13%,
+    #0095b6 62.3%,
+    #343a90 106.55%
+  );
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* CTA con il gradiente di brand (come i pulsanti del sito) */
+.bg-elettra {
+  background-image: var(--gradient-elettra);
+}
+.bg-elettra:hover {
+  filter: brightness(1.06);
+}
+
+/* Testo/marchio con il gradiente di brand */
+.text-elettra {
+  background-image: var(--gradient-elettra);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
