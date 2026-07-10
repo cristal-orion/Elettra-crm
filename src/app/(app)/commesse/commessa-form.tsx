@@ -52,6 +52,7 @@ export default function CommessaForm({
   initial,
   submitLabel = "Salva",
   cancelHref = "/commesse",
+  bloccoConsuntivo = false,
 }: {
   action: (state: CommessaState, formData: FormData) => Promise<CommessaState>;
   clienti: ClienteOption[];
@@ -59,6 +60,8 @@ export default function CommessaForm({
   initial?: Partial<CommessaFormValues>;
   submitLabel?: string;
   cancelHref?: string;
+  /** Regola P→C: se true la tipologia è bloccata a "C" (ordini collegati). */
+  bloccoConsuntivo?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
@@ -178,18 +181,36 @@ export default function CommessaForm({
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Tipologia</span>
-            <select
-              name="tipologia"
-              defaultValue={v("tipologia")}
-              className={inputCls}
-            >
-              <option value="">— Non definita —</option>
-              {Object.entries(TIPOLOGIE).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {key} · {label}
-                </option>
-              ))}
-            </select>
+            {bloccoConsuntivo ? (
+              <>
+                {/* Regola P→C: ordini materiali collegati ⇒ bloccata a "C". */}
+                <input type="hidden" name="tipologia" value="C" />
+                <select
+                  disabled
+                  value="C"
+                  className={`${inputCls} disabled:opacity-70`}
+                >
+                  <option value="C">C · {TIPOLOGIE.C}</option>
+                </select>
+                <span className="text-[11px] text-warn">
+                  Bloccata a Consuntivo: esistono ordini materiali collegati
+                  (regola P→C).
+                </span>
+              </>
+            ) : (
+              <select
+                name="tipologia"
+                defaultValue={v("tipologia")}
+                className={inputCls}
+              >
+                <option value="">— Non definita —</option>
+                {Object.entries(TIPOLOGIE).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {key} · {label}
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Data richiesta</span>

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { puoGestireOrdini, STATI_ORDINE } from "@/lib/enums";
+import { applicaRegolaPC } from "@/lib/regole";
 import type { Prisma } from "@/generated/prisma";
 
 export type OrdineState = { error?: string } | undefined;
@@ -194,7 +195,7 @@ export async function createOrdine(
       const rel = await risolviRelazioni(tx, fornitoreId, commessaId);
       if (!rel.ok) throw new Error(rel.error);
 
-      return tx.ordineFornitore.create({
+      const ordine = await tx.ordineFornitore.create({
         data: {
           fornitoreId,
           commessaId: rel.commessaId,
@@ -206,6 +207,11 @@ export async function createOrdine(
           },
         },
       });
+
+      // Regola bloccante P→C: il nuovo acquisto forza la commessa a Consuntivo.
+      if (rel.commessaId) await applicaRegolaPC(tx, rel.commessaId);
+
+      return ordine;
     });
     id = created.id;
   } catch (e) {
@@ -241,6 +247,7 @@ export async function updateOrdine(
     return { error: "Aggiungi almeno una riga con descrizione." };
   }
 
+  let commessaPrecedente: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const existing = await tx.ordineFornitore.findUnique({
@@ -248,6 +255,7 @@ export async function updateOrdine(
         include: { righe: { select: { id: true } } },
       });
       if (!existing) throw new Error("Ordine non trovato.");
+      commessaPrecedente = existing.commessaId;
 
       const rel = await risolviRelazioni(tx, fornitoreId, commessaId);
       if (!rel.ok) throw new Error(rel.error);
@@ -286,6 +294,9 @@ export async function updateOrdine(
           });
         }
       }
+
+      // Regola bloccante P→C sulla commessa (eventualmente nuova) collegata.
+      if (rel.commessaId) await applicaRegolaPC(tx, rel.commessaId);
     });
   } catch (e) {
     const msg =
@@ -298,6 +309,10 @@ export async function updateOrdine(
   revalidatePath("/ordini");
   revalidatePath(`/ordini/${ordineId}`);
   if (commessaId) revalidatePath(`/commesse/${commessaId}`);
+  // Se l'ordine è stato spostato, aggiorna anche la commessa di partenza.
+  if (commessaPrecedente && commessaPrecedente !== commessaId) {
+    revalidatePath(`/commesse/${commessaPrecedente}`);
+  }
   revalidatePath("/");
   redirect(`/ordini/${ordineId}`);
 }

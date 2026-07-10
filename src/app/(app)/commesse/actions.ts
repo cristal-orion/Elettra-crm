@@ -10,6 +10,7 @@ import {
   TIPOLOGIE,
   METODI_RICEZIONE,
 } from "@/lib/enums";
+import { commessaHaAcquisti, tipologiaForzata } from "@/lib/regole";
 import type { Prisma } from "@/generated/prisma";
 
 export type CommessaState = { error?: string } | undefined;
@@ -203,6 +204,10 @@ export async function updateCommessa(
       const rel = await risolviRelazioni(tx, clienteId, referenteId, pmId);
       if (!rel.ok) throw new Error(rel.error);
 
+      // Regola bloccante P→C: se la commessa ha già ordini materiali collegati
+      // non può restare Preventivo → la tipologia è forzata a "C".
+      const haAcquisti = await commessaHaAcquisti(tx, commessaId);
+
       // Numero/anno/progressivo non si riassegnano in modifica.
       await tx.commessa.update({
         where: { id: commessaId },
@@ -212,6 +217,7 @@ export async function updateCommessa(
           pmId: rel.pmId,
           stato,
           ...campi,
+          tipologia: tipologiaForzata(campi.tipologia, haAcquisti),
           // dataRichiesta resta modificabile ma senza sovrascrivere con null.
           dataRichiesta: campi.dataRichiesta ?? undefined,
         },

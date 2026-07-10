@@ -9,6 +9,7 @@ import {
   etichettaStato,
   METODI_RICEZIONE,
 } from "@/lib/enums";
+import { richiedeFatturazione } from "@/lib/regole";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoBadge, StatoOrdineBadge, TipologiaBadge } from "@/components/badges";
 
@@ -52,6 +53,10 @@ export default async function CommessaDetailPage({
       ] ?? commessa.metodoRicezioneOrdine
     : null;
 
+  // Regola P→C: materiale acquistato ⇒ tipologia forzata a C e "da fatturare".
+  const haAcquisti = commessa.ordiniFornitore.length > 0;
+  const daFatturare = richiedeFatturazione(commessa.stato, haAcquisti);
+
   return (
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -80,6 +85,31 @@ export default async function CommessaDetailPage({
           </Link>
         )}
       </header>
+
+      {daFatturare && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-start gap-3 rounded-xl border border-warn/40 bg-warn-soft/60 px-5 py-4"
+        >
+          <svg viewBox="0 0 24 24" className="mt-0.5 h-5 w-5 shrink-0 text-warn" aria-hidden>
+            <path
+              fill="currentColor"
+              d="M12 2 1 21h22L12 2Zm0 6a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z"
+            />
+          </svg>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-warn">
+              Materiale già acquistato — commessa da fatturare
+            </p>
+            <p className="mt-0.5 text-sm text-ink-soft">
+              Esistono ordini a fornitore collegati: la tipologia è forzata a{" "}
+              <span className="font-mono font-medium">Consuntivo (C)</span>{" "}
+              (regola P→C). Sollecita l&apos;ordine al cliente e procedi alla
+              fatturazione.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <Card title="Cliente e assegnazione">

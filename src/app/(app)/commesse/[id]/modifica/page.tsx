@@ -28,11 +28,15 @@ export default async function ModificaCommessaPage({
   const user = await getCurrentUser();
   if (!user || !puoGestireCommesse(user.ruolo)) redirect("/commesse");
 
-  const [commessa, { clienti, pms }] = await Promise.all([
+  const [commessa, { clienti, pms }, ordiniCollegati] = await Promise.all([
     prisma.commessa.findUnique({ where: { id } }),
     getCommessaFormOptions(),
+    prisma.ordineFornitore.count({ where: { commessaId: id } }),
   ]);
   if (!commessa) notFound();
+
+  // Regola P→C: con ordini materiali collegati la tipologia è bloccata a "C".
+  const bloccoConsuntivo = ordiniCollegati > 0;
 
   const initial: CommessaFormValues = {
     clienteId: commessa.clienteId,
@@ -71,6 +75,7 @@ export default async function ModificaCommessaPage({
         initial={initial}
         submitLabel="Salva modifiche"
         cancelHref={`/commesse/${id}`}
+        bloccoConsuntivo={bloccoConsuntivo}
       />
     </div>
   );

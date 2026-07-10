@@ -8,6 +8,12 @@ import { StatoBadge, TipologiaBadge } from "@/components/badges";
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
+  // Regola P→C: commesse con materiale acquistato ma non ancora fatturato.
+  const daFatturareWhere = {
+    stato: { not: "FATTURATA" },
+    ordiniFornitore: { some: {} },
+  } as const;
+
   const [
     clienti,
     fornitori,
@@ -16,6 +22,8 @@ export default async function DashboardPage() {
     sums,
     perStato,
     recenti,
+    daFatturareCount,
+    daFatturare,
   ] = await Promise.all([
     prisma.anagrafica.count({ where: { isCliente: true } }),
     prisma.anagrafica.count({ where: { isFornitore: true } }),
@@ -31,6 +39,16 @@ export default async function DashboardPage() {
       take: 6,
       orderBy: { createdAt: "desc" },
       include: { cliente: true, pm: true },
+    }),
+    prisma.commessa.count({ where: daFatturareWhere }),
+    prisma.commessa.findMany({
+      where: daFatturareWhere,
+      take: 8,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        cliente: true,
+        _count: { select: { ordiniFornitore: true } },
+      },
     }),
   ]);
 
@@ -85,6 +103,49 @@ export default async function DashboardPage() {
           </p>
         </div>
       </section>
+
+      {/* Alert regola P→C: materiale acquistato ma non ancora fatturato */}
+      {daFatturareCount > 0 && (
+        <section className="rounded-xl border border-warn/40 bg-warn-soft/50">
+          <div className="flex items-center gap-2.5 border-b border-warn/30 px-6 py-4">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-warn" aria-hidden>
+              <path
+                fill="currentColor"
+                d="M12 2 1 21h22L12 2Zm0 6a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z"
+              />
+            </svg>
+            <div>
+              <h2 className="text-sm font-semibold text-warn">
+                Da fatturare — materiale già acquistato
+              </h2>
+              <p className="text-xs text-ink-soft">
+                {daFatturareCount} commesse con ordini a fornitore collegati (regola P→C)
+              </p>
+            </div>
+          </div>
+          <ul className="divide-y divide-warn/20">
+            {daFatturare.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/commesse/${c.id}`}
+                  className="flex items-center gap-3 px-6 py-3 text-sm transition hover:bg-warn-soft/60"
+                >
+                  <span className="font-mono tabular-nums font-medium">
+                    {c.numero}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-ink-soft">
+                    {c.cliente.ragioneSociale}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-ink-faint">
+                    {c._count.ordiniFornitore} ordini
+                  </span>
+                  <StatoBadge stato={c.stato} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Pipeline per stato */}
       <section className="rounded-xl border border-line bg-panel p-6">
