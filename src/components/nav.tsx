@@ -61,6 +61,18 @@ const items: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: "/materiali",
+    label: "Materiali",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M11.6 3H5a2 2 0 0 0-2 2v6.6a2 2 0 0 0 .6 1.4l7.4 7.4a2 2 0 0 0 2.8 0l6.6-6.6a2 2 0 0 0 0-2.8L13 3.6A2 2 0 0 0 11.6 3ZM7.5 9A1.5 1.5 0 1 1 9 7.5 1.5 1.5 0 0 1 7.5 9Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
 ];
 
 export default function Nav() {

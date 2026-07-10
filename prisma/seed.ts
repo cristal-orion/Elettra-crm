@@ -426,6 +426,65 @@ async function main() {
     },
   });
 
+  // Riacquisti successivi degli stessi materiali (alimentano lo storico prezzi
+  // interrogabile: stesso codice/descrizione, date e prezzi diversi).
+  await prisma.ordineFornitore.create({
+    data: {
+      numero: "ODA-2026-034",
+      data: new Date("2026-04-22"),
+      fornitoreId: sarel.id,
+      commessaId: commessaNappi.id,
+      stato: "RICEVUTO",
+      righe: {
+        create: [
+          {
+            codiceProdotto: "FG16OR16-3G2.5",
+            descrizione: "Cavo FG16OR16 0,6/1kV 3G2,5 mmq",
+            unitaMisura: "m",
+            quantita: 150,
+            prezzoUnitario: 1.98,
+            sconto: 8,
+            imponibile: 273.24,
+            aliquotaIva: 22,
+          },
+          {
+            codiceProdotto: "CANALE-100",
+            descrizione: "Canale portacavi asolato 100x75 mm",
+            unitaMisura: "m",
+            quantita: 60,
+            prezzoUnitario: 5.95,
+            sconto: 5,
+            imponibile: 339.15,
+            aliquotaIva: 22,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.ordineFornitore.create({
+    data: {
+      numero: "ODA-2026-047",
+      data: new Date("2026-06-10"),
+      fornitoreId: rebosio.id,
+      stato: "ORDINATO",
+      righe: {
+        create: [
+          {
+            codiceProdotto: "FG16OR16-3G2.5",
+            descrizione: "Cavo FG16OR16 0,6/1kV 3G2,5 mmq",
+            unitaMisura: "m",
+            quantita: 300,
+            prezzoUnitario: 2.1,
+            sconto: 12,
+            imponibile: 554.4,
+            aliquotaIva: 22,
+          },
+        ],
+      },
+    },
+  });
+
   const anagrafiche = await prisma.anagrafica.count();
   const utenti = await prisma.user.count();
   const commesse = await prisma.commessa.count();
