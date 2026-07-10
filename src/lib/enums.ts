@@ -97,6 +97,26 @@ export function etichettaStatoOrdine(s: string): string {
   return (STATI_ORDINE as Record<string, string>)[s] ?? s;
 }
 
+/* --------------------------- Categorie documento -------------------------- */
+// Tipi di documento allegabili alla commessa (flusso §7).
+
+export const CATEGORIE_DOCUMENTO = {
+  OFFERTA: "Offerta",
+  DISEGNO: "Disegno",
+  FOTO: "Foto",
+  DDT: "DDT",
+  FATTURA: "Fattura",
+  ALTRO: "Altro",
+} as const;
+
+export type CategoriaDocumento = keyof typeof CATEGORIE_DOCUMENTO;
+export const CATEGORIE_DOCUMENTO_LIST = Object.keys(
+  CATEGORIE_DOCUMENTO,
+) as CategoriaDocumento[];
+export function etichettaCategoria(c: string): string {
+  return (CATEGORIE_DOCUMENTO as Record<string, string>)[c] ?? c;
+}
+
 /* ------------------------------ Permessi ---------------------------------- */
 // Regole di accesso minime per la Fase 1. Estendibili per modulo.
 
@@ -120,6 +140,16 @@ export function puoGestireCommesse(ruolo: string): boolean {
 
 /** Chi può creare/modificare gli ordini ai fornitori (acquisti). */
 export function puoGestireOrdini(ruolo: string): boolean {
+  return (
+    ruolo === "SUPER_ADMIN" ||
+    ruolo === "BACKOFFICE" ||
+    ruolo === "PROJECT_MANAGER" ||
+    ruolo === "UFFICIO_TECNICO"
+  );
+}
+
+/** Chi può caricare/eliminare i documenti di commessa (PM, tecnico, backoffice). */
+export function puoGestireDocumenti(ruolo: string): boolean {
   return (
     ruolo === "SUPER_ADMIN" ||
     ruolo === "BACKOFFICE" ||

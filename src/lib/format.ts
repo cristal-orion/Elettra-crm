@@ -30,3 +30,17 @@ export function formatDate(value: Date | string | null | undefined): string {
   const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
 }
+
+/** Dimensione file leggibile: 0–999 B, poi KB/MB/GB con una cifra decimale. */
+export function formatBytes(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = n / 1024;
+  let i = 0;
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i++;
+  }
+  return `${size.toFixed(1)} ${units[i]}`;
+}

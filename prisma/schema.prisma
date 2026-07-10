@@ -207,8 +207,9 @@ model Documento {
   id         String   @id @default(cuid())
   commessaId String
   nomeFile   String
+  categoria  String   @default("ALTRO") // vedi CATEGORIE_DOCUMENTO in enums.ts
   tipoMime   String?
-  percorso   String
+  percorso   String // relativo alla cartella uploads: "<numeroCommessa>/<file>"
   dimensione Int?
   createdAt  DateTime @default(now())
 
