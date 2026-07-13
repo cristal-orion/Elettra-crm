@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
-import { etichettaRuolo } from "@/lib/enums";
+import { etichettaRuolo, puoGestireUtenti } from "@/lib/enums";
 import { logout } from "@/app/login/actions";
 import Nav from "@/components/nav";
 
@@ -11,6 +11,7 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const iniziali = `${user.nome[0] ?? ""}${user.cognome[0] ?? ""}`.toUpperCase();
+  const canManageUsers = puoGestireUtenti(user.ruolo);
 
   return (
     <div className="flex min-h-screen">
@@ -26,7 +27,7 @@ export default async function AppLayout({
         </div>
 
         <div className="mt-8 flex-1">
-          <Nav />
+          <Nav canManageUsers={canManageUsers} />
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
@@ -101,6 +102,14 @@ export default async function AppLayout({
           >
             Statistiche
           </Link>
+          {canManageUsers && (
+            <Link
+              href="/utenti"
+              className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
+            >
+              Utenti
+            </Link>
+          )}
         </div>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8">

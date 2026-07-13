@@ -87,15 +87,35 @@ const items: NavItem[] = [
   },
 ];
 
-export default function Nav() {
+// Voce riservata al Super Admin (gestione utenti/ruoli).
+const adminItem: NavItem = {
+  href: "/utenti",
+  label: "Utenti",
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+      <path
+        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5Zm7.5-6.5-1.4 1.4 1.6 1.6-1.6 1.6 1.4 1.4L21 11.5l-1.5-1.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  ),
+};
+
+export default function Nav({
+  canManageUsers = false,
+}: {
+  canManageUsers?: boolean;
+}) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  const voci = canManageUsers ? [...items, adminItem] : items;
+
   return (
     <nav className="flex flex-col gap-1">
-      {items.map((item) => {
+      {voci.map((item) => {
         const active = isActive(item.href);
         const base =
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition";
