@@ -95,6 +95,12 @@ export default async function AppLayout({
           >
             Materiali
           </Link>
+          <Link
+            href="/statistiche"
+            className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
+          >
+            Statistiche
+          </Link>
         </div>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8">

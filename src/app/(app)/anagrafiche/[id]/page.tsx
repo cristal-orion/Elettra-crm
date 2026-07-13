@@ -10,6 +10,7 @@ import {
   StatoOrdineBadge,
   TipologiaBadge,
 } from "@/components/badges";
+import ClienteStats from "../cliente-stats";
 
 export default async function AnagraficaDetailPage({
   params,
@@ -144,6 +145,11 @@ export default async function AnagraficaDetailPage({
           </ul>
         )}
       </section>
+
+      {/* Sintesi cliente-centrica (Fase 5) */}
+      {anagrafica.isCliente && anagrafica.commesse.length > 0 && (
+        <ClienteStats commesse={anagrafica.commesse} adesso={new Date()} />
+      )}
 
       {/* Commesse */}
       <section className="rounded-xl border border-line bg-panel">

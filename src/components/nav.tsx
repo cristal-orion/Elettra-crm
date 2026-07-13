@@ -73,6 +73,18 @@ const items: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: "/statistiche",
+    label: "Statistiche",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M4 20V4H2v18h20v-2H4Zm3-3h2v-6H7v6Zm4 0h2V7h-2v10Zm4 0h2v-4h-2v4Zm4 0h2V9h-2v8Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
 ];
 
 export default function Nav() {
