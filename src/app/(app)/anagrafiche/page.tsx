@@ -76,12 +76,20 @@ export default async function AnagrafichePage({
           </p>
         </div>
         {puoCreare && (
-          <Link
-            href="/anagrafiche/nuova"
-            className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white transition"
-          >
-            + Nuova anagrafica
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/anagrafiche/da-visura"
+              className="rounded-lg border border-brand/40 px-4 py-2.5 text-sm font-medium text-brand-deep transition hover:bg-brand-soft"
+            >
+              Da visura
+            </Link>
+            <Link
+              href="/anagrafiche/nuova"
+              className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white transition"
+            >
+              + Nuova anagrafica
+            </Link>
+          </div>
         )}
       </header>
 
