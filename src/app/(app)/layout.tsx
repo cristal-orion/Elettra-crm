@@ -102,13 +102,27 @@ export default async function AppLayout({
           >
             Statistiche
           </Link>
+          <Link
+            href="/assistente"
+            className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
+          >
+            Assistente
+          </Link>
           {canManageUsers && (
-            <Link
-              href="/utenti"
-              className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
-            >
-              Utenti
-            </Link>
+            <>
+              <Link
+                href="/utenti"
+                className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
+              >
+                Utenti
+              </Link>
+              <Link
+                href="/impostazioni"
+                className="rounded-lg px-3 py-1.5 text-sm text-ink-soft"
+              >
+                Impostazioni
+              </Link>
+            </>
           )}
         </div>
 

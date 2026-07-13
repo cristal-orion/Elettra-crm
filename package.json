@@ -16,7 +16,10 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.12",
+    "@ai-sdk/react": "^4.0.23",
     "@prisma/client": "^6.19.3",
+    "ai": "^7.0.22",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
     "next": "16.2.10",

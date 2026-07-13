@@ -85,21 +85,47 @@ const items: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: "/assistente",
+    label: "Assistente",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M12 2a7 7 0 0 0-7 7c0 2 .9 3.4 2 4.6.7.8 1 1.3 1 2.4v1a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1c0-1.1.3-1.6 1-2.4 1.1-1.2 2-2.6 2-4.6a7 7 0 0 0-7-7Zm-3 19a1 1 0 0 1 1-1h4a1 1 0 0 1 0 2h-4a1 1 0 0 1-1-1Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
 ];
 
-// Voce riservata al Super Admin (gestione utenti/ruoli).
-const adminItem: NavItem = {
-  href: "/utenti",
-  label: "Utenti",
-  icon: (
-    <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
-      <path
-        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5Zm7.5-6.5-1.4 1.4 1.6 1.6-1.6 1.6 1.4 1.4L21 11.5l-1.5-1.5Z"
-        fill="currentColor"
-      />
-    </svg>
-  ),
-};
+// Voci riservate al Super Admin (gestione utenti/ruoli, impostazioni).
+const adminItems: NavItem[] = [
+  {
+    href: "/utenti",
+    label: "Utenti",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5Zm7.5-6.5-1.4 1.4 1.6 1.6-1.6 1.6 1.4 1.4L21 11.5l-1.5-1.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: "/impostazioni",
+    label: "Impostazioni",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.4 4c0-.5 0-1-.1-1.4l1.7-1.3-1.7-3-2 .8a6.6 6.6 0 0 0-2.4-1.4L13.5 2h-3l-.4 2.3a6.6 6.6 0 0 0-2.4 1.4l-2-.8-1.7 3 1.7 1.3a6.9 6.9 0 0 0 0 2.8l-1.7 1.3 1.7 3 2-.8c.7.6 1.5 1 2.4 1.4l.4 2.3h3l.4-2.3c.9-.4 1.7-.8 2.4-1.4l2 .8 1.7-3-1.7-1.3c.1-.4.1-.9.1-1.4Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+];
 
 export default function Nav({
   canManageUsers = false,
@@ -111,7 +137,7 @@ export default function Nav({
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const voci = canManageUsers ? [...items, adminItem] : items;
+  const voci = canManageUsers ? [...items, ...adminItems] : items;
 
   return (
     <nav className="flex flex-col gap-1">

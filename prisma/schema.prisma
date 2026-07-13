@@ -217,3 +217,14 @@ model Documento {
 
   @@index([commessaId])
 }
+
+/// Impostazioni globali chiave-valore (es. chiave API dell'assistente AI).
+/// I valori sensibili sono cifrati a livello applicativo (src/lib/secrets.ts):
+/// in `valore` non finisce mai un segreto in chiaro.
+model Impostazione {
+  id        String   @id @default(cuid())
+  chiave    String   @unique
+  valore    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
