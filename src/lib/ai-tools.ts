@@ -7,7 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { toNumber } from "@/lib/format";
+import { toNumber, formatDate } from "@/lib/format";
 import { etichettaStato, STATI_COMMESSA_LIST } from "@/lib/enums";
 import { winRate } from "@/lib/statistiche";
 import { getStatisticheGlobali } from "@/app/(app)/statistiche/data";
@@ -15,6 +15,12 @@ import { getStoricoMateriali } from "@/app/(app)/materiali/data";
 
 const nomeCompleto = (u: { nome: string; cognome: string } | null) =>
   u ? `${u.nome} ${u.cognome}` : null;
+
+// I tool devono restituire solo valori JSON-serializzabili: gli oggetti Date
+// vanno convertiti in stringa, altrimenti la cronologia della chat non passa
+// la validazione dei messaggi al turno successivo.
+const dataStr = (d: Date | null | undefined): string | null =>
+  d ? formatDate(d) : null;
 
 export function buildReadTools() {
   return {
@@ -93,8 +99,8 @@ export function buildReadTools() {
           pm: nomeCompleto(c.pm),
           importoOfferta: toNumber(c.importoOfferta),
           importoOrdine: toNumber(c.importoOrdine),
-          dataInvio: c.dataInvio,
-          dataOrdine: c.dataOrdine,
+          dataInvio: dataStr(c.dataInvio),
+          dataOrdine: dataStr(c.dataOrdine),
           nDocumenti: c._count.documenti,
           nOrdiniFornitore: c._count.ordiniFornitore,
           ordiniFornitore: c.ordiniFornitore.map((o) => ({
@@ -192,7 +198,7 @@ export function buildReadTools() {
             unitaMisura: m.unitaMisura,
             ultimoPrezzo: m.ultimoPrezzo,
             ultimoFornitore: m.ultimoFornitore,
-            ultimaData: m.ultimaData,
+            ultimaData: dataStr(m.ultimaData),
             prezzoMin: m.prezzoMin,
             prezzoMedio: m.prezzoMedio,
             prezzoMax: m.prezzoMax,

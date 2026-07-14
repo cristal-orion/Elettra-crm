@@ -81,9 +81,9 @@ export default function AssistenteChat() {
                   className={isUser ? "flex justify-end" : "flex justify-start"}
                 >
                   <div
-                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
                       isUser
-                        ? "bg-brand text-white"
+                        ? "whitespace-pre-wrap bg-brand text-white"
                         : "border border-line bg-paper/70 text-ink"
                     }`}
                   >
@@ -91,8 +91,12 @@ export default function AssistenteChat() {
                       <span className="inline-flex gap-1 text-ink-faint">
                         <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
                       </span>
+                    ) : isUser ? (
+                      testo
+                    ) : testo ? (
+                      <Markdown text={testo} />
                     ) : (
-                      testo || <span className="text-ink-faint">…</span>
+                      <span className="text-ink-faint">…</span>
                     )}
                   </div>
                 </div>
@@ -147,5 +151,86 @@ function Dot({ delay = "0ms" }: { delay?: string }) {
       className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-ink-faint"
       style={{ animationDelay: delay }}
     />
+  );
+}
+
+/**
+ * Renderer Markdown minimale per le risposte dell'assistente (senza dipendenze).
+ * Copre i pattern tipici di un LLM: titoli, elenchi puntati/numerati (con un
+ * livello di indentazione), **grassetto** e `codice`. Costruisce nodi React
+ * (niente HTML grezzo), quindi non c'è rischio di injection.
+ */
+function Markdown({ text }: { text: string }) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  return (
+    <div className="flex flex-col gap-1 leading-relaxed">
+      {lines.map((raw, i) => {
+        if (!raw.trim()) return <div key={i} className="h-1.5" aria-hidden />;
+
+        const indent = raw.match(/^\s*/)?.[0].length ?? 0;
+        const line = raw.trim();
+
+        const h = line.match(/^#{1,6}\s+(.*)$/);
+        if (h) {
+          return (
+            <p key={i} className="mt-1 font-semibold">
+              <Inline text={h[1]} />
+            </p>
+          );
+        }
+
+        const ol = line.match(/^(\d+)\.\s+(.*)$/);
+        const ul = line.match(/^[-*]\s+(.*)$/);
+        if (ol || ul) {
+          const marker = ol ? `${ol[1]}.` : "•";
+          const content = ol ? ol[2] : ul![1];
+          return (
+            <div
+              key={i}
+              className="flex gap-2"
+              style={{ paddingLeft: indent >= 2 ? "1.15rem" : 0 }}
+            >
+              <span className="shrink-0 tabular-nums text-ink-faint">
+                {marker}
+              </span>
+              <span className="min-w-0 flex-1">
+                <Inline text={content} />
+              </span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={i}>
+            <Inline text={line} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Formattazione inline: **grassetto** e `codice`. */
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (p.length > 4 && p.startsWith("**") && p.endsWith("**")) {
+          return <strong key={i}>{p.slice(2, -2)}</strong>;
+        }
+        if (p.length > 2 && p.startsWith("`") && p.endsWith("`")) {
+          return (
+            <code
+              key={i}
+              className="rounded bg-panel px-1 py-0.5 font-mono text-[0.85em]"
+            >
+              {p.slice(1, -1)}
+            </code>
+          );
+        }
+        return <span key={i}>{p}</span>;
+      })}
+    </>
   );
 }
