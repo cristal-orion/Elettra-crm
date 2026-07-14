@@ -6,12 +6,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { puoGestireCatalogo } from "@/lib/enums";
-import {
-  salvaFile,
-  eliminaFile,
-  sanitizeFilename,
-  PENDING_DIR,
-} from "@/lib/storage";
+import { salvaFile, eliminaFile, sanitizeFilename } from "@/lib/storage";
 import { Prisma } from "@/generated/prisma";
 
 export type ProdottoState = { error?: string } | undefined;
@@ -68,18 +63,6 @@ function fileScheda(formData: FormData): File | null | { error: string } {
   return f;
 }
 
-/** Campi scheda da un file già parcheggiato in _pending (flusso da-scheda). */
-function schedaPending(formData: FormData) {
-  const percorso = str(formData, "pendingPercorso");
-  if (!percorso || !percorso.startsWith(`${PENDING_DIR}/`)) return null;
-  return {
-    schedaNomeFile: str(formData, "pendingNome"),
-    schedaMime: str(formData, "pendingMime") ?? "application/pdf",
-    schedaPercorso: percorso,
-    schedaDimensione: Number(formData.get("pendingDim") ?? 0) || null,
-  };
-}
-
 export async function createProdotto(
   _prev: ProdottoState,
   formData: FormData,
@@ -106,17 +89,14 @@ export async function createProdotto(
     return { error: "Errore nel salvataggio." };
   }
 
-  // Allegato: file caricato a mano ha precedenza; altrimenti il pending estratto.
-  try {
-    if (file) {
+  // Allegato datasheet (facoltativo): il PDF arriva dal campo del form.
+  if (file) {
+    try {
       const scheda = await salvaDatasheet(id, file);
       await prisma.prodotto.update({ where: { id }, data: scheda });
-    } else {
-      const pending = schedaPending(formData);
-      if (pending) await prisma.prodotto.update({ where: { id }, data: pending });
+    } catch {
+      // il prodotto è creato: l'allegato si può ricaricare dalla modifica
     }
-  } catch {
-    // il prodotto è creato: l'allegato si può ricaricare dalla modifica
   }
 
   revalidatePath("/materiali");

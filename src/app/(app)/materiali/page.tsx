@@ -36,20 +36,12 @@ export default async function MaterialiPage({
           </p>
         </div>
         {puoGestire && (
-          <div className="flex items-center gap-2">
-            <Link
-              href="/materiali/da-scheda"
-              className="rounded-lg border border-brand/40 px-4 py-2.5 text-sm font-medium text-brand-deep transition hover:bg-brand-soft"
-            >
-              Da scheda tecnica
-            </Link>
-            <Link
-              href="/materiali/nuovo"
-              className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white transition"
-            >
-              + Nuovo materiale
-            </Link>
-          </div>
+          <Link
+            href="/materiali/nuovo"
+            className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white transition"
+          >
+            + Nuovo materiale
+          </Link>
         )}
       </header>
 
@@ -82,11 +74,11 @@ export default async function MaterialiPage({
             `Nessun materiale trovato per «${q}».`
           ) : (
             <>
-              Il catalogo è vuoto. Aggiungi il primo materiale a mano o{" "}
-              <Link href="/materiali/da-scheda" className="text-brand-deep underline">
-                da una scheda tecnica
-              </Link>
-              .
+              Il catalogo è vuoto. Aggiungi il primo materiale con{" "}
+              <Link href="/materiali/nuovo" className="text-brand-deep underline">
+                + Nuovo materiale
+              </Link>{" "}
+              (a mano o caricando la scheda tecnica).
             </>
           )}
         </div>
