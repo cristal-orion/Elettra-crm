@@ -133,13 +133,26 @@ model Commessa {
   @@index([anno])
 }
 
-/// Prodotto / materiale (con storico prezzi derivato dalle righe d'ordine).
+/// Prodotto / materiale a catalogo. Anagrafica del materiale (anche da scheda
+/// tecnica fornitore); lo storico prezzi resta derivato dalle righe d'ordine e
+/// si aggancia via codice/descrizione.
 model Prodotto {
   id          String  @id @default(cuid())
   codice      String? @unique
   descrizione String
   unitaMisura String?
   categoria   String?
+  marca       String?
+  datiTecnici String? // caratteristiche tecniche (testo, es. da scheda)
+  note        String?
+  prezzoListino Decimal? // prezzo di listino indicativo (dalla scheda), opzionale
+
+  // Scheda tecnica (datasheet PDF) allegata — un file per prodotto.
+  // Archiviata fuori da /public, servita da route handler autenticato.
+  schedaNomeFile   String?
+  schedaMime       String?
+  schedaPercorso   String? // relativo a UPLOADS_DIR: "materiali/<id>/<file>"
+  schedaDimensione Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -147,6 +160,7 @@ model Prodotto {
   righeOrdine RigaOrdineFornitore[]
 
   @@index([descrizione])
+  @@index([categoria])
 }
 
 /// Ordine a fornitore ("Elenco Analitico Ordini ai Fornitori").

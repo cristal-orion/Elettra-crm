@@ -148,6 +148,16 @@ export function puoGestireOrdini(ruolo: string): boolean {
   );
 }
 
+/** Chi può gestire il catalogo materiali (anagrafica prodotti + schede tecniche). */
+export function puoGestireCatalogo(ruolo: string): boolean {
+  return (
+    ruolo === "SUPER_ADMIN" ||
+    ruolo === "BACKOFFICE" ||
+    ruolo === "PROJECT_MANAGER" ||
+    ruolo === "UFFICIO_TECNICO"
+  );
+}
+
 /** Chi può caricare/eliminare i documenti di commessa (PM, tecnico, backoffice). */
 export function puoGestireDocumenti(ruolo: string): boolean {
   return (

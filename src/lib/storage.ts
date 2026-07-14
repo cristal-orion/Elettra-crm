@@ -11,6 +11,9 @@ import path from "node:path";
 export const UPLOADS_DIR =
   process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads");
 
+/** Cartella di parcheggio per i PDF estratti dalle schede, in attesa di conferma. */
+export const PENDING_DIR = "materiali/_pending";
+
 /** Ripulisce un nome file: niente separatori di percorso né caratteri ostili. */
 export function sanitizeFilename(name: string): string {
   const senzaPath = name.replace(/[/\\]/g, "_").replace(/\.{2,}/g, ".").trim();
