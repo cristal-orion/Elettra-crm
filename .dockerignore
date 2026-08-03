@@ -1,0 +1,23 @@
+.git
+.gitignore
+node_modules
+.next
+out
+build
+
+# Segreti e dati locali: non devono mai finire nell'immagine.
+.env
+.env.*
+!.env.example
+uploads
+prisma/dev.db
+prisma/dev.db-journal
+
+# Rigenerato in fase di build.
+src/generated
+
+*.tsbuildinfo
+npm-debug.log*
+.DS_Store
+Dockerfile
+.dockerignore

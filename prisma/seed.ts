@@ -3,8 +3,10 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Password unica di sviluppo per tutti gli utenti seed (vedi README).
-const DEV_PASSWORD = "elettra2026";
+// Password unica per tutti gli utenti seed (vedi README). In sviluppo resta il
+// default; su istanze raggiungibili da internet va impostata SEED_PASSWORD,
+// perché il default è pubblico in questo repo.
+const DEV_PASSWORD = process.env.SEED_PASSWORD || "elettra2026";
 
 async function main() {
   const hash = bcrypt.hashSync(DEV_PASSWORD, 10);
