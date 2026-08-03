@@ -119,6 +119,15 @@ model Commessa {
   metodoRicezioneOrdine String? // EMAIL | TELEFONO | CONTROFIRMA | NUMERO_ORDINE
   motivazionePersa      String?
 
+  // --- Fase 7: la commessa come progetto di cantiere ---
+  // Non esiste un'entità "Progetto" separata: un progetto È una commessa
+  // acquisita in esecuzione (vedi statiProgetto in src/lib/progetti.ts). Queste
+  // date sono la pianificazione di cantiere, distinte da quelle commerciali.
+  dataInizioLavori  DateTime?
+  scadenzaLavori    DateTime? // consegna concordata col cliente
+  dataFineLavori    DateTime? // chiusura effettiva del cantiere
+  noteCantiere      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -127,10 +136,81 @@ model Commessa {
   referente       Referente?        @relation(fields: [referenteId], references: [id])
   ordiniFornitore OrdineFornitore[]
   documenti       Documento[]
+  milestone       Milestone[]
+  assegnazioni    AssegnazioneOperaio[]
 
   @@index([clienteId])
   @@index([stato])
   @@index([anno])
+  @@index([scadenzaLavori])
+}
+
+/// Milestone di rilascio di un progetto (Fase 7). L'avanzamento del progetto è
+/// **derivato** da queste righe (completate / totali, peso uguale): non esiste
+/// una percentuale scritta a mano, così non può divergere dallo stato reale.
+model Milestone {
+  id         String @id @default(cuid())
+  commessaId String
+
+  titolo String
+  ordine Int // posizione nella sequenza, 0-based
+  stato  String @default("DA_FARE") // vedi STATI_MILESTONE in enums.ts
+
+  dataPianificata DateTime?
+  dataEffettiva   DateTime? // valorizzata quando passa a COMPLETATA
+  note            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Cascade)
+
+  @@index([commessaId, ordine])
+  @@index([stato])
+}
+
+/// Anagrafica operai/squadre di cantiere (Fase 7). Separata da `User`: gli
+/// operai non accedono al CRM, sono risorse assegnabili ai progetti. Quando
+/// servirà il timesheet, le ore si agganceranno a AssegnazioneOperaio.
+model Operaio {
+  id        String  @id @default(cuid())
+  nome      String
+  cognome   String
+  qualifica String? // es. "Elettricista", "Capo squadra"
+  squadra   String? // raggruppamento libero, es. "Squadra A"
+  telefono  String?
+  attivo    Boolean @default(true)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assegnazioni AssegnazioneOperaio[]
+
+  @@index([cognome, nome])
+  @@index([squadra])
+}
+
+/// Assegnazione di un operaio a un progetto/cantiere (Fase 7).
+/// Un operaio può stare su più progetti, ma una sola volta per progetto.
+model AssegnazioneOperaio {
+  id         String @id @default(cuid())
+  commessaId String
+  operaioId  String
+
+  ruoloCantiere String? // vedi RUOLI_CANTIERE in enums.ts
+  dal           DateTime?
+  al            DateTime?
+  note          String?
+
+  createdAt DateTime @default(now())
+
+  commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Cascade)
+  operaio  Operaio  @relation(fields: [operaioId], references: [id], onDelete: Cascade)
+
+  @@unique([commessaId, operaioId])
+  @@index([commessaId])
+  @@index([operaioId])
 }
 
 /// Prodotto / materiale a catalogo. Anagrafica del materiale (anche da scheda

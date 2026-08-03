@@ -97,6 +97,42 @@ export function etichettaStatoOrdine(s: string): string {
   return (STATI_ORDINE as Record<string, string>)[s] ?? s;
 }
 
+/* ---------------------------- Stati milestone ----------------------------- */
+// Avanzamento di una milestone di progetto (Fase 7).
+
+export const STATI_MILESTONE = {
+  DA_FARE: "Da fare",
+  IN_CORSO: "In corso",
+  COMPLETATA: "Completata",
+} as const;
+
+export type StatoMilestone = keyof typeof STATI_MILESTONE;
+export const STATI_MILESTONE_LIST = Object.keys(
+  STATI_MILESTONE,
+) as StatoMilestone[];
+export function etichettaStatoMilestone(s: string): string {
+  return (STATI_MILESTONE as Record<string, string>)[s] ?? s;
+}
+
+/* ----------------------------- Ruoli in cantiere --------------------------- */
+// Ruolo di un operaio sull'assegnazione a un progetto (Fase 7).
+
+export const RUOLI_CANTIERE = {
+  CAPO_SQUADRA: "Capo squadra",
+  ELETTRICISTA: "Elettricista",
+  AIUTANTE: "Aiutante",
+  MANUTENTORE: "Manutentore",
+  ALTRO: "Altro",
+} as const;
+
+export type RuoloCantiere = keyof typeof RUOLI_CANTIERE;
+export const RUOLI_CANTIERE_LIST = Object.keys(
+  RUOLI_CANTIERE,
+) as RuoloCantiere[];
+export function etichettaRuoloCantiere(r: string): string {
+  return (RUOLI_CANTIERE as Record<string, string>)[r] ?? r;
+}
+
 /* --------------------------- Categorie documento -------------------------- */
 // Tipi di documento allegabili alla commessa (flusso §7).
 
@@ -165,6 +201,28 @@ export function puoGestireDocumenti(ruolo: string): boolean {
     ruolo === "BACKOFFICE" ||
     ruolo === "PROJECT_MANAGER" ||
     ruolo === "UFFICIO_TECNICO"
+  );
+}
+
+/** Chi può gestire i progetti di cantiere: milestone e squadra assegnata. */
+export function puoGestireProgetti(ruolo: string): boolean {
+  return (
+    ruolo === "SUPER_ADMIN" ||
+    ruolo === "BACKOFFICE" ||
+    ruolo === "PROJECT_MANAGER" ||
+    ruolo === "UFFICIO_TECNICO"
+  );
+}
+
+/**
+ * Chi può gestire l'anagrafica operai. Più ristretto della gestione progetti:
+ * l'Ufficio Tecnico assegna le squadre ma non crea/elimina il personale.
+ */
+export function puoGestireOperai(ruolo: string): boolean {
+  return (
+    ruolo === "SUPER_ADMIN" ||
+    ruolo === "BACKOFFICE" ||
+    ruolo === "PROJECT_MANAGER"
   );
 }
 

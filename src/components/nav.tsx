@@ -50,6 +50,18 @@ const items: NavItem[] = [
     ),
   },
   {
+    href: "/progetti",
+    label: "Progetti",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M3 5h10v3H3V5Zm4 5.5h11v3H7v-3ZM11 16h10v3H11v-3Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
     href: "/ordini",
     label: "Ordini",
     icon: (

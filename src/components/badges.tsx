@@ -1,4 +1,13 @@
-import { etichettaStato, etichettaStatoOrdine, TIPOLOGIE } from "@/lib/enums";
+import {
+  etichettaStato,
+  etichettaStatoOrdine,
+  etichettaStatoMilestone,
+  TIPOLOGIE,
+} from "@/lib/enums";
+import {
+  ETICHETTE_AVANZAMENTO,
+  type StatoAvanzamento,
+} from "@/lib/progetti";
 
 const statoStyle: Record<string, string> = {
   LEAD: "bg-lead-soft text-ink-soft",
@@ -48,6 +57,40 @@ export function TipologiaBadge({ tipologia }: { tipologia: string | null }) {
       title={TIPOLOGIE[tipologia as keyof typeof TIPOLOGIE] ?? tipologia}
     >
       {tipologia}
+    </span>
+  );
+}
+
+const statoMilestoneStyle: Record<string, string> = {
+  DA_FARE: "bg-lead-soft text-ink-soft",
+  IN_CORSO: "bg-brand-soft text-brand-deep",
+  COMPLETATA: "bg-ok-soft text-ok",
+};
+
+export function MilestoneBadge({ stato }: { stato: string }) {
+  return (
+    <span
+      className={`${pill} ${statoMilestoneStyle[stato] ?? "bg-lead-soft text-ink-soft"}`}
+    >
+      {etichettaStatoMilestone(stato)}
+    </span>
+  );
+}
+
+const avanzamentoStyle: Record<StatoAvanzamento, string> = {
+  COMPLETATO: "bg-ok-soft text-ok",
+  IN_RITARDO: "bg-danger-soft text-danger",
+  IN_CORSO: "bg-brand-soft text-brand-deep",
+  DA_PIANIFICARE: "bg-lead-soft text-ink-soft",
+};
+
+/** Stato sintetico del progetto di cantiere (vedi statoAvanzamento). */
+export function AvanzamentoBadge({ stato }: { stato: StatoAvanzamento }) {
+  return (
+    <span className={`${pill} ${avanzamentoStyle[stato]}`}>
+      {stato === "IN_RITARDO" && <span aria-hidden>⚠</span>}
+      {stato === "COMPLETATO" && <span aria-hidden>✓</span>}
+      {ETICHETTE_AVANZAMENTO[stato]}
     </span>
   );
 }

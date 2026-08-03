@@ -15,6 +15,9 @@ async function main() {
   await prisma.documento.deleteMany();
   await prisma.rigaOrdineFornitore.deleteMany();
   await prisma.ordineFornitore.deleteMany();
+  await prisma.assegnazioneOperaio.deleteMany();
+  await prisma.milestone.deleteMany();
+  await prisma.operaio.deleteMany();
   await prisma.commessa.deleteMany();
   await prisma.referente.deleteMany();
   await prisma.prodotto.deleteMany();
@@ -283,6 +286,11 @@ async function main() {
       importoOrdine: "3901.13",
       dataOrdine: new Date("2026-03-03"),
       metodoRicezioneOrdine: "EMAIL",
+      // Cantiere aperto e nei tempi (Fase 7).
+      dataInizioLavori: new Date("2026-07-06"),
+      scadenzaLavori: new Date("2026-09-12"),
+      noteCantiere:
+        "Accesso al cantiere solo la mattina; chiedere il badge alla portineria.",
     },
   });
 
@@ -334,6 +342,123 @@ async function main() {
       importoOfferta: "697.00",
     },
   });
+
+  // Cantiere in ritardo: scadenza superata e milestone scadute (Fase 7).
+  const commessaRitardo = await prisma.commessa.create({
+    data: {
+      numero: "261082",
+      anno: 2026,
+      progressivo: 1082,
+      clienteId: sorari.id,
+      referenteId: sorari.referenti[0]?.id,
+      pmId: pmFiorino.id,
+      referenteCommerciale: "FG",
+      stato: "IN_ESECUZIONE",
+      tipologia: "C",
+      descrizione: "Rifacimento quadri di distribuzione capannone B",
+      dataInvio: new Date("2026-05-04"),
+      importoOfferta: "48200.00",
+      importoOrdine: "46800.00",
+      dataOrdine: new Date("2026-05-22"),
+      metodoRicezioneOrdine: "NUMERO_ORDINE",
+      dataInizioLavori: new Date("2026-06-08"),
+      scadenzaLavori: new Date("2026-07-28"),
+      noteCantiere:
+        "Fermo tre settimane per ritardo nella fornitura degli interruttori.",
+    },
+  });
+
+  // Cantiere chiuso: tutte le milestone completate e commessa fatturata.
+  const commessaChiusa = await prisma.commessa.create({
+    data: {
+      numero: "261012",
+      anno: 2026,
+      progressivo: 1012,
+      clienteId: bst.id,
+      referenteId: bst.referenti[0]?.id,
+      pmId: pmEsposito.id,
+      referenteCommerciale: "FG",
+      stato: "FATTURATA",
+      tipologia: "C",
+      descrizione: "Manutenzione cabina MT e verifica differenziali",
+      dataInvio: new Date("2026-03-16"),
+      importoOfferta: "12400.00",
+      importoOrdine: "12400.00",
+      dataOrdine: new Date("2026-04-02"),
+      metodoRicezioneOrdine: "CONTROFIRMA",
+      dataInizioLavori: new Date("2026-04-07"),
+      scadenzaLavori: new Date("2026-05-30"),
+      dataFineLavori: new Date("2026-05-28"),
+    },
+  });
+
+  /* ------------------------- Operai e squadre (Fase 7) ---------------------- */
+
+  const operai = await Promise.all(
+    [
+      { nome: "Salvatore", cognome: "Improta", qualifica: "Capo squadra", squadra: "Squadra A", telefono: "334 1122334" },
+      { nome: "Ciro", cognome: "Ferrara", qualifica: "Elettricista", squadra: "Squadra A", telefono: "339 2233445" },
+      { nome: "Antonio", cognome: "Coppola", qualifica: "Elettricista", squadra: "Squadra A" },
+      { nome: "Gennaro", cognome: "Ruggiero", qualifica: "Capo squadra", squadra: "Squadra B", telefono: "347 5566778" },
+      { nome: "Pasquale", cognome: "Esposito", qualifica: "Aiutante", squadra: "Squadra B" },
+      {
+        nome: "Vincenzo",
+        cognome: "Sannino",
+        qualifica: "Manutentore",
+        attivo: false,
+        note: "In distacco su un altro cantiere fino a settembre.",
+      },
+    ].map((data) => prisma.operaio.create({ data })),
+  );
+
+  const [improta, ferrara, coppola, ruggiero, pasquale] = operai;
+
+  /* --------------------------- Milestone di progetto ------------------------ */
+  // L'avanzamento del progetto è derivato da queste righe (src/lib/progetti.ts):
+  // 2/5 completate sul cantiere NAPPI, 1/3 su quello in ritardo, 4/4 sul chiuso.
+
+  const milestone: {
+    commessaId: string;
+    titolo: string;
+    ordine: number;
+    stato: string;
+    dataPianificata?: Date;
+    dataEffettiva?: Date;
+    note?: string;
+  }[] = [
+    // 261041 — in corso, nei tempi
+    { commessaId: commessaNappi.id, titolo: "Rilievo in campo", ordine: 0, stato: "COMPLETATA", dataPianificata: new Date("2026-07-08"), dataEffettiva: new Date("2026-07-08") },
+    { commessaId: commessaNappi.id, titolo: "Progetto esecutivo", ordine: 1, stato: "COMPLETATA", dataPianificata: new Date("2026-07-21"), dataEffettiva: new Date("2026-07-23") },
+    { commessaId: commessaNappi.id, titolo: "Fornitura materiali", ordine: 2, stato: "IN_CORSO", dataPianificata: new Date("2026-08-12"), note: "Cavi già ordinati, mancano le canaline." },
+    { commessaId: commessaNappi.id, titolo: "Montaggio e cablaggio", ordine: 3, stato: "DA_FARE", dataPianificata: new Date("2026-08-29") },
+    { commessaId: commessaNappi.id, titolo: "Collaudo e consegna", ordine: 4, stato: "DA_FARE", dataPianificata: new Date("2026-09-10") },
+
+    // 261082 — in ritardo
+    { commessaId: commessaRitardo.id, titolo: "Smontaggio quadri esistenti", ordine: 0, stato: "COMPLETATA", dataPianificata: new Date("2026-06-12"), dataEffettiva: new Date("2026-06-13") },
+    { commessaId: commessaRitardo.id, titolo: "Posa nuovi quadri", ordine: 1, stato: "IN_CORSO", dataPianificata: new Date("2026-07-10"), note: "In attesa degli interruttori dal fornitore." },
+    { commessaId: commessaRitardo.id, titolo: "Verifiche e collaudo", ordine: 2, stato: "DA_FARE", dataPianificata: new Date("2026-07-25") },
+
+    // 261012 — completato
+    { commessaId: commessaChiusa.id, titolo: "Sopralluogo cabina", ordine: 0, stato: "COMPLETATA", dataPianificata: new Date("2026-04-10"), dataEffettiva: new Date("2026-04-09") },
+    { commessaId: commessaChiusa.id, titolo: "Manutenzione trasformatore", ordine: 1, stato: "COMPLETATA", dataPianificata: new Date("2026-04-30"), dataEffettiva: new Date("2026-05-04") },
+    { commessaId: commessaChiusa.id, titolo: "Verifica differenziali", ordine: 2, stato: "COMPLETATA", dataPianificata: new Date("2026-05-20"), dataEffettiva: new Date("2026-05-19") },
+    { commessaId: commessaChiusa.id, titolo: "Rilascio dichiarazione di conformità", ordine: 3, stato: "COMPLETATA", dataPianificata: new Date("2026-05-28"), dataEffettiva: new Date("2026-05-28") },
+  ];
+
+  await Promise.all(milestone.map((data) => prisma.milestone.create({ data })));
+
+  /* ------------------------- Squadre assegnate ai cantieri ------------------ */
+
+  await Promise.all(
+    [
+      { commessaId: commessaNappi.id, operaioId: improta.id, ruoloCantiere: "CAPO_SQUADRA", dal: new Date("2026-07-06") },
+      { commessaId: commessaNappi.id, operaioId: ferrara.id, ruoloCantiere: "ELETTRICISTA", dal: new Date("2026-07-06") },
+      { commessaId: commessaNappi.id, operaioId: coppola.id, ruoloCantiere: "ELETTRICISTA", dal: new Date("2026-07-20") },
+      { commessaId: commessaRitardo.id, operaioId: ruggiero.id, ruoloCantiere: "CAPO_SQUADRA", dal: new Date("2026-06-08") },
+      { commessaId: commessaRitardo.id, operaioId: pasquale.id, ruoloCantiere: "AIUTANTE", dal: new Date("2026-06-08") },
+      { commessaId: commessaChiusa.id, operaioId: improta.id, ruoloCantiere: "CAPO_SQUADRA", dal: new Date("2026-04-07"), al: new Date("2026-05-28") },
+    ].map((data) => prisma.assegnazioneOperaio.create({ data })),
+  );
 
   /* --------------------------- Ordini a fornitore -------------------------- */
 
@@ -491,8 +616,10 @@ async function main() {
   const utenti = await prisma.user.count();
   const commesse = await prisma.commessa.count();
   const ordini = await prisma.ordineFornitore.count();
+  const nOperai = await prisma.operaio.count();
+  const nMilestone = await prisma.milestone.count();
   console.log(
-    `Seed completato: ${utenti} utenti, ${anagrafiche} anagrafiche, ${commesse} commesse, ${ordini} ordini.`,
+    `Seed completato: ${utenti} utenti, ${anagrafiche} anagrafiche, ${commesse} commesse, ${ordini} ordini, ${nOperai} operai, ${nMilestone} milestone.`,
   );
   console.log(`Super Admin: ${fabio.email}  ·  password dev: ${DEV_PASSWORD}`);
 }

@@ -106,6 +106,49 @@ export function BarraEsito({
   );
 }
 
+/**
+ * Barra di avanzamento di un progetto (Fase 7). La percentuale arriva già
+ * derivata dalle milestone (src/lib/progetti.ts): qui si disegna soltanto.
+ * `tono` distingue a colpo d'occhio ritardo/completato in lista.
+ */
+export function BarraAvanzamento({
+  percentuale,
+  tono = "brand",
+  className = "",
+}: {
+  percentuale: number;
+  tono?: "brand" | "ok" | "danger" | "neutro";
+  className?: string;
+}) {
+  const pct = Math.min(100, Math.max(0, Math.round(percentuale)));
+  const colore = {
+    brand: "bg-brand",
+    ok: "bg-ok",
+    danger: "bg-danger",
+    neutro: "bg-ink-faint/40",
+  }[tono];
+
+  return (
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      <div
+        className="h-2 min-w-16 flex-1 overflow-hidden rounded-full bg-paper"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div
+          className={`h-full rounded-full ${colore} transition-[width]`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-ink-soft">
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
 function Legenda({
   colore,
   label,

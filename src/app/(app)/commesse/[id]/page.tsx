@@ -12,8 +12,15 @@ import {
   METODI_RICEZIONE,
 } from "@/lib/enums";
 import { richiedeFatturazione } from "@/lib/regole";
+import { avanzamento, isProgetto, statoAvanzamento } from "@/lib/progetti";
 import { formatEuro, formatDate, formatBytes, toNumber } from "@/lib/format";
-import { StatoBadge, StatoOrdineBadge, TipologiaBadge } from "@/components/badges";
+import {
+  AvanzamentoBadge,
+  StatoBadge,
+  StatoOrdineBadge,
+  TipologiaBadge,
+} from "@/components/badges";
+import { BarraAvanzamento } from "@/components/charts";
 import { DocumentiUploader, DocDeleteButton } from "../documenti-ui";
 import { uploadDocumenti, deleteDocumento } from "../documenti-actions";
 
@@ -38,6 +45,11 @@ export default async function CommessaDetailPage({
         },
       },
       documenti: { orderBy: { createdAt: "desc" } },
+      milestone: {
+        select: { stato: true, ordine: true, titolo: true, dataPianificata: true },
+        orderBy: { ordine: "asc" },
+      },
+      _count: { select: { assegnazioni: true } },
     },
   });
 
@@ -61,6 +73,8 @@ export default async function CommessaDetailPage({
   // Regola P→C: materiale acquistato ⇒ tipologia forzata a C e "da fatturare".
   const haAcquisti = commessa.ordiniFornitore.length > 0;
   const daFatturare = richiedeFatturazione(commessa.stato, haAcquisti);
+
+  const avanzamentoProgetto = avanzamento(commessa.milestone);
 
   return (
     <div className="flex flex-col gap-7">
@@ -160,6 +174,59 @@ export default async function CommessaDetailPage({
           </Card>
         )}
       </div>
+
+      {/* Progetto di cantiere (Fase 7): compare solo da "Ordine confermato". */}
+      {isProgetto(commessa.stato) && (
+        <section className="rounded-xl border border-line bg-panel p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="flex items-center gap-2.5 text-sm font-semibold">
+              Progetto di cantiere
+              <AvanzamentoBadge stato={statoAvanzamento(commessa)} />
+            </h2>
+            <Link
+              href={`/progetti/${commessa.id}`}
+              className="text-xs font-medium text-brand-deep hover:underline"
+            >
+              Apri progetto →
+            </Link>
+          </div>
+
+          <div className="mt-4 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+            <BarraAvanzamento
+              percentuale={avanzamentoProgetto.percentuale}
+              tono={
+                avanzamentoProgetto.totali === 0
+                  ? "neutro"
+                  : avanzamentoProgetto.tutteCompletate
+                    ? "ok"
+                    : "brand"
+              }
+            />
+            <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink-soft">
+              <div className="flex gap-1.5">
+                <dt className="text-ink-faint">Milestone</dt>
+                <dd className="tabular-nums">
+                  {avanzamentoProgetto.totali === 0
+                    ? "—"
+                    : `${avanzamentoProgetto.completate}/${avanzamentoProgetto.totali}`}
+                </dd>
+              </div>
+              <div className="flex gap-1.5">
+                <dt className="text-ink-faint">Scadenza</dt>
+                <dd>{formatDate(commessa.scadenzaLavori)}</dd>
+              </div>
+              <div className="flex gap-1.5">
+                <dt className="text-ink-faint">Squadra</dt>
+                <dd className="tabular-nums">
+                  {commessa._count.assegnazioni === 0
+                    ? "—"
+                    : commessa._count.assegnazioni}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      )}
 
       {/* Ordini a fornitore */}
       <section className="rounded-xl border border-line bg-panel">
