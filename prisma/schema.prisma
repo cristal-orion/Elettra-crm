@@ -31,7 +31,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  commesse Commessa[] @relation("CommessaPM")
+  commesse      Commessa[]     @relation("CommessaPM")
+  segnalazioni  Segnalazione[] @relation("SegnalazioneAutore")
 
   @@index([ruolo])
 }
@@ -343,6 +344,58 @@ model Documento {
   commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Cascade)
 
   @@index([commessaId])
+}
+
+/// Segnalazione di chi prova il CRM: problema riscontrato, miglioramento
+/// proposto o domanda. Serve alla fase di test: chi prova annota cosa non torna,
+/// allega uno screenshot, e chi sviluppa lavora sull'elenco e chiude.
+model Segnalazione {
+  id          String @id @default(cuid())
+  titolo      String
+  descrizione String
+
+  tipo     String @default("PROBLEMA") // vedi TIPI_SEGNALAZIONE
+  priorita String @default("MEDIA") // vedi PRIORITA_SEGNALAZIONE
+  stato    String @default("APERTA") // vedi STATI_SEGNALAZIONE
+
+  /// Percorso della schermata a cui si riferisce (es. "/commesse/abc"): con
+  /// questo chi corregge sa dove guardare senza chiedere.
+  pagina String?
+
+  autoreId String
+
+  /// Come è stata risolta. Compilata alla chiusura, resta come storico.
+  risoluzione String?
+  conclusaIl  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  autore   User                   @relation("SegnalazioneAutore", fields: [autoreId], references: [id])
+  allegati AllegatoSegnalazione[]
+
+  @@index([stato])
+  @@index([autoreId])
+  @@index([createdAt])
+}
+
+/// Immagine allegata a una segnalazione (di norma uno screenshot).
+/// Come i documenti di commessa, i file stanno fuori da /public e passano da un
+/// route handler autenticato.
+model AllegatoSegnalazione {
+  id             String @id @default(cuid())
+  segnalazioneId String
+
+  nomeFile   String
+  tipoMime   String?
+  percorso   String // relativo a UPLOADS_DIR: "segnalazioni/<id>/<file>"
+  dimensione Int?
+
+  createdAt DateTime @default(now())
+
+  segnalazione Segnalazione @relation(fields: [segnalazioneId], references: [id], onDelete: Cascade)
+
+  @@index([segnalazioneId])
 }
 
 /// Impostazioni globali chiave-valore (es. chiave API dell'assistente AI).

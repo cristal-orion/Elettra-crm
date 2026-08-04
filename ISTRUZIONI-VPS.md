@@ -120,7 +120,20 @@ Per rimuoverle prima di andare in uso reale:
 docker exec <container> npm run demo:milestone -- --rimuovi
 ```
 
-## 9. Subito dopo l'import
+## 9. Raccogliere il feedback di chi prova
+
+Il CRM ha una sezione **Segnalazioni**: chi prova apre una nota da qualunque
+schermata col pulsante **Segnala** in basso a destra, allega uno screenshot
+(anche incollandolo con `Ctrl+V`) e la nota arriva già con la pagina di
+provenienza e il nome di chi l'ha scritta.
+
+Chi sviluppa la prende in carico, la chiude indicando come l'ha risolta, o la
+elimina. Le concluse restano consultabili con la vista *Concluse*.
+
+Non serve configurare nulla: basta che gli utenti di prova sappiano che il
+pulsante c'è. Gli allegati finiscono sul volume, in `/data/uploads/segnalazioni/`.
+
+## 10. Subito dopo l'import
 
 L'import crea 4 project manager storici **disattivati e senza password**: è
 corretto, servono solo a tenere assegnato lo storico. Non attivarli senza che

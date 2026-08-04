@@ -2,6 +2,9 @@ import {
   etichettaStato,
   etichettaStatoOrdine,
   etichettaStatoMilestone,
+  etichettaStatoSegnalazione,
+  etichettaTipoSegnalazione,
+  etichettaPriorita,
   TIPOLOGIE,
 } from "@/lib/enums";
 import {
@@ -97,6 +100,50 @@ export function AvanzamentoBadge({ stato }: { stato: StatoAvanzamento }) {
       {stato === "IN_RITARDO" && <span aria-hidden>⚠</span>}
       {stato === "COMPLETATO" && <span aria-hidden>✓</span>}
       {ETICHETTE_AVANZAMENTO[stato]}
+    </span>
+  );
+}
+
+const statoSegnalazioneStyle: Record<string, string> = {
+  APERTA: "bg-warn-soft text-warn",
+  IN_LAVORAZIONE: "bg-brand-soft text-brand-deep",
+  CONCLUSA: "bg-ok-soft text-ok",
+};
+
+export function StatoSegnalazioneBadge({ stato }: { stato: string }) {
+  return (
+    <span
+      className={`${pill} ${statoSegnalazioneStyle[stato] ?? "bg-lead-soft text-ink-soft"}`}
+    >
+      {stato === "CONCLUSA" && <span aria-hidden>✓</span>}
+      {etichettaStatoSegnalazione(stato)}
+    </span>
+  );
+}
+
+const prioritaStyle: Record<string, string> = {
+  BASSA: "bg-lead-soft text-ink-soft",
+  MEDIA: "bg-brand-soft text-brand-deep",
+  ALTA: "bg-danger-soft text-danger",
+};
+
+export function PrioritaBadge({ priorita }: { priorita: string }) {
+  return (
+    <span className={`${pill} ${prioritaStyle[priorita] ?? "bg-lead-soft text-ink-soft"}`}>
+      {priorita === "ALTA" && <span aria-hidden>▲</span>}
+      {etichettaPriorita(priorita)}
+    </span>
+  );
+}
+
+export function TipoSegnalazioneBadge({ tipo }: { tipo: string }) {
+  const icona = tipo === "PROBLEMA" ? "⚠" : tipo === "MIGLIORAMENTO" ? "✦" : "?";
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
+      <span aria-hidden className="text-ink-faint">
+        {icona}
+      </span>
+      {etichettaTipoSegnalazione(tipo)}
     </span>
   );
 }

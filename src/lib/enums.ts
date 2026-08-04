@@ -159,6 +159,51 @@ export function etichettaCategoria(c: string): string {
   return (CATEGORIE_DOCUMENTO as Record<string, string>)[c] ?? c;
 }
 
+/* ---------------------------- Segnalazioni -------------------------------- */
+// Feedback di chi prova il CRM durante la fase di test.
+
+export const TIPI_SEGNALAZIONE = {
+  PROBLEMA: "Problema",
+  MIGLIORAMENTO: "Miglioramento",
+  DOMANDA: "Domanda",
+} as const;
+
+export type TipoSegnalazione = keyof typeof TIPI_SEGNALAZIONE;
+export const TIPI_SEGNALAZIONE_LIST = Object.keys(
+  TIPI_SEGNALAZIONE,
+) as TipoSegnalazione[];
+export function etichettaTipoSegnalazione(t: string): string {
+  return (TIPI_SEGNALAZIONE as Record<string, string>)[t] ?? t;
+}
+
+export const PRIORITA_SEGNALAZIONE = {
+  BASSA: "Bassa",
+  MEDIA: "Media",
+  ALTA: "Alta — blocca il lavoro",
+} as const;
+
+export type PrioritaSegnalazione = keyof typeof PRIORITA_SEGNALAZIONE;
+export const PRIORITA_SEGNALAZIONE_LIST = Object.keys(
+  PRIORITA_SEGNALAZIONE,
+) as PrioritaSegnalazione[];
+export function etichettaPriorita(p: string): string {
+  return (PRIORITA_SEGNALAZIONE as Record<string, string>)[p] ?? p;
+}
+
+export const STATI_SEGNALAZIONE = {
+  APERTA: "Aperta",
+  IN_LAVORAZIONE: "In lavorazione",
+  CONCLUSA: "Conclusa",
+} as const;
+
+export type StatoSegnalazione = keyof typeof STATI_SEGNALAZIONE;
+export const STATI_SEGNALAZIONE_LIST = Object.keys(
+  STATI_SEGNALAZIONE,
+) as StatoSegnalazione[];
+export function etichettaStatoSegnalazione(s: string): string {
+  return (STATI_SEGNALAZIONE as Record<string, string>)[s] ?? s;
+}
+
 /* ------------------------------ Permessi ---------------------------------- */
 // Regole di accesso minime per la Fase 1. Estendibili per modulo.
 
@@ -234,5 +279,13 @@ export function puoGestireOperai(ruolo: string): boolean {
 
 /** Chi può gestire utenti e configurazione. */
 export function puoGestireUtenti(ruolo: string): boolean {
+  return ruolo === "SUPER_ADMIN";
+}
+
+/**
+ * Chi può prendere in carico e chiudere le segnalazioni. Aprirle e commentarle
+ * può farlo chiunque sia autenticato: è il senso di uno strumento di test.
+ */
+export function puoGestireSegnalazioni(ruolo: string): boolean {
   return ruolo === "SUPER_ADMIN";
 }

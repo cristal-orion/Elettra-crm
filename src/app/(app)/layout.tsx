@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/dal";
 import { etichettaRuolo, puoGestireUtenti } from "@/lib/enums";
 import { logout } from "@/app/login/actions";
 import Nav from "@/components/nav";
+import SegnalaButton from "@/components/segnala-button";
 
 export default async function AppLayout({
   children,
@@ -130,6 +131,8 @@ export default async function AppLayout({
           {children}
         </main>
       </div>
+
+      <SegnalaButton />
     </div>
   );
 }

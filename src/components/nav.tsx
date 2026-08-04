@@ -98,6 +98,18 @@ const items: NavItem[] = [
     ),
   },
   {
+    href: "/segnalazioni",
+    label: "Segnalazioni",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
+        <path
+          d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V5a1 1 0 0 1 1-1Zm7 3v6h2V7h-2Zm0 7v2h2v-2h-2Z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
     href: "/assistente",
     label: "Assistente",
     icon: (
