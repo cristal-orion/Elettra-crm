@@ -27,7 +27,7 @@ azzera dati e allegati**.
 | Variabile | Obbligatoria | Note |
 |---|---|---|
 | `SESSION_SECRET` | **sì** | Firma le sessioni JWT e cifra i segreti nel DB. Genera con `openssl rand -base64 32`. Cambiarla invalida le sessioni e rende illeggibile la chiave AI salvata |
-| `SEED_PASSWORD` | **sì** (istanza pubblica) | Password degli utenti demo. Il default nel codice è pubblico in questo repo: senza questa variabile l'istanza è accessibile a chiunque |
+| `SEED_PASSWORD` | **sì** | Password degli utenti creati al primo avvio. Il default nel codice è pubblico in questo repo, quindi **senza questa variabile il container si rifiuta di partire** (a meno di `SEED_ON_FIRST_BOOT=false`). Usane una lunga e casuale |
 | `GEMINI_API_KEY` | no | Assistente AI e lettura visure. Senza chiave il resto del CRM funziona |
 | `GEMINI_MODEL` | no | Default `gemini-3.5-flash` |
 | `SEED_ON_FIRST_BOOT` | no | `false` per partire con un DB vuoto |
@@ -55,28 +55,33 @@ Per ricaricare i dati demo da zero, elimina il volume e rilancia il deploy.
 
 ## Caricare i dati reali di Elettra
 
-I due elenchi storici (`Elenco anagrafiche`, `Elenco Offerte`) si importano con:
+**Dall'applicazione, in drag & drop** — è la via consigliata: i file non passano
+da GitHub, non serve copiare database e non serve accedere al server.
+
+1. Accedi come Super Admin
+2. **Impostazioni → Import dati da Excel**
+3. Trascina i due elenchi (`Elenco anagrafiche`, `Elenco Offerte`)
+4. **Analizza senza scrivere** e controlla il riepilogo
+5. Confronta le **somme di controllo** con i totali scritti in testa al foglio
+   offerte: se coincidono, non si è perso nulla
+6. **Importa nel database**
+
+L'import dura circa 25 secondi e sostituisce anagrafiche e commesse quando la
+casella "sostituisci i dati esistenti" è spuntata. È **ripetibile**: le
+anagrafiche hanno per chiave i codici `C####`/`F####` e le commesse il numero,
+quindi rilanciarlo aggiorna invece di duplicare.
+
+I `.xls` si leggono con SheetJS dentro il container: **non serve LibreOffice**.
+
+In alternativa, da riga di comando:
 
 ```bash
-npm run db:import -- "<anagrafiche.xls>" "<offerte.xls>" --pulisci
+npm run db:import -- "<anagrafiche.xls>" "<offerte.xls>" --pulisci   # --prova per l'anteprima
 ```
-
-- `--prova` esegue l'analisi e stampa il riepilogo **senza scrivere** nulla: usalo
-  sempre la prima volta.
-- `--pulisci` svuota anagrafiche e commesse prima di importare, così i dati demo
-  del seed non si mescolano ai reali. Utenti, operai e catalogo restano.
-- Serve **LibreOffice** nel PATH (converte l'`.xls` in CSV). Non è richiesto
-  all'applicazione: solo a chi lancia l'import.
-- L'import è **ripetibile**: le anagrafiche sono chiavi sui codici `C####`/`F####`
-  e le commesse sul numero, quindi rilanciarlo aggiorna invece di duplicare.
 
 > ⚠️ **`npm run db:seed` cancella tutto e riscrive i dati demo.** Dopo un import
 > reale non va più eseguito. Sul container il seed parte solo al primissimo
 > avvio, quindi il rischio riguarda l'uso locale.
-
-Per portare i dati reali sull'istanza Coolify: esegui l'import in locale e copia
-`prisma/dev.db` dentro il volume `/data` come `elettra.db`, oppure lancia
-l'import sul server con i due file a disposizione.
 
 ## Limiti noti di questa configurazione
 

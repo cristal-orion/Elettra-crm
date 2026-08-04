@@ -20,9 +20,15 @@ RUN npm ci --ignore-scripts
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# URL fittizio: "prisma generate" valida il datasource ma non apre il DB.
+# DB fittizio e usa-e-getta: "prisma generate" valida il datasource, e applicare
+# le migrazioni evita che il prerender di Next fallisca su tabelle inesistenti
+# riempiendo il log di build di "prisma:error". Le pagine restano dinamiche:
+# leggono i cookie di sessione, quindi non vengono mai rese statiche.
 ENV DATABASE_URL="file:/tmp/build.db"
-RUN npx prisma generate && npm run build
+RUN npx prisma generate \
+  && npx prisma migrate deploy \
+  && npm run build \
+  && rm -f /tmp/build.db
 
 # --------------------------------- runner ---------------------------------
 # Si tengono anche le devDependencies: "prisma migrate deploy" (CLI prisma) e
