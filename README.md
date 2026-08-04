@@ -43,7 +43,11 @@ App su http://localhost:3000 — verrai reindirizzato a `/login`.
 
 ## Credenziali di sviluppo
 
-Password unica per tutti gli utenti seed: **`elettra2026`**
+La password **non è scritta qui**: il repository è pubblico. Il seed la prende da
+`SEED_PASSWORD` nel file `.env` (gitignorato) e si interrompe se manca. Per
+ruotarla su un'istanza già avviata: `npm run auth:password -- '<password>'`.
+
+Utenti creati dal seed, tutti con quella password:
 
 | Ruolo | Email |
 |---|---|
@@ -60,9 +64,12 @@ Password unica per tutti gli utenti seed: **`elettra2026`**
 | `npm run dev` | Server di sviluppo |
 | `npm run build` / `npm start` | Build e avvio di produzione |
 | `npm run db:migrate` | Crea/applica migrazioni |
-| `npm run db:seed` | Ricarica i dati di esempio |
+| `npm run db:seed` | Ricarica i dati di esempio (richiede `SEED_PASSWORD`) |
 | `npm run db:reset` | Azzera il DB e ri-seeda |
 | `npm run db:studio` | Prisma Studio (browser sui dati) |
+| `npm run db:import -- <anag.xls> <off.xls>` | Import degli elenchi Excel (`--prova` per l'anteprima) |
+| `npm run demo:milestone` | Pianificazione dimostrativa su 4 commesse (`-- --rimuovi` per togliere) |
+| `npm run auth:password -- '<password>'` | Ruota la password di tutti gli utenti attivi |
 
 ## Struttura
 

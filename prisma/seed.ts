@@ -3,10 +3,23 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Password unica per tutti gli utenti seed (vedi README). In sviluppo resta il
-// default; su istanze raggiungibili da internet va impostata SEED_PASSWORD,
-// perché il default è pubblico in questo repo.
-const DEV_PASSWORD = process.env.SEED_PASSWORD || "elettra2026";
+// Password degli utenti creati dal seed. Nessun default nel codice: un valore
+// scritto qui sarebbe pubblico nel repository, e su un'istanza raggiungibile da
+// internet equivarrebbe a regalare un Super Admin. Va impostata SEED_PASSWORD
+// (in `.env` in locale, fra le variabili d'ambiente in produzione).
+function passwordRichiesta(): string {
+  const p = process.env.SEED_PASSWORD;
+  if (!p) {
+    console.error(
+      "SEED_PASSWORD non impostata: il seed creerebbe utenti senza una password\n" +
+        "definita. Aggiungila al file .env (vedi .env.example) e riprova.",
+    );
+    process.exit(1);
+  }
+  return p;
+}
+
+const DEV_PASSWORD = passwordRichiesta();
 
 async function main() {
   const hash = bcrypt.hashSync(DEV_PASSWORD, 10);
@@ -621,7 +634,8 @@ async function main() {
   console.log(
     `Seed completato: ${utenti} utenti, ${anagrafiche} anagrafiche, ${commesse} commesse, ${ordini} ordini, ${nOperai} operai, ${nMilestone} milestone.`,
   );
-  console.log(`Super Admin: ${fabio.email}  ·  password dev: ${DEV_PASSWORD}`);
+  // La password non va nei log: su Coolify l'output del container è consultabile.
+  console.log(`Super Admin: ${fabio.email}  ·  password: quella in SEED_PASSWORD`);
 }
 
 main()

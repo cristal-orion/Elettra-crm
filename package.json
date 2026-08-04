@@ -12,6 +12,7 @@
     "db:seed": "prisma db seed",
     "db:import": "tsx scripts/import-excel.ts",
     "demo:milestone": "tsx scripts/milestone-demo.ts",
+    "auth:password": "tsx scripts/set-password.ts",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio"
   },
