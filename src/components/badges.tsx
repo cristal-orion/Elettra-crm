@@ -101,6 +101,22 @@ export function AvanzamentoBadge({ stato }: { stato: StatoAvanzamento }) {
   );
 }
 
+/**
+ * Marca i dati caricati per la presentazione. Deve restare ben leggibile: su
+ * commesse reali una pianificazione di esempio non deve poter passare per vera.
+ */
+export function DimostrativoBadge({ compatto }: { compatto?: boolean }) {
+  return (
+    <span
+      className={`${pill} border border-warn/40 bg-warn-soft text-warn`}
+      title="Dati di esempio caricati per la presentazione, non pianificazione reale"
+    >
+      <span aria-hidden>◆</span>
+      {compatto ? "Esempio" : "Dati dimostrativi"}
+    </span>
+  );
+}
+
 /** Chip codice anagrafica: cliente (slate) e/o fornitore (rame). */
 export function CodiceBadge({
   codiceCliente,

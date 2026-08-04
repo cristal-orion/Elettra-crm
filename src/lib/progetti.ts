@@ -41,7 +41,19 @@ export function isProgettoChiuso(stato: string): boolean {
 export type MilestoneCalcolo = {
   stato: string;
   dataPianificata?: Date | null;
+  dimostrativa?: boolean;
 };
+
+/**
+ * Il progetto contiene milestone caricate per la presentazione. La UI lo deve
+ * dichiarare: chi guarda non può distinguere una pianificazione reale da una
+ * di esempio, e su dati veri l'equivoco sarebbe serio.
+ */
+export function haPianificazioneDimostrativa(
+  milestone: MilestoneCalcolo[],
+): boolean {
+  return milestone.some((m) => m.dimostrativa === true);
+}
 
 export type Avanzamento = {
   totali: number;

@@ -83,6 +83,20 @@ npm run db:import -- "<anagrafiche.xls>" "<offerte.xls>" --pulisci   # --prova p
 > reale non va più eseguito. Sul container il seed parte solo al primissimo
 > avvio, quindi il rischio riguarda l'uso locale.
 
+## Pianificazione dimostrativa per la presentazione
+
+Gli elenchi Excel non contengono milestone di cantiere: dopo l'import la sezione
+Progetti mostra centinaia di cantieri "da pianificare". Per mostrarla all'opera:
+
+```bash
+npm run demo:milestone              # 22 milestone su 4 commesse reali
+npm run demo:milestone -- --rimuovi # le elimina tutte
+```
+
+Le milestone sono marcate `dimostrativa` nel database e l'interfaccia lo dichiara
+con un banner nel dettaglio e un badge in lista: commesse, clienti e importi
+restano reali, di esempio sono solo milestone, date di cantiere e note.
+
 ## Limiti noti di questa configurazione
 
 - **SQLite**: adeguato alla demo, un solo processo in scrittura. Lo schema è

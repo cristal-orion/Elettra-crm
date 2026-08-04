@@ -7,12 +7,17 @@ import {
   avanzamento,
   faseCorrente,
   giorniAllaScadenza,
+  haPianificazioneDimostrativa,
   statoAvanzamento,
   STATI_PROGETTO,
   STATI_PROGETTO_ATTIVO,
   type StatoAvanzamento,
 } from "@/lib/progetti";
-import { AvanzamentoBadge, StatoBadge } from "@/components/badges";
+import {
+  AvanzamentoBadge,
+  DimostrativoBadge,
+  StatoBadge,
+} from "@/components/badges";
 import { BarraAvanzamento } from "@/components/charts";
 
 export const metadata = { title: "Progetti — CRM Elettra" };
@@ -68,7 +73,14 @@ export default async function ProgettiPage({
       cliente: { select: { id: true, ragioneSociale: true } },
       pm: { select: { nome: true, cognome: true } },
       milestone: {
-        select: { id: true, titolo: true, stato: true, ordine: true, dataPianificata: true },
+        select: {
+          id: true,
+          titolo: true,
+          stato: true,
+          ordine: true,
+          dataPianificata: true,
+          dimostrativa: true,
+        },
         orderBy: { ordine: "asc" },
       },
       _count: { select: { assegnazioni: true } },
@@ -85,6 +97,7 @@ export default async function ProgettiPage({
         stato: statoAvanzamento(c),
         fase: faseCorrente(c.milestone),
         giorni: giorniAllaScadenza(c.scadenzaLavori),
+        dimostrativo: haPianificazioneDimostrativa(c.milestone),
       };
     })
     .filter((p) => (vista === "ritardo" ? p.stato === "IN_RITARDO" : true))
@@ -173,7 +186,7 @@ export default async function ProgettiPage({
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
-          {progetti.map(({ commessa: c, av, stato, fase, giorni }) => (
+          {progetti.map(({ commessa: c, av, stato, fase, giorni, dimostrativo }) => (
             <li
               key={c.id}
               className="rounded-xl border border-line bg-panel p-5 transition hover:border-brand/40"
@@ -189,6 +202,7 @@ export default async function ProgettiPage({
                     </Link>
                     <AvanzamentoBadge stato={stato} />
                     <StatoBadge stato={c.stato} />
+                    {dimostrativo && <DimostrativoBadge compatto />}
                   </div>
                   <p className="mt-1.5 truncate text-sm font-medium">
                     {c.descrizione ?? "Senza descrizione"}

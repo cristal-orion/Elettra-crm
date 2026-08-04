@@ -99,7 +99,28 @@ Attesi: ~1044 aziende, ~723 commesse, ~1100 destinazioni.
 
 L'import è ripetibile: rilanciarlo aggiorna invece di duplicare.
 
-## 8. Subito dopo l'import
+## 8. Pianificazione dimostrativa (opzionale, per la presentazione)
+
+Gli elenchi Excel non contengono pianificazione di cantiere, quindi dopo
+l'import la sezione **Progetti** mostra ~597 cantieri tutti "da pianificare" e
+sembra vuota. Per farla vedere all'opera:
+
+```bash
+docker exec <container> npm run demo:milestone
+```
+
+Aggiunge 22 milestone su **4 commesse reali** (una per stato: in corso, in
+ritardo, chiuso, appena partito). Sono marcate `dimostrativa` nel database e
+l'interfaccia le dichiara con un banner e un badge, così nessuno le confonde
+con pianificazione vera. Commesse, clienti e importi restano reali.
+
+Per rimuoverle prima di andare in uso reale:
+
+```bash
+docker exec <container> npm run demo:milestone -- --rimuovi
+```
+
+## 9. Subito dopo l'import
 
 L'import crea 4 project manager storici **disattivati e senza password**: è
 corretto, servono solo a tenere assegnato lo storico. Non attivarli senza che

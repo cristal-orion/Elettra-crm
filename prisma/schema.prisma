@@ -188,6 +188,11 @@ model Milestone {
   dataEffettiva   DateTime? // valorizzata quando passa a COMPLETATA
   note            String?
 
+  /// Milestone di esempio caricata per la presentazione, non pianificazione
+  /// reale. È un campo e non una convenzione sul titolo così la UI può
+  /// dichiararlo apertamente e lo script di pulizia può rimuoverle tutte.
+  dimostrativa Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

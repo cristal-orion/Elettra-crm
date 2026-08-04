@@ -11,12 +11,14 @@ import { formatDate, formatEuro } from "@/lib/format";
 import {
   avanzamento,
   giorniAllaScadenza,
+  haPianificazioneDimostrativa,
   isProgetto,
   milestoneScaduta,
   statoAvanzamento,
 } from "@/lib/progetti";
 import {
   AvanzamentoBadge,
+  DimostrativoBadge,
   MilestoneBadge,
   StatoBadge,
   TipologiaBadge,
@@ -95,6 +97,7 @@ export default async function ProgettoDetailPage({
   const av = avanzamento(commessa.milestone);
   const stato = statoAvanzamento(commessa);
   const giorni = giorniAllaScadenza(commessa.scadenzaLavori);
+  const dimostrativo = haPianificazioneDimostrativa(commessa.milestone);
   const operaiAttivi = await prisma.operaio.findMany({
     where: { attivo: true },
     orderBy: [{ cognome: "asc" }, { nome: "asc" }],
@@ -106,6 +109,29 @@ export default async function ProgettoDetailPage({
   return (
     <div className="flex flex-col gap-7">
       <Intestazione commessa={commessa} stato={stato} />
+
+      {dimostrativo && (
+        <div
+          role="note"
+          className="flex flex-wrap items-start gap-3 rounded-xl border border-warn/40 bg-warn-soft/50 px-5 py-4"
+        >
+          <span aria-hidden className="mt-0.5 text-lg leading-none text-warn">
+            ◆
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-warn">
+              Pianificazione dimostrativa
+            </p>
+            <p className="mt-0.5 text-sm text-ink-soft">
+              Le milestone e le date di cantiere di questo progetto sono{" "}
+              <strong>dati di esempio</strong>, caricati per mostrare come
+              funziona la sezione. La commessa, il cliente e gli importi sono
+              invece reali. Non usarle per pianificare il lavoro: si eliminano
+              con <span className="font-mono text-xs">npm run demo:milestone -- --rimuovi</span>.
+            </p>
+          </div>
+        </div>
+      )}
 
       {stato === "IN_RITARDO" && (
         <div
@@ -229,11 +255,12 @@ export default async function ProgettoDetailPage({
       {/* Milestone */}
       <section className="rounded-xl border border-line bg-panel p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">
+          <h2 className="flex flex-wrap items-center gap-2.5 text-sm font-semibold">
             Milestone di rilascio{" "}
             <span className="font-normal text-ink-faint">
               ({commessa.milestone.length})
             </span>
+            {dimostrativo && <DimostrativoBadge />}
           </h2>
           <p className="text-xs text-ink-soft">
             L&apos;avanzamento è la quota di milestone completate.
@@ -257,6 +284,15 @@ export default async function ProgettoDetailPage({
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {m.titolo}
+                      {m.dimostrativa && (
+                        <span
+                          title="Milestone dimostrativa, non pianificazione reale"
+                          className="ml-2 align-middle font-normal text-warn"
+                          aria-label="dimostrativa"
+                        >
+                          ◆
+                        </span>
+                      )}
                     </span>
 
                     <span className="font-mono text-xs text-ink-faint">
