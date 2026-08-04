@@ -53,6 +53,31 @@ Il seed è distruttivo (`deleteMany` su tutte le tabelle): il controllo sul
 primo avvio evita che un redeploy cancelli i dati inseriti durante la prova.
 Per ricaricare i dati demo da zero, elimina il volume e rilancia il deploy.
 
+## Caricare i dati reali di Elettra
+
+I due elenchi storici (`Elenco anagrafiche`, `Elenco Offerte`) si importano con:
+
+```bash
+npm run db:import -- "<anagrafiche.xls>" "<offerte.xls>" --pulisci
+```
+
+- `--prova` esegue l'analisi e stampa il riepilogo **senza scrivere** nulla: usalo
+  sempre la prima volta.
+- `--pulisci` svuota anagrafiche e commesse prima di importare, così i dati demo
+  del seed non si mescolano ai reali. Utenti, operai e catalogo restano.
+- Serve **LibreOffice** nel PATH (converte l'`.xls` in CSV). Non è richiesto
+  all'applicazione: solo a chi lancia l'import.
+- L'import è **ripetibile**: le anagrafiche sono chiavi sui codici `C####`/`F####`
+  e le commesse sul numero, quindi rilanciarlo aggiorna invece di duplicare.
+
+> ⚠️ **`npm run db:seed` cancella tutto e riscrive i dati demo.** Dopo un import
+> reale non va più eseguito. Sul container il seed parte solo al primissimo
+> avvio, quindi il rischio riguarda l'uso locale.
+
+Per portare i dati reali sull'istanza Coolify: esegui l'import in locale e copia
+`prisma/dev.db` dentro il volume `/data` come `elettra.db`, oppure lancia
+l'import sul server con i due file a disposizione.
+
 ## Limiti noti di questa configurazione
 
 - **SQLite**: adeguato alla demo, un solo processo in scrittura. Lo schema è

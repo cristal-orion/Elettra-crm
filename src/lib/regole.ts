@@ -28,15 +28,24 @@ export async function commessaHaAcquisti(
 }
 
 /**
- * Tipologia effettiva da salvare applicando la regola P→C: se ci sono acquisti
- * la tipologia è forzata a "C"; altrimenti resta quella richiesta.
- * A senso unico: non declassa mai C→P.
+ * Tipologia effettiva da salvare applicando la regola P→C: con acquisti a
+ * fornitore un "Preventivo" (o una tipologia non ancora indicata) diventa
+ * "Consuntivo". A senso unico: non declassa mai C→P.
+ *
+ * Non toccca "T" (tariffario) e "GARA": sono modalità di fatturazione diverse,
+ * non preventivi a corpo, e forzarle a C cancellerebbe un dato reale. L'alert
+ * "da fatturare" resta comunque attivo per loro, perché richiedeFatturazione()
+ * non guarda la tipologia.
  */
+const TIPOLOGIE_DECLASSABILI = new Set([null, "P"]);
+
 export function tipologiaForzata(
   tipologiaRichiesta: string | null,
   haAcquisti: boolean,
 ): string | null {
-  return haAcquisti ? "C" : tipologiaRichiesta;
+  return haAcquisti && TIPOLOGIE_DECLASSABILI.has(tipologiaRichiesta)
+    ? "C"
+    : tipologiaRichiesta;
 }
 
 /**

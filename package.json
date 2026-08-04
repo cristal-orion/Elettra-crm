@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:import": "tsx scripts/import-excel.ts",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio"
   },

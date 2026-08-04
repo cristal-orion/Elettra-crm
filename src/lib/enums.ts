@@ -62,11 +62,17 @@ export function etichettaStato(s: string): string {
   return (STATI_COMMESSA as Record<string, string>)[s] ?? s;
 }
 
-/* --------------------------- Tipologia lavoro P/C ------------------------- */
+/* ---------------------------- Tipologia lavoro ---------------------------- */
+// P e C sono le due tipologie storiche del flusso (§5.1, regola bloccante P→C).
+// T e GARA arrivano dall'elenco offerte reale di Elettra. "INT." non è una
+// tipologia: le commesse interne si riconoscono dal cliente (ELETTRA S.r.l.,
+// codice C0000), quindi sarebbe un'informazione duplicata.
 
 export const TIPOLOGIE = {
   P: "Preventivo (a corpo)",
   C: "Consuntivo",
+  T: "Tariffario",
+  GARA: "Gara d'appalto",
 } as const;
 
 export type Tipologia = keyof typeof TIPOLOGIE;

@@ -48,12 +48,18 @@ export function StatoOrdineBadge({ stato }: { stato: string }) {
   );
 }
 
+const tipologiaStyle: Record<string, string> = {
+  P: "bg-warn-soft text-warn", // preventivo: ancora da confermare
+  C: "bg-ok-soft text-ok", // consuntivo: acquisito
+  T: "bg-brand-soft text-brand-deep", // tariffario
+  GARA: "bg-lead-soft text-ink-soft", // gara d'appalto
+};
+
 export function TipologiaBadge({ tipologia }: { tipologia: string | null }) {
   if (!tipologia) return <span className="text-ink-faint">—</span>;
-  const isP = tipologia === "P";
   return (
     <span
-      className={`${pill} font-mono ${isP ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok"}`}
+      className={`${pill} font-mono ${tipologiaStyle[tipologia] ?? "bg-lead-soft text-ink-soft"}`}
       title={TIPOLOGIE[tipologia as keyof typeof TIPOLOGIE] ?? tipologia}
     >
       {tipologia}

@@ -67,10 +67,37 @@ model Anagrafica {
   updatedAt DateTime @updatedAt
 
   referenti       Referente[]
+  destinazioni    Destinazione[]
   commesse        Commessa[]        @relation("CommessaCliente")
   ordiniFornitore OrdineFornitore[] @relation("OrdineFornitore")
 
   @@index([ragioneSociale])
+}
+
+/// Sede di consegna / cantiere di un'azienda (i codici "D####" dell'Excel
+/// Elettra). Non sono anagrafiche a sé: 1058 delle 1118 destinazioni portano il
+/// nome di un cliente già presente e solo 108 hanno la P.IVA. Il codice può
+/// avere un suffisso (D0000, D0000-1) quando un'azienda ha più sedi.
+model Destinazione {
+  id           String @id @default(cuid())
+  anagraficaId String
+
+  codice      String  @unique // es. "D0042" o "D0042-1"
+  descrizione String? // nome del sito quando differisce dalla ragione sociale
+  indirizzo   String?
+  cap         String?
+  localita    String?
+  provincia   String?
+  telefono    String?
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  anagrafica Anagrafica @relation(fields: [anagraficaId], references: [id], onDelete: Cascade)
+
+  @@index([anagraficaId])
+  @@index([localita])
 }
 
 /// Referente normalizzato: titolo obbligatorio da lista (src/lib/enums.ts).
@@ -117,6 +144,7 @@ model Commessa {
   importoOrdine         Decimal?
   dataOrdine            DateTime?
   metodoRicezioneOrdine String? // EMAIL | TELEFONO | CONTROFIRMA | NUMERO_ORDINE
+  oda                   String? // numero d'ordine del cliente (colonna ODA dell'Excel)
   motivazionePersa      String?
 
   // --- Fase 7: la commessa come progetto di cantiere ---
