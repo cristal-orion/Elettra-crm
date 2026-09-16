@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
-import { formatEuro, formatDate, toNumber } from "@/lib/format";
+import { formatEuro, toNumber } from "@/lib/format";
 import { etichettaStato, STATI_COMMESSA_LIST } from "@/lib/enums";
 import { StatoBadge, TipologiaBadge } from "@/components/badges";
 
@@ -180,6 +180,12 @@ export default async function DashboardPage() {
       <section className="rounded-xl border border-line bg-panel">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-sm font-semibold">Commesse recenti</h2>
+          <Link
+            href="/commesse"
+            className="text-sm text-brand-deep underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+          >
+            Tutte le commesse →
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -195,8 +201,19 @@ export default async function DashboardPage() {
             </thead>
             <tbody>
               {recenti.map((c) => (
-                <tr key={c.id} className="border-t border-line">
-                  <td className="px-6 py-3 font-mono tabular-nums">{c.numero}</td>
+                <tr
+                  key={c.id}
+                  className="relative border-t border-line transition hover:bg-paper/70 focus-within:bg-brand-soft/50"
+                >
+                  <td className="px-6 py-3 font-mono tabular-nums">
+                    <Link
+                      href={`/commesse/${c.id}`}
+                      aria-label={`Apri commessa ${c.numero} — ${c.cliente.ragioneSociale}`}
+                      className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 after:absolute after:inset-0 hover:decoration-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+                    >
+                      {c.numero}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">{c.cliente.ragioneSociale}</td>
                   <td className="px-4 py-3 text-ink-soft">
                     {c.pm ? `${c.pm.nome} ${c.pm.cognome}` : "—"}

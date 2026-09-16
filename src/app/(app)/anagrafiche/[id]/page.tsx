@@ -11,6 +11,8 @@ import {
   TipologiaBadge,
 } from "@/components/badges";
 import ClienteStats from "../cliente-stats";
+import ClienteEconomics from "../cliente-economics";
+import { calcolaEconomics } from "@/lib/economics";
 
 export default async function AnagraficaDetailPage({
   params,
@@ -23,7 +25,15 @@ export default async function AnagraficaDetailPage({
     where: { id },
     include: {
       referenti: { orderBy: [{ principale: "desc" }, { cognome: "asc" }] },
-      commesse: { orderBy: { createdAt: "desc" }, include: { pm: true } },
+      commesse: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          pm: true,
+          ordiniFornitore: {
+            select: { righe: { select: { imponibile: true } } },
+          },
+        },
+      },
       ordiniFornitore: {
         orderBy: { data: "desc" },
         include: {
@@ -38,6 +48,8 @@ export default async function AnagraficaDetailPage({
 
   const user = await getCurrentUser();
   const puoModificare = user ? puoGestireAnagrafiche(user.ruolo) : false;
+  const economics = calcolaEconomics(anagrafica.commesse);
+  const economicsPerCommessa = new Map(economics.dettaglio.map((c) => [c.id, c]));
 
   return (
     <div className="flex flex-col gap-7">
@@ -78,6 +90,10 @@ export default async function AnagraficaDetailPage({
           </Link>
         )}
       </header>
+
+      {anagrafica.isCliente && (
+        <ClienteEconomics economics={economics} commesse={anagrafica.commesse.length} />
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <Card title="Dati fiscali">
@@ -152,7 +168,7 @@ export default async function AnagraficaDetailPage({
       )}
 
       {/* Commesse */}
-      <section className="rounded-xl border border-line bg-panel">
+      <section id="commesse-cliente" className="scroll-mt-6 rounded-xl border border-line bg-panel">
         <div className="border-b border-line px-6 py-4">
           <h2 className="text-sm font-semibold">
             Commesse{" "}
@@ -170,29 +186,64 @@ export default async function AnagraficaDetailPage({
                 <th className="px-4 py-3 font-medium">Stato</th>
                 <th className="px-4 py-3 font-medium">Tip.</th>
                 <th className="px-6 py-3 text-right font-medium">Offerta</th>
+                {anagrafica.isCliente && (
+                  <>
+                    <th className="px-4 py-3 text-right font-medium">Ordine acquisito</th>
+                    <th className="px-4 py-3 text-right font-medium">Acquisti</th>
+                    <th className="px-6 py-3 text-right font-medium">Margine</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {anagrafica.commesse.map((c) => (
-                <tr key={c.id} className="border-t border-line">
-                  <td className="px-6 py-3 font-mono tabular-nums">{c.numero}</td>
-                  <td className="max-w-xs truncate px-4 py-3">
-                    {c.descrizione ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatoBadge stato={c.stato} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <TipologiaBadge tipologia={c.tipologia} />
-                  </td>
-                  <td className="px-6 py-3 text-right tabular-nums">
-                    {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
-                  </td>
-                </tr>
-              ))}
+              {anagrafica.commesse.map((c) => {
+                const valori = economicsPerCommessa.get(c.id)!;
+                return (
+                  <tr key={c.id} className="border-t border-line">
+                    <td className="px-6 py-3 font-mono tabular-nums">
+                      <Link
+                        href={`/commesse/${c.id}`}
+                        aria-label={`Apri commessa ${c.numero}`}
+                        className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 hover:decoration-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+                      >
+                        {c.numero}
+                      </Link>
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3">
+                      {c.descrizione ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatoBadge stato={c.stato} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <TipologiaBadge tipologia={c.tipologia} />
+                    </td>
+                    <td className="px-6 py-3 text-right tabular-nums">
+                      {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
+                    </td>
+                    {anagrafica.isCliente && (
+                      <>
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                          {valori.entrate === null ? (
+                            <span className="text-xs text-ink-soft">Da inserire</span>
+                          ) : formatEuro(valori.entrate)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                          {formatEuro(valori.uscite)}
+                        </td>
+                        <td className={`whitespace-nowrap px-6 py-3 text-right font-medium tabular-nums ${valori.margine !== null && Number(valori.margine) < 0 ? "text-danger" : "text-ink"}`}>
+                          {valori.margine === null ? (
+                            <span className="text-xs font-normal text-ink-soft">Da completare</span>
+                          ) : formatEuro(valori.margine)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
               {anagrafica.commesse.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-6 text-center text-ink-faint">
+                  <td colSpan={anagrafica.isCliente ? 8 : 5} className="px-6 py-6 text-center text-ink-faint">
                     Nessuna commessa per questa anagrafica.
                   </td>
                 </tr>
