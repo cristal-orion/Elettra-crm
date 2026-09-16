@@ -12,7 +12,15 @@ export async function getCommessaFormOptions() {
         codiceCliente: true,
         referenti: {
           orderBy: [{ principale: "desc" }, { cognome: "asc" }],
-          select: { id: true, titolo: true, nome: true, cognome: true },
+          // Prisma 6 su SQLite richiede anche il campo di ordinamento nel
+          // select per evitare il panic "no entry found for key".
+          select: {
+            id: true,
+            titolo: true,
+            nome: true,
+            cognome: true,
+            principale: true,
+          },
         },
       },
     }),
