@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import FormError from "@/components/form-error";
+import SearchableSelect from "@/components/searchable-select";
 import { STATI_ORDINE } from "@/lib/enums";
 import { formatEuro } from "@/lib/format";
 import type { OrdineState } from "./actions";
@@ -129,41 +130,41 @@ export default function OrdineForm({
       <fieldset className="rounded-xl border border-line bg-panel p-5">
         <legend className="px-1 text-sm font-semibold">Testata ordine</legend>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className={labelCls}>Fornitore *</span>
-            <select
+          <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="ordine-fornitore" className={labelCls}>Fornitore *</label>
+            <SearchableSelect
+              id="ordine-fornitore"
               name="fornitoreId"
+              label="Fornitore"
               required
               defaultValue={v("fornitoreId")}
+              placeholder="— Seleziona fornitore —"
+              searchPlaceholder="Cerca per nome o codice fornitore…"
+              options={fornitori.map((f) => ({
+                value: f.id,
+                label: `${f.codiceFornitore ? `${f.codiceFornitore} · ` : ""}${f.ragioneSociale}`,
+              }))}
               className={inputCls}
-            >
-              <option value="">— Seleziona fornitore —</option>
-              {fornitori.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.codiceFornitore ? `${f.codiceFornitore} · ` : ""}
-                  {f.ragioneSociale}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className={labelCls}>Commessa collegata</span>
-            <select
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="ordine-commessa" className={labelCls}>Commessa collegata</label>
+            <SearchableSelect
+              id="ordine-commessa"
               name="commessaId"
+              label="Commessa collegata"
               value={commessaId}
-              onChange={(e) => setCommessaId(e.target.value)}
+              onValueChange={setCommessaId}
+              placeholder="— Nessuna commessa —"
+              searchPlaceholder="Cerca per numero, cliente o descrizione…"
+              options={commesse.map((c) => ({
+                value: c.id,
+                label: `${c.numero} — ${c.cliente.ragioneSociale}${c.descrizione ? ` · ${c.descrizione}` : ""}`,
+              }))}
               className={inputCls}
-            >
-              <option value="">— Nessuna commessa —</option>
-              {commesse.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.numero} — {c.cliente.ragioneSociale}
-                  {c.descrizione ? ` · ${c.descrizione}` : ""}
-                </option>
-              ))}
-            </select>
+            />
             {commessaId && <span className="text-xs leading-relaxed text-warn">Collegando l’acquisto, una commessa di tipo Preventivo passa a Consuntivo (P→C). Tariffario e Gara mantengono la propria tipologia. Lo stato commerciale non cambia.</span>}
-          </label>
+          </div>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Numero ordine</span>
             <input

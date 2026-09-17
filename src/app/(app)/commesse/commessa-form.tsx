@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import FormError from "@/components/form-error";
+import SearchableSelect from "@/components/searchable-select";
 import {
   STATI_COMMESSA,
   TIPOLOGIE,
@@ -88,59 +89,58 @@ export default function CommessaForm({
           Cliente e assegnazione
         </legend>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className={labelCls}>Cliente *</span>
-            <select
+          <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="commessa-cliente" className={labelCls}>Cliente *</label>
+            <SearchableSelect
+              id="commessa-cliente"
               name="clienteId"
+              label="Cliente"
               required
               value={clienteId}
-              onChange={(e) => {
-                setClienteId(e.target.value);
+              onValueChange={(value) => {
+                setClienteId(value);
                 setReferenteId("");
               }}
+              placeholder="— Seleziona cliente —"
+              searchPlaceholder="Cerca per nome o codice cliente…"
+              options={clienti.map((c) => ({
+                value: c.id,
+                label: `${c.codiceCliente ? `${c.codiceCliente} · ` : ""}${c.ragioneSociale}`,
+              }))}
               className={inputCls}
-            >
-              <option value="">— Seleziona cliente —</option>
-              {clienti.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.codiceCliente ? `${c.codiceCliente} · ` : ""}
-                  {c.ragioneSociale}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelCls}>Referente cliente</span>
-            <select
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label htmlFor="commessa-referente" className={labelCls}>Referente cliente</label>
+            <SearchableSelect
+              id="commessa-referente"
               name="referenteId"
+              label="Referente cliente"
               value={referenteId}
-              onChange={(e) => setReferenteId(e.target.value)}
+              onValueChange={setReferenteId}
               disabled={referentiCliente.length === 0}
+              placeholder={referentiCliente.length === 0 ? "Nessun referente disponibile" : "— Nessuno —"}
+              searchPlaceholder="Cerca referente…"
+              options={referentiCliente.map((r) => ({
+                value: r.id,
+                label: `${etichettaTitolo(r.titolo)} ${r.nome} ${r.cognome}`.trim(),
+              }))}
               className={`${inputCls} disabled:opacity-50`}
-            >
-              <option value="">
-                {referentiCliente.length === 0
-                  ? "Nessun referente disponibile"
-                  : "— Nessuno —"}
-              </option>
-              {referentiCliente.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {`${etichettaTitolo(r.titolo)} ${r.nome} ${r.cognome}`.trim()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelCls}>Project Manager</span>
-            <select name="pmId" defaultValue={v("pmId")} className={inputCls}>
-              <option value="">— Non assegnato —</option>
-              {pms.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome} {p.cognome}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label htmlFor="commessa-pm" className={labelCls}>Project Manager</label>
+            <SearchableSelect
+              id="commessa-pm"
+              name="pmId"
+              label="Project Manager"
+              defaultValue={v("pmId")}
+              placeholder="— Non assegnato —"
+              searchPlaceholder="Cerca Project Manager…"
+              options={pms.map((p) => ({ value: p.id, label: `${p.nome} ${p.cognome}` }))}
+              className={inputCls}
+            />
+          </div>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Referente commerciale</span>
             <input

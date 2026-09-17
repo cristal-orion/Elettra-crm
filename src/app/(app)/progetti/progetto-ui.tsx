@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import {
   RUOLI_CANTIERE,
@@ -8,6 +8,7 @@ import {
   etichettaStatoMilestone,
 } from "@/lib/enums";
 import type { ProgettoState } from "./actions";
+import SearchableSelect from "@/components/searchable-select";
 
 type Azione = (
   state: ProgettoState,
@@ -357,6 +358,7 @@ export function AssegnaOperaioForm({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  const operaioFieldId = useId();
 
   useEffect(() => {
     if (state?.ok) formRef.current?.reset();
@@ -378,19 +380,22 @@ export function AssegnaOperaioForm({
       className="flex flex-col gap-3 rounded-lg border border-dashed border-line bg-paper/40 p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Campo label="Operaio">
-          <select name="operaioId" required defaultValue="" className={inputCls}>
-            <option value="" disabled>
-              Scegli…
-            </option>
-            {operai.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.cognome} {o.nome}
-                {o.qualifica ? ` — ${o.qualifica}` : ""}
-              </option>
-            ))}
-          </select>
-        </Campo>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <label htmlFor={operaioFieldId} className={labelCls}>Operaio *</label>
+          <SearchableSelect
+            id={operaioFieldId}
+            name="operaioId"
+            label="Operaio"
+            required
+            placeholder="Scegli…"
+            searchPlaceholder="Cerca per nome o qualifica…"
+            options={operai.map((o) => ({
+              value: o.id,
+              label: `${o.cognome} ${o.nome}${o.qualifica ? ` — ${o.qualifica}` : ""}`,
+            }))}
+            className={inputCls}
+          />
+        </div>
         <Campo label="Ruolo in cantiere">
           <select name="ruoloCantiere" defaultValue="" className={inputCls}>
             <option value="">—</option>
