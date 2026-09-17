@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/lib/dal";
 import { puoGestireCatalogo } from "@/lib/enums";
 import { isAiConfigured } from "@/lib/ai";
 import { estraiDaScheda, schedaToFormValues } from "@/lib/ai-scheda";
+import { publicError } from "@/lib/crm/commands";
+import { ApiError, readFormData } from "@/lib/ai/http";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
@@ -20,9 +22,9 @@ export async function POST(req: Request) {
 
   let file: FormDataEntryValue | null;
   try {
-    file = (await req.formData()).get("scheda");
-  } catch {
-    return new Response("Richiesta non valida", { status: 400 });
+    file = (await readFormData(req)).get("scheda");
+  } catch (e) {
+    return new Response(e instanceof ApiError ? e.message : "Richiesta non valida", { status: e instanceof ApiError ? e.status : 400 });
   }
 
   if (!(file instanceof File) || file.size === 0) {
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const dati = schedaToFormValues(await estraiDaScheda(bytes));
+    const dati = schedaToFormValues(await estraiDaScheda(bytes, user.id, req.signal));
     if (!dati.descrizione) {
       return new Response(
         "Non sono riuscito a leggere una descrizione dalla scheda. Compila i campi a mano.",
@@ -46,7 +48,6 @@ export async function POST(req: Request) {
     }
     return Response.json(dati);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return new Response(`Estrazione fallita: ${msg.slice(0, 200)}`, { status: 500 });
+    return new Response(publicError(e), { status: 422 });
   }
 }

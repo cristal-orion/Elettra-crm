@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/dal";
 import LoginForm from "./login-form";
 
 export const metadata: Metadata = {
   title: "Accedi — CRM Elettra",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  if (await getCurrentUser()) redirect("/");
+
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
       {/* Pannello identità (navy brand Elettra) */}

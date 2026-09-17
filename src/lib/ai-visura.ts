@@ -3,9 +3,8 @@
 // sui campi del form anagrafica per la precompilazione. Nessuna scrittura
 // automatica: l'utente conferma sempre dal form.
 
-import { generateObject } from "ai";
 import { z } from "zod";
-import { getAssistantModel } from "@/lib/ai";
+import { extractPdf } from "./ai/extraction";
 import type { AnagraficaFormValues } from "@/app/(app)/anagrafiche/anagrafica-form";
 
 /** Schema dei dati estraibili da una visura. Tutto nullable: il modello
@@ -52,24 +51,8 @@ La provincia va come sigla di 2 lettere. Gli amministratori sono le persone con 
 
 /** Estrae i dati dell'impresa dal PDF della visura. Lancia se l'AI non è
  *  configurata o se il modello non riesce a produrre un output valido. */
-export async function estraiDaVisura(pdf: Uint8Array): Promise<VisuraDati> {
-  const model = await getAssistantModel();
-  if (!model) throw new Error("Assistente AI non configurato.");
-
-  const { object } = await generateObject({
-    model,
-    schema: VisuraSchema,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: PROMPT },
-          { type: "file", data: pdf, mediaType: "application/pdf", filename: "visura.pdf" },
-        ],
-      },
-    ],
-  });
-  return object;
+export async function estraiDaVisura(pdf: Uint8Array, userId: string): Promise<VisuraDati> {
+  return extractPdf(VisuraSchema, pdf, PROMPT, userId);
 }
 
 const s = (v: string | null | undefined) => (v ?? "").trim();

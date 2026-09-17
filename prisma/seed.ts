@@ -25,6 +25,13 @@ async function main() {
   const hash = bcrypt.hashSync(DEV_PASSWORD, 10);
 
   // Pulizia (ordine rispettoso delle FK) per un seed idempotente.
+  await prisma.attivita.deleteMany();
+  await prisma.aiConversation.deleteMany();
+  await prisma.aiOperation.deleteMany();
+  await prisma.aiSchedule.deleteMany();
+  await prisma.notifica.deleteMany();
+  await prisma.allegatoSegnalazione.deleteMany();
+  await prisma.segnalazione.deleteMany();
   await prisma.documento.deleteMany();
   await prisma.rigaOrdineFornitore.deleteMany();
   await prisma.ordineFornitore.deleteMany();

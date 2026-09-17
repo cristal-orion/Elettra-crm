@@ -3,9 +3,8 @@
 // restituisce dati strutturati che precompilano il form prodotto. L'utente
 // conferma sempre; nessuna scrittura automatica.
 
-import { generateObject } from "ai";
 import { z } from "zod";
-import { getAssistantModel } from "@/lib/ai";
+import { extractPdf } from "./ai/extraction";
 import type { ProdottoFormValues } from "@/app/(app)/materiali/prodotto-form";
 
 export const SchedaSchema = z.object({
@@ -45,24 +44,8 @@ Estrai i dati anagrafici e tecnici del prodotto. Usa solo ciò che è scritto: s
 Per i dati tecnici fai un elenco puntato conciso (una caratteristica per riga, con "- ").`;
 
 /** Estrae i dati del prodotto dal PDF della scheda tecnica. */
-export async function estraiDaScheda(pdf: Uint8Array): Promise<SchedaDati> {
-  const model = await getAssistantModel();
-  if (!model) throw new Error("Assistente AI non configurato.");
-
-  const { object } = await generateObject({
-    model,
-    schema: SchedaSchema,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: PROMPT },
-          { type: "file", data: pdf, mediaType: "application/pdf", filename: "scheda.pdf" },
-        ],
-      },
-    ],
-  });
-  return object;
+export async function estraiDaScheda(pdf: Uint8Array, userId: string, signal?: AbortSignal): Promise<SchedaDati> {
+  return extractPdf(SchedaSchema, pdf, PROMPT, userId, signal);
 }
 
 const s = (v: string | null | undefined) => (v ?? "").trim();

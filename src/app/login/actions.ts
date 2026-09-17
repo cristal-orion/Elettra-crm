@@ -31,7 +31,7 @@ export async function login(
     where: { email: email.toLowerCase() },
   });
 
-  if (!user || !user.attivo || !bcrypt.compareSync(password, user.passwordHash)) {
+  if (!user || !user.attivo || !(await bcrypt.compare(password, user.passwordHash))) {
     return { error: "Credenziali non valide." };
   }
 

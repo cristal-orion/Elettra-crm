@@ -121,6 +121,8 @@ const items: NavItem[] = [
       </svg>
     ),
   },
+  { href: "/attivita", label: "Attività", icon: <span className={iconClass} aria-hidden>✓</span> },
+  { href: "/notifiche", label: "Notifiche", icon: <span className={iconClass} aria-hidden>◉</span> },
 ];
 
 // Voci riservate al Super Admin (gestione utenti/ruoli, impostazioni).
@@ -153,8 +155,10 @@ const adminItems: NavItem[] = [
 
 export default function Nav({
   canManageUsers = false,
+  mobile = false,
 }: {
   canManageUsers?: boolean;
+  mobile?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -164,11 +168,11 @@ export default function Nav({
   const voci = canManageUsers ? [...items, ...adminItems] : items;
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label={mobile ? "Navigazione mobile" : "Navigazione principale"} className={mobile ? "flex gap-1 overflow-x-auto border-b border-line bg-panel px-3 py-2" : "flex flex-col gap-1"}>
       {voci.map((item) => {
         const active = isActive(item.href);
         const base =
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition";
+          "flex min-h-11 shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition";
 
         if (item.soon) {
           return (
@@ -190,13 +194,14 @@ export default function Nav({
           <Link
             key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             className={`${base} ${
-              active
+              mobile ? active ? "bg-brand-soft font-semibold text-brand-deep" : "text-ink-soft hover:bg-paper" : active
                 ? "bg-brand-light/15 font-medium text-white"
                 : "text-white/60 hover:bg-white/5 hover:text-white"
             }`}
           >
-            <span className={active ? "text-brand-light" : ""}>{item.icon}</span>
+            {!mobile && <span aria-hidden className={active ? "text-brand-light" : ""}>{item.icon}</span>}
             <span>{item.label}</span>
           </Link>
         );

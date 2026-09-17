@@ -1,7 +1,8 @@
 import Link from "next/link";
+import AiContextPanel from "@/components/ai/context-panel";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import { puoGestireAnagrafiche, etichettaTitolo } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import {
@@ -20,6 +21,7 @@ export default async function AnagraficaDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
 
   const anagrafica = await prisma.anagrafica.findUnique({
     where: { id },
@@ -46,7 +48,6 @@ export default async function AnagraficaDetailPage({
 
   if (!anagrafica) notFound();
 
-  const user = await getCurrentUser();
   const puoModificare = user ? puoGestireAnagrafiche(user.ruolo) : false;
   const economics = calcolaEconomics(anagrafica.commesse);
   const economicsPerCommessa = new Map(economics.dettaglio.map((c) => [c.id, c]));
@@ -90,6 +91,8 @@ export default async function AnagraficaDetailPage({
           </Link>
         )}
       </header>
+
+      <AiContextPanel type="cliente" id={id} />
 
       {anagrafica.isCliente && (
         <ClienteEconomics economics={economics} commesse={anagrafica.commesse.length} />

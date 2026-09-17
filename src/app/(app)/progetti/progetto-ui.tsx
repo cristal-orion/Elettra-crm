@@ -67,17 +67,20 @@ export function PianificazioneForm({
   scadenzaLavori,
   dataFineLavori,
   noteCantiere,
+  expectedUpdatedAt,
 }: {
   action: Azione;
   dataInizioLavori: Date | null;
   scadenzaLavori: Date | null;
   dataFineLavori: Date | null;
   noteCantiere: string | null;
+  expectedUpdatedAt?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt ?? ""} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Campo label="Inizio lavori">
           <input
@@ -193,13 +196,21 @@ function StatoSelectInner({ stato }: { stato: string }) {
 export function StatoMilestoneSelect({
   action,
   stato,
+  expectedUpdatedAt,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   stato: string;
+  expectedUpdatedAt?: string;
 }) {
+  const [state, formAction] = useActionState(async (_prev: ProgettoState, f: FormData) => {
+    try { await action(f); return { ok: "Stato aggiornato." }; }
+    catch { return { error: "Stato non aggiornato. Ricarica i dati e riprova." }; }
+  }, undefined);
   return (
-    <form action={action}>
+    <form action={formAction}>
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt ?? ""} />
       <StatoSelectInner stato={stato} />
+      <Esito state={state} />
     </form>
   );
 }
@@ -212,6 +223,7 @@ export function AzioneIcona({
   variante = "neutro",
   children,
   disabled,
+  expectedUpdatedAt,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
@@ -219,20 +231,26 @@ export function AzioneIcona({
   variante?: "neutro" | "danger";
   children: React.ReactNode;
   disabled?: boolean;
+  expectedUpdatedAt?: string;
 }) {
+  const [state, formAction, pending] = useActionState(async (_prev: ProgettoState, f: FormData) => {
+    try { await action(f); return { ok: "Operazione completata." }; }
+    catch { return { error: "Operazione non completata. Ricarica i dati." }; }
+  }, undefined);
   return (
     <form
-      action={action}
+      action={formAction}
       onSubmit={(e) => {
         if (conferma && !confirm(conferma)) e.preventDefault();
       }}
     >
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt ?? ""} />
       <button
         type="submit"
         title={title}
         aria-label={title}
-        disabled={disabled}
-        className={`rounded-md p-1.5 text-ink-faint transition disabled:opacity-30 ${
+        disabled={disabled || pending}
+        className={`min-h-11 min-w-11 rounded-md p-2 text-ink-faint transition disabled:opacity-30 ${
           variante === "danger"
             ? "hover:bg-danger-soft hover:text-danger"
             : "hover:bg-paper hover:text-ink"
@@ -240,6 +258,7 @@ export function AzioneIcona({
       >
         {children}
       </button>
+      {state?.error && <span role="alert" className="block max-w-40 text-xs text-danger">{state.error}</span>}
     </form>
   );
 }
@@ -251,6 +270,7 @@ export function MilestoneEditForm({
   dataPianificata,
   dataEffettiva,
   note,
+  expectedUpdatedAt,
 }: {
   action: Azione;
   titolo: string;
@@ -258,11 +278,13 @@ export function MilestoneEditForm({
   dataPianificata: Date | null;
   dataEffettiva: Date | null;
   note: string | null;
+  expectedUpdatedAt?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
     <form action={formAction} className="flex flex-col gap-3 pt-3">
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt ?? ""} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo label="Titolo">
           <input

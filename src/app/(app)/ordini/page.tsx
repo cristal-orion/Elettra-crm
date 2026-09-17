@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import { puoGestireOrdini, STATI_ORDINE, STATI_ORDINE_LIST } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoOrdineBadge } from "@/components/badges";
@@ -20,7 +20,7 @@ export default async function OrdiniPage({
       ? sp.stato
       : null;
 
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const puoCreare = user ? puoGestireOrdini(user.ruolo) : false;
 
   const where: Prisma.OrdineFornitoreWhereInput = {};
@@ -70,12 +70,14 @@ export default async function OrdiniPage({
 
       <form method="get" className="flex flex-wrap items-center gap-2">
         <input
+          aria-label="Cerca ordini"
           name="q"
           defaultValue={q}
           placeholder="Cerca per numero, fornitore, commessa…"
           className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
         <select
+          aria-label="Stato ordine"
           name="stato"
           defaultValue={stato ?? ""}
           className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"
@@ -115,7 +117,7 @@ export default async function OrdiniPage({
                     href={`/ordini/${o.id}`}
                     className="font-mono tabular-nums font-medium hover:text-brand-deep"
                   >
-                    {o.numero ?? "—"}
+                    {o.numero ?? "Ordine senza numero"}
                   </Link>
                 </td>
                 <td className="px-4 py-3">{o.fornitore.ragioneSociale}</td>

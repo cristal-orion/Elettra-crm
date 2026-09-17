@@ -29,6 +29,7 @@ export default async function ModificaAnagraficaPage({
   if (!anagrafica) notFound();
 
   const initial: AnagraficaFormValues = {
+    expectedUpdatedAt: anagrafica.updatedAt.toISOString(),
     ragioneSociale: anagrafica.ragioneSociale,
     isCliente: anagrafica.isCliente,
     isFornitore: anagrafica.isFornitore,

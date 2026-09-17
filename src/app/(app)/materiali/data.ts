@@ -41,9 +41,10 @@ function normalizza(s: string): string {
 }
 
 /** Chiave d'aggregazione: codice prodotto se presente, altrimenti descrizione. */
-function chiaveMateriale(codice: string | null, descrizione: string): string {
+function chiaveMateriale(codice: string | null, descrizione: string, unita: string | null, prodottoId: string | null): string {
   const c = codice?.trim().toUpperCase();
-  return c ? `C:${c}` : `D:${normalizza(descrizione)}`;
+  const prodotto = prodottoId ? `P:${prodottoId}` : c ? `C:${c}` : `D:${normalizza(descrizione)}`;
+  return `${prodotto}|UM:${normalizza(unita ?? "non indicata")}`;
 }
 
 type Accumulatore = {
@@ -80,7 +81,7 @@ export async function getStoricoMateriali(
   const gruppi = new Map<string, Accumulatore>();
 
   for (const r of righe) {
-    const key = chiaveMateriale(r.codiceProdotto, r.descrizione);
+    const key = chiaveMateriale(r.codiceProdotto, r.descrizione, r.unitaMisura, r.prodottoId);
     const prezzoUnitario = toNumber(r.prezzoUnitario);
     const sconto = r.sconto === null ? null : toNumber(r.sconto);
     const netto = prezzoUnitario * (1 - (sconto ?? 0) / 100);

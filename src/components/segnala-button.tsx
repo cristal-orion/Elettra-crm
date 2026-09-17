@@ -18,7 +18,7 @@ export default function SegnalaButton() {
     <Link
       href={`/segnalazioni/nuova?pagina=${encodeURIComponent(pathname)}`}
       title="Segnala un problema o un miglioramento su questa schermata"
-      className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-slatepanel px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-elettra focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden"
+      className={`${pathname.startsWith("/assistente") ? "ml-auto mt-4 w-fit" : "fixed bottom-5 right-5 z-40"} flex min-h-11 items-center gap-2 rounded-full bg-slatepanel px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-elettra focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden`}
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden>
         <path

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import { puoGestireOperai } from "@/lib/enums";
 import { formatDate } from "@/lib/format";
 import {
@@ -48,7 +48,7 @@ export default async function ProgettiPage({
   const vista: Vista =
     sp.vista && sp.vista in VISTE ? (sp.vista as Vista) : "attivi";
 
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const puoOperai = user ? puoGestireOperai(user.ruolo) : false;
 
   // La vista "attivi" filtra già in query; "ritardo" ha bisogno del calcolo
@@ -146,12 +146,14 @@ export default async function ProgettiPage({
 
       <form method="get" className="flex flex-wrap items-center gap-2">
         <input
+          aria-label="Cerca progetti"
           name="q"
           defaultValue={q}
           placeholder="Cerca per numero, descrizione, cliente…"
           className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
         <select
+          aria-label="Situazione progetto"
           name="vista"
           defaultValue={vista}
           className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"

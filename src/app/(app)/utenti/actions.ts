@@ -61,7 +61,7 @@ export async function createUtente(
         email,
         ruolo,
         attivo,
-        passwordHash: bcrypt.hashSync(raw.password, 10),
+        passwordHash: await bcrypt.hash(raw.password, 10),
       },
     });
   } catch (e) {
@@ -127,7 +127,7 @@ export async function updateUtente(
 
   const data: Prisma.UserUpdateInput = { nome, cognome, email, ruolo, attivo };
   if (raw.password.length >= 8) {
-    data.passwordHash = bcrypt.hashSync(raw.password, 10);
+    data.passwordHash = await bcrypt.hash(raw.password, 10);
   }
 
   try {

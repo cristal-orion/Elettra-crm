@@ -41,6 +41,7 @@ function datiComuni(formData: FormData) {
 async function salvaDatasheet(prodottoId: string, file: File) {
   const nomeFile = sanitizeFilename(file.name);
   const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.subarray(0, 5).toString() !== "%PDF-") throw new Error("Il file non contiene un PDF valido.");
   const percorso = await salvaFile(
     `materiali/${prodottoId}`,
     `${randomUUID()}__${nomeFile}`,
@@ -48,7 +49,7 @@ async function salvaDatasheet(prodottoId: string, file: File) {
   );
   return {
     schedaNomeFile: nomeFile,
-    schedaMime: file.type || "application/pdf",
+    schedaMime: "application/pdf",
     schedaPercorso: percorso,
     schedaDimensione: file.size,
   };
@@ -74,29 +75,22 @@ export async function createProdotto(
 
   const dati = datiComuni(formData);
   if (!dati.descrizione) return { error: "La descrizione è obbligatoria." };
+  if (str(formData, "prezzoListino") && dati.prezzoListino === null) return { error: "Inserisci un prezzo di listino valido e non negativo." };
 
   const file = fileScheda(formData);
   if (file && "error" in file) return { error: file.error };
 
-  let id: string;
+  const id = randomUUID();
+  let scheda: Awaited<ReturnType<typeof salvaDatasheet>> | undefined;
   try {
-    const creato = await prisma.prodotto.create({ data: dati });
-    id = creato.id;
+    if (file) scheda = await salvaDatasheet(id, file);
+    await prisma.prodotto.create({ data: { ...dati, id, ...scheda } });
   } catch (e) {
+    if (scheda) await eliminaFile(scheda.schedaPercorso);
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: "Esiste già un materiale con questo codice." };
     }
     return { error: "Errore nel salvataggio." };
-  }
-
-  // Allegato datasheet (facoltativo): il PDF arriva dal campo del form.
-  if (file) {
-    try {
-      const scheda = await salvaDatasheet(id, file);
-      await prisma.prodotto.update({ where: { id }, data: scheda });
-    } catch {
-      // il prodotto è creato: l'allegato si può ricaricare dalla modifica
-    }
   }
 
   revalidatePath("/materiali");
@@ -118,24 +112,24 @@ export async function updateProdotto(
 
   const dati = datiComuni(formData);
   if (!dati.descrizione) return { error: "La descrizione è obbligatoria." };
+  if (str(formData, "prezzoListino") && dati.prezzoListino === null) return { error: "Inserisci un prezzo di listino valido e non negativo." };
 
   const file = fileScheda(formData);
   if (file && "error" in file) return { error: file.error };
 
+  let scheda: Awaited<ReturnType<typeof salvaDatasheet>> | undefined;
   try {
-    await prisma.prodotto.update({ where: { id: prodottoId }, data: dati });
-    if (file) {
-      // Sostituzione datasheet: elimina il vecchio dal disco.
-      if (esistente.schedaPercorso) await eliminaFile(esistente.schedaPercorso);
-      const scheda = await salvaDatasheet(prodottoId, file);
-      await prisma.prodotto.update({ where: { id: prodottoId }, data: scheda });
-    }
+    if (file) scheda = await salvaDatasheet(prodottoId, file);
+    await prisma.prodotto.update({ where: { id: prodottoId, updatedAt: esistente.updatedAt }, data: { ...dati, ...scheda } });
   } catch (e) {
+    if (scheda) await eliminaFile(scheda.schedaPercorso);
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: "Esiste già un materiale con questo codice." };
     }
     return { error: "Errore nel salvataggio." };
   }
+
+  if (scheda && esistente.schedaPercorso) await eliminaFile(esistente.schedaPercorso);
 
   revalidatePath("/materiali");
   revalidatePath(`/materiali/${prodottoId}`);

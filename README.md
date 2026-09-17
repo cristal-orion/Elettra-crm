@@ -3,8 +3,8 @@
 Cruscotto di controllo per anagrafiche, commesse e acquisti — pensato per
 sostituire la gestione a fogli Excel su SharePoint.
 
-Questa è la **base di funzionamento (Fase 1)**: fondamenta del progetto,
-autenticazione con ruoli e modulo Anagrafiche Clienti/Fornitori.
+Il CRM comprende autenticazione con ruoli, anagrafiche, commesse, acquisti,
+catalogo materiali, progetti di cantiere e assistente AI operativo.
 Il flusso completo di riferimento è in `../docs/FLUSSO_CRM_ELETTRA.md`
 (e nel diagramma visivo `../docs/flusso-crm-elettra.html`).
 
@@ -17,7 +17,7 @@ Il flusso completo di riferimento è in `../docs/FLUSSO_CRM_ELETTRA.md`
 
 ## Requisiti
 
-- Node.js 20+ (testato su 22)
+- Node.js 22+ (richiesto dall'AI SDK 7)
 - npm
 
 ## Avvio in sviluppo
@@ -62,6 +62,9 @@ Utenti creati dal seed, tutti con quella password:
 | Comando | Descrizione |
 |---|---|
 | `npm run dev` | Server di sviluppo |
+| `npm test` | Test di regressione (validazione dati, sessioni, documenti, economics) |
+| `npm run lint` | Analisi statica del codice applicativo |
+| `npm run ai:scheduled` | Esegue i controlli AI programmati dovuti (da pianificare ogni 5 minuti) |
 | `npm run build` / `npm start` | Build e avvio di produzione |
 | `npm run db:migrate` | Crea/applica migrazioni |
 | `npm run db:seed` | Ricarica i dati di esempio (richiede `SEED_PASSWORD`) |
@@ -71,7 +74,49 @@ Utenti creati dal seed, tutti con quella password:
 | `npm run demo:milestone` | Pianificazione dimostrativa su 4 commesse (`-- --rimuovi` per togliere) |
 | `npm run auth:password -- '<password>'` | Ruota la password di tutti gli utenti attivi |
 
-## Struttura
+## Assistente operativo
+
+L'assistente gestisce commesse/clienti, pianificazione, milestone, squadre e
+attività con i permessi dell'utente. La chat conserva lo storico e mostra gli
+esiti dei tool; importi, cambi di stato commerciale, tipologie ed eliminazioni
+producono proposte da confermare, valide per 30 minuti. Le conferme sono legate
+all'utente e al contenuto salvato sul server: cambiare i dati nel frattempo
+invalida la proposta. Interrompere una risposta non annulla operazioni già salvate.
+
+- Le schede cliente, commessa e progetto hanno azioni AI contestuali.
+- **Attività** raccoglie follow-up e prossimi passi con responsabile/scadenza.
+- **Assistente → Controlli programmati** configura riepiloghi con notifiche interne.
+- I PDF materiali mostrano un confronto dei valori prima di applicare l'estrazione.
+
+Aggiornamento di un'istanza esistente, senza azzerare i dati:
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+```
+
+La migrazione `20260917090000_assistente_operativo` aggiunge cronologia, registro
+operazioni, attività, pianificazioni e notifiche. Per i controlli automatici
+vedere [DEPLOY.md](DEPLOY.md#controlli-ai-programmati).
+
+### Limiti operativi AI
+
+Chat: massimo 100 messaggi per conversazione, ultimi 30 messaggi nel contesto
+del modello (entro 180.000 caratteri), 10 passaggi modello, 30 operazioni e 3
+documenti per richiesta, timeout 120 secondi. Analisi contestuali: timeout 60
+secondi e 10 richieste ogni 15 minuti per utente. Il limite della chat è 60
+messaggi registrati ogni 15 minuti per utente. I PDF analizzati dalla chat
+devono essere al massimo 10 MB. Lo storico e gli esiti completati rimangono
+consultabili anche quando il modello o la connessione non rispondono.
+
+Il toolset disponibile dipende dal ruolo; ogni scrittura riverifica l'utente
+attivo nel database. I tool usano gli stessi servizi dei form (`src/lib/crm/`).
+Le proposte commerciali sono record `AiOperation` persistenti e vengono
+confermate tramite endpoint autenticato, senza accettare comandi dal browser.
+Gli esiti dei tool nel client sono presentazione: lo storico autorevole è nel DB.
+
+## Struttura applicativa
 
 ```
 src/

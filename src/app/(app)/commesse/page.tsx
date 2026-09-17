@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import {
   puoGestireCommesse,
   STATI_COMMESSA,
@@ -15,7 +15,7 @@ export const metadata = { title: "Commesse — CRM Elettra" };
 export default async function CommessePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stato?: string }>;
+  searchParams: Promise<{ q?: string; stato?: string; daFatturare?: string }>;
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
@@ -24,11 +24,12 @@ export default async function CommessePage({
       ? sp.stato
       : null;
 
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const puoCreare = user ? puoGestireCommesse(user.ruolo) : false;
 
   const where: Prisma.CommessaWhereInput = {};
   if (stato) where.stato = stato;
+  if (sp.daFatturare === "1") { where.AND = [{ stato: { not: "FATTURATA" } }, { ordiniFornitore: { some: {} } }]; }
   if (q) {
     where.OR = [
       { numero: { contains: q } },
@@ -68,13 +69,16 @@ export default async function CommessePage({
       </header>
 
       <form method="get" className="flex flex-wrap items-center gap-2">
+        {sp.daFatturare === "1" && <input type="hidden" name="daFatturare" value="1" />}
         <input
+          aria-label="Cerca commesse"
           name="q"
           defaultValue={q}
           placeholder="Cerca per numero, descrizione, cliente…"
           className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
         <select
+          aria-label="Stato commessa"
           name="stato"
           defaultValue={stato ?? ""}
           className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"
@@ -93,6 +97,7 @@ export default async function CommessePage({
           Filtra
         </button>
       </form>
+      {sp.daFatturare === "1" && <p className="text-sm text-warn">Commesse con acquisti collegati e non ancora fatturate. <Link href="/commesse" className="underline">Rimuovi filtro</Link></p>}
 
       <div className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full text-sm">

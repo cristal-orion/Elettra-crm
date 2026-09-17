@@ -58,6 +58,8 @@ export default function ProdottoForm({
   const [estraendo, setEstraendo] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOk, setAiOk] = useState(false);
+  const [proposta, setProposta] = useState<Partial<ProdottoFormValues> | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
 
   const set = (k: keyof ProdottoFormValues, val: string) =>
     setValues((v) => ({ ...v, [k]: val }));
@@ -68,6 +70,7 @@ export default function ProdottoForm({
     setEstraendo(true);
     setAiError(null);
     setAiOk(false);
+    setProposta(null);
     try {
       const fd = new FormData();
       fd.append("scheda", f);
@@ -77,15 +80,9 @@ export default function ProdottoForm({
         return;
       }
       const dati = (await res.json()) as Partial<ProdottoFormValues>;
-      // riempie solo i campi non vuoti restituiti, senza cancellare il resto
-      setValues((v) => {
-        const next = { ...v };
-        for (const [k, val] of Object.entries(dati)) {
-          if (val) next[k as keyof ProdottoFormValues] = String(val);
-        }
-        return next;
-      });
-      setAiOk(true);
+      const clean = Object.fromEntries(Object.entries(dati).filter(([k, v]) => k in VUOTO && typeof v === "string" && v.length > 0));
+      setProposta(clean);
+      setSelected(Object.keys(clean).filter((k) => !values[k as keyof ProdottoFormValues]));
     } catch {
       setAiError("Errore durante l'estrazione. Riprova.");
     } finally {
@@ -205,11 +202,14 @@ export default function ProdottoForm({
             ref={fileRef}
             type="file"
             name="scheda"
+            aria-label="Scheda tecnica PDF"
+            disabled={estraendo || pending}
             accept="application/pdf"
             onChange={(e) => {
               setHasFile(!!e.target.files?.length);
               setAiOk(false);
               setAiError(null);
+              setProposta(null);
             }}
             className="mt-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-soft file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-deep hover:file:bg-brand-soft/70"
           />
@@ -219,13 +219,13 @@ export default function ProdottoForm({
               <button
                 type="button"
                 onClick={compilaConAI}
-                disabled={!hasFile || estraendo}
+                disabled={!hasFile || estraendo || pending}
                 className="rounded-lg border border-brand/40 px-4 py-2 text-sm font-medium text-brand-deep transition hover:bg-brand-soft disabled:opacity-50"
               >
-                {estraendo ? "Leggo la scheda…" : "✨ Compila con AI"}
+                {estraendo ? "Leggo la scheda…" : "Estrai dati con AI"}
               </button>
               <span className="text-xs text-ink-soft">
-                Carica il PDF, poi lascia che l&apos;AI riempia i campi qui sopra.
+                Carica il PDF, poi confronta i dati estratti con i campi attuali.
                 Il file resta allegato al materiale.
               </span>
             </div>
@@ -245,6 +245,7 @@ export default function ProdottoForm({
               Campi compilati dall&apos;AI. Controllali e correggi se serve, poi salva.
             </p>
           )}
+          {proposta && <div className="mt-4 border-t border-line pt-4"><h3 className="text-sm font-semibold">Scegli quali valori applicare</h3><p className="mt-1 text-xs text-ink-soft">I campi già compilati non sono selezionati automaticamente. Nessun dato è stato ancora sostituito.</p><div className="mt-3 space-y-2">{Object.entries(proposta).map(([k, val]) => <label key={k} className="flex min-h-11 items-start gap-3 rounded-lg bg-paper p-3 text-sm"><input type="checkbox" checked={selected.includes(k)} onChange={(e) => setSelected((prev) => e.target.checked ? [...prev, k] : prev.filter((v) => v !== k))} className="mt-1" /><span className="min-w-0 break-words"><strong className="font-medium">{k.replace(/([A-Z])/g, " $1")}</strong><span className="mt-1 block text-ink-soft">Attuale: {values[k as keyof ProdottoFormValues] || "Vuoto"}</span><span className="mt-1 block">Proposto: {val}</span></span></label>)}</div><div className="mt-3 flex gap-3"><button type="button" disabled={!selected.length} onClick={() => { setValues((v) => ({ ...v, ...Object.fromEntries(Object.entries(proposta).filter(([k]) => selected.includes(k))) })); setProposta(null); setAiOk(true); }} className="min-h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50">Applica selezionati</button><button type="button" onClick={() => setProposta(null)} className="min-h-11 px-3 text-sm underline">Scarta estrazione</button></div></div>}
         </fieldset>
       )}
 
@@ -260,7 +261,7 @@ export default function ProdottoForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || estraendo}
           className="rounded-lg bg-elettra px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Salvataggio…" : submitLabel}

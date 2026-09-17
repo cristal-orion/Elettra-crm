@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
+import FormError from "@/components/form-error";
 import { STATI_ORDINE } from "@/lib/enums";
 import { formatEuro } from "@/lib/format";
 import type { OrdineState } from "./actions";
@@ -93,6 +94,7 @@ export default function OrdineForm({
   cancelHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const [commessaId, setCommessaId] = useState(initial?.commessaId ?? "");
   const [righe, setRighe] = useState<RigaValue[]>(
     initial?.righe?.length ? initial.righe : [emptyRiga()],
   );
@@ -148,7 +150,8 @@ export default function OrdineForm({
             <span className={labelCls}>Commessa collegata</span>
             <select
               name="commessaId"
-              defaultValue={v("commessaId")}
+              value={commessaId}
+              onChange={(e) => setCommessaId(e.target.value)}
               className={inputCls}
             >
               <option value="">— Nessuna commessa —</option>
@@ -159,6 +162,7 @@ export default function OrdineForm({
                 </option>
               ))}
             </select>
+            {commessaId && <span className="text-xs leading-relaxed text-warn">Collegando l’acquisto, una commessa di tipo Preventivo passa a Consuntivo (P→C). Tariffario e Gara mantengono la propria tipologia. Lo stato commerciale non cambia.</span>}
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Numero ordine</span>
@@ -234,6 +238,8 @@ export default function OrdineForm({
                     <span className={labelCls}>Descrizione *</span>
                     <input
                       value={r.descrizione}
+                      required
+                      name={`righe.${i}.descrizione`}
                       onChange={(e) =>
                         updateRiga(i, { descrizione: e.target.value })
                       }
@@ -430,14 +436,7 @@ export default function OrdineForm({
         )}
       </fieldset>
 
-      {state?.error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
-          {state.error}
-        </p>
-      )}
+      <FormError error={state?.error} />
 
       <div className="flex items-center gap-3">
         <button

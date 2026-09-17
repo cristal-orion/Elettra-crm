@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import { formatEuro, toNumber } from "@/lib/format";
 import { etichettaStato, STATI_COMMESSA_LIST } from "@/lib/enums";
 import { StatoBadge, TipologiaBadge } from "@/components/badges";
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
+  const user = await requireUser();
 
   // Regola P→C: commesse con materiale acquistato ma non ancora fatturato.
   const daFatturareWhere = {
@@ -144,6 +144,7 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ul>
+          <Link href="/commesse?daFatturare=1" className="block border-t border-warn/20 px-6 py-3 text-sm font-medium text-brand-deep underline">{daFatturare.length} di {daFatturareCount} · Vedi tutte →</Link>
         </section>
       )}
 

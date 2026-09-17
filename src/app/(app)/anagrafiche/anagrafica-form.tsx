@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
+import FormError from "@/components/form-error";
 import { TITOLI } from "@/lib/enums";
 import type { AnagraficaState } from "./actions";
 
@@ -17,6 +18,7 @@ export type ReferenteValue = {
 };
 
 export type AnagraficaFormValues = {
+  expectedUpdatedAt?: string;
   ragioneSociale: string;
   isCliente: boolean;
   isFornitore: boolean;
@@ -83,6 +85,7 @@ export default function AnagraficaForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-7">
+      <input type="hidden" name="expectedUpdatedAt" value={initial?.expectedUpdatedAt ?? ""} />
       {/* referenti serializzati */}
       <input type="hidden" name="referenti" value={JSON.stringify(referenti)} />
 
@@ -278,6 +281,8 @@ export default function AnagraficaForm({
                   <span className={labelCls}>Nome *</span>
                   <input
                     value={r.nome}
+                    required
+                    name={`referenti.${i}.nome`}
                     onChange={(e) => updateRef(i, { nome: e.target.value })}
                     className={inputCls}
                   />
@@ -286,6 +291,8 @@ export default function AnagraficaForm({
                   <span className={labelCls}>Cognome *</span>
                   <input
                     value={r.cognome}
+                    required
+                    name={`referenti.${i}.cognome`}
                     onChange={(e) => updateRef(i, { cognome: e.target.value })}
                     className={inputCls}
                   />
@@ -342,14 +349,7 @@ export default function AnagraficaForm({
         </div>
       </fieldset>
 
-      {state?.error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
-          {state.error}
-        </p>
-      )}
+      <FormError error={state?.error} />
 
       <div className="flex items-center gap-3">
         <button

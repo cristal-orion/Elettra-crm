@@ -8,6 +8,8 @@ const PUBLIC_PATHS = ["/login"];
 // La verifica effettiva (validità token + utente attivo) avviene nel DAL.
 export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
+  // Le API applicano l'autenticazione nel route handler e restituiscono JSON/401.
+  if (pathname === "/assistente/api" || pathname.startsWith("/assistente/api/") || pathname === "/materiali/estrai") return NextResponse.next();
   const hasSession = Boolean(req.cookies.get(COOKIE_NAME)?.value);
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
@@ -16,9 +18,8 @@ export function proxy(req: NextRequest): NextResponse {
   if (!hasSession && !isPublic) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
-  if (hasSession && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", req.url));
-  }
+  // Il cookie può essere scaduto o appartenere a un utente disattivato.
+  // Solo la pagina login, dopo la verifica nel DAL, può rimandare alla home.
   return NextResponse.next();
 }
 

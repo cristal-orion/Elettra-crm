@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
+import FormError from "@/components/form-error";
 import {
   STATI_COMMESSA,
   TIPOLOGIE,
@@ -25,6 +26,7 @@ export type ClienteOption = {
 export type PmOption = { id: string; nome: string; cognome: string };
 
 export type CommessaFormValues = {
+  expectedUpdatedAt?: string;
   clienteId: string;
   referenteId: string;
   pmId: string;
@@ -79,6 +81,7 @@ export default function CommessaForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-7">
+      <input type="hidden" name="expectedUpdatedAt" value={initial?.expectedUpdatedAt ?? ""} />
       {/* Cliente e assegnazione */}
       <fieldset className="rounded-xl border border-line bg-panel p-5">
         <legend className="px-1 text-sm font-semibold">
@@ -305,14 +308,7 @@ export default function CommessaForm({
         </fieldset>
       )}
 
-      {state?.error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
-          {state.error}
-        </p>
-      )}
+      <FormError error={state?.error} />
 
       <div className="flex items-center gap-3">
         <button

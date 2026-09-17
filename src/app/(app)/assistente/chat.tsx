@@ -2,235 +2,86 @@
 
 import { useRef, useState, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, getToolName, isToolUIPart, type UIMessage } from "ai";
+import { useRouter } from "next/navigation";
+import Markdown from "@/components/ai/markdown";
+import OperationCard, { type OperationView } from "@/components/ai/operation-card";
+import type { AiContext } from "@/lib/ai/http";
 
-const SUGGERIMENTI = [
-  "Quali sono le ultime commesse?",
-  "Qual è il tasso di conversione?",
-  "Commesse in follow-up",
-  "Ultimo prezzo del cavo",
-];
+const SUGGERIMENTI = ["Quali progetti sono in ritardo?", "Trova le commesse in follow-up", "Mostrami le attività da completare", "Aiutami a pianificare un cantiere"];
+const labels: Record<string, string> = { cercaCommesse: "Ricerca commesse", dettaglioCommessa: "Lettura della commessa", cercaAnagrafiche: "Ricerca anagrafiche", dettaglioCliente: "Lettura cliente", cercaProgetti: "Analisi progetti", cercaOperai: "Consultazione squadre", creaMilestone: "Creazione milestone", pianificaProgetto: "Pianificazione", salvaCommessa: "Salvataggio commessa", salvaAnagrafica: "Salvataggio anagrafica", assegnaOperaio: "Assegnazione operaio", cercaAttivita: "Consultazione attività", creaAttivita: "Creazione attività", leggiDocumentoCommessa: "Analisi documento" };
 
-export default function AssistenteChat() {
-  const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({ api: "/assistente/api" }),
+export default function AssistenteChat({ id: initialId, initialMessages = [], context, draft = "" }: { id: string; initialMessages?: UIMessage[]; context?: AiContext; draft?: string }) {
+  const [id] = useState(initialId);
+  const router = useRouter();
+  const transport = new DefaultChatTransport({ api: "/assistente/api", prepareSendMessagesRequest: ({ messages }) => {
+    const message = [...messages].reverse().find((m) => m.role === "user");
+    return { body: { id, requestId: message?.id, text: message?.parts.filter((p) => p.type === "text").map((p) => p.text).join("\n"), context } };
+  } });
+  const { messages, sendMessage, status, error, stop, regenerate, clearError } = useChat({ id, messages: initialMessages, transport,
+    onFinish: () => { router.replace(`/assistente?chat=${encodeURIComponent(id)}`, { scroll: false }); router.refresh(); },
   });
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(draft);
+  const [copied, setCopied] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const follow = useRef(true);
   const busy = status === "submitted" || status === "streaming";
-
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    if (follow.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, status]);
-
-  function invia(testo: string) {
-    const t = testo.trim();
-    if (!t || busy) return;
-    sendMessage({ text: t });
+  async function invia(testo: string) {
+    const text = testo.trim();
+    if (!text || busy) return;
+    clearError(); follow.current = true;
     setInput("");
+    await sendMessage({ text });
+    inputRef.current?.focus();
   }
-
-  return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col rounded-xl border border-line bg-panel">
-      {/* Messaggi */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-        {messages.length === 0 ? (
-          <div className="mx-auto max-w-lg pt-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft">
-              <svg viewBox="0 0 24 24" className="h-6 w-6 text-brand-deep" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M12 2a7 7 0 0 0-7 7c0 2 .9 3.4 2 4.6.7.8 1 1.3 1 2.4v1a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1c0-1.1.3-1.6 1-2.4 1.1-1.2 2-2.6 2-4.6a7 7 0 0 0-7-7Zm-3 19a1 1 0 0 1 1-1h4a1 1 0 0 1 0 2h-4a1 1 0 0 1-1-1Z"
-                />
-              </svg>
-            </div>
-            <h2 className="mt-4 text-lg font-semibold">Assistente CRM</h2>
-            <p className="mt-1 text-sm text-ink-soft">
-              Chiedimi di commesse, clienti, ordini, statistiche o prezzi dei
-              materiali. Leggo i dati reali del CRM.
-            </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {SUGGERIMENTI.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => invia(s)}
-                  className="rounded-full border border-line bg-paper/60 px-3 py-1.5 text-xs text-ink-soft transition hover:border-brand/40 hover:text-brand-deep"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto flex max-w-2xl flex-col gap-4">
-            {messages.map((m) => {
-              const testo = m.parts
-                .filter((p) => p.type === "text")
-                .map((p) => (p as { text: string }).text)
-                .join("");
-              const isUser = m.role === "user";
-              const attende =
-                !isUser && !testo && (status === "streaming" || status === "submitted");
-              return (
-                <div
-                  key={m.id}
-                  className={isUser ? "flex justify-end" : "flex justify-start"}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                      isUser
-                        ? "whitespace-pre-wrap bg-brand text-white"
-                        : "border border-line bg-paper/70 text-ink"
-                    }`}
-                  >
-                    {attende ? (
-                      <span className="inline-flex gap-1 text-ink-faint">
-                        <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
-                      </span>
-                    ) : isUser ? (
-                      testo
-                    ) : testo ? (
-                      <Markdown text={testo} />
-                    ) : (
-                      <span className="text-ink-faint">…</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <p className="border-t border-danger/30 bg-danger-soft px-6 py-2 text-xs text-danger">
-          Errore nell&apos;assistente. Riprova. ({error.message})
-        </p>
-      )}
-
-      {/* Input */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          invia(input);
-        }}
-        className="flex items-end gap-2 border-t border-line p-3 sm:p-4"
-      >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              invia(input);
-            }
-          }}
-          rows={1}
-          placeholder="Scrivi una domanda…  (Invio per inviare, Shift+Invio a capo)"
-          className="max-h-32 min-h-[42px] flex-1 resize-none rounded-lg border border-line bg-panel px-3.5 py-2.5 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
-        >
-          {busy ? "…" : "Invia"}
-        </button>
-      </form>
+  async function copy(id: string, text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(id); }
+    catch { setCopied("failed"); }
+  }
+  let errorText = error?.message;
+  if (errorText) { try { errorText = JSON.parse(errorText).error ?? errorText; } catch {} }
+  return <div className="flex h-[min(72dvh,850px)] min-h-[420px] min-w-0 flex-col rounded-xl border border-line bg-panel">
+    <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 text-xs text-ink-soft">
+      <span>{context ? "Conversazione collegata alla scheda" : "Assistente operativo"}</span><span role="status" aria-live="polite">{busy ? "Sto lavorando…" : "Pronto"}</span>
     </div>
-  );
-}
-
-function Dot({ delay = "0ms" }: { delay?: string }) {
-  return (
-    <span
-      className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-ink-faint"
-      style={{ animationDelay: delay }}
-    />
-  );
-}
-
-/**
- * Renderer Markdown minimale per le risposte dell'assistente (senza dipendenze).
- * Copre i pattern tipici di un LLM: titoli, elenchi puntati/numerati (con un
- * livello di indentazione), **grassetto** e `codice`. Costruisce nodi React
- * (niente HTML grezzo), quindi non c'è rischio di injection.
- */
-function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/\r/g, "").split("\n");
-  return (
-    <div className="flex flex-col gap-1 leading-relaxed">
-      {lines.map((raw, i) => {
-        if (!raw.trim()) return <div key={i} className="h-1.5" aria-hidden />;
-
-        const indent = raw.match(/^\s*/)?.[0].length ?? 0;
-        const line = raw.trim();
-
-        const h = line.match(/^#{1,6}\s+(.*)$/);
-        if (h) {
-          return (
-            <p key={i} className="mt-1 font-semibold">
-              <Inline text={h[1]} />
-            </p>
-          );
-        }
-
-        const ol = line.match(/^(\d+)\.\s+(.*)$/);
-        const ul = line.match(/^[-*]\s+(.*)$/);
-        if (ol || ul) {
-          const marker = ol ? `${ol[1]}.` : "•";
-          const content = ol ? ol[2] : ul![1];
-          return (
-            <div
-              key={i}
-              className="flex gap-2"
-              style={{ paddingLeft: indent >= 2 ? "1.15rem" : 0 }}
-            >
-              <span className="shrink-0 tabular-nums text-ink-faint">
-                {marker}
-              </span>
-              <span className="min-w-0 flex-1">
-                <Inline text={content} />
-              </span>
-            </div>
-          );
-        }
-
-        return (
-          <p key={i}>
-            <Inline text={line} />
-          </p>
-        );
-      })}
+    <div ref={scrollRef} onScroll={() => { const el = scrollRef.current; if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6" aria-label="Messaggi della conversazione" role="log" aria-live="off">
+      {!messages.length ? <div className="mx-auto max-w-xl py-6">
+        <h2 className="text-xl font-semibold tracking-tight">Da cosa iniziamo?</h2><p className="mt-2 text-sm leading-relaxed text-ink-soft">Posso consultare il CRM, preparare un piano e aggiornare attività, milestone e squadre su tua richiesta. Importi e cambi di stato commerciale richiedono conferma.</p>
+        <div className="mt-6 grid gap-2 sm:grid-cols-2">{SUGGERIMENTI.map((s) => <button key={s} type="button" onClick={() => setInput(s)} className="min-h-12 rounded-lg border border-line px-4 py-3 text-left text-sm transition hover:border-brand hover:bg-brand-soft">{s} <span aria-hidden className="text-brand">↗</span></button>)}</div>
+      </div> : <div className="mx-auto max-w-3xl space-y-6">{messages.map((m) => {
+        const text = m.parts.filter((p) => p.type === "text").map((p) => p.text).join("\n");
+        const user = m.role === "user";
+        return <article key={m.id} className={user ? "ml-auto max-w-[90%] rounded-xl bg-brand-soft px-4 py-3" : "min-w-0"} aria-label={user ? "Tu" : "Assistente"}>
+          <p className="mb-2 text-xs font-semibold text-ink-soft">{user ? "Tu" : "Assistente"}</p>
+          {m.parts.map((p, i) => {
+            if (p.type === "text") return <div key={i} className="text-sm">{user ? <p className="whitespace-pre-wrap break-words">{p.text}</p> : <Markdown text={p.text} />}</div>;
+            if (!isToolUIPart(p)) return null;
+            const name = getToolName(p);
+            const output = p.state === "output-available" ? p.output as Record<string, unknown> | null : null;
+            if (output && typeof output.operationId === "string") return <OperationCard key={p.toolCallId} initial={output as unknown as OperationView} />;
+            const failed = p.state === "output-error" || output?.status === "FAILED";
+            return <details key={p.toolCallId} className="my-2 rounded-lg border border-line px-3 py-2 text-xs">
+              <summary className="min-h-8 cursor-pointer py-1 text-ink-soft">{labels[name] ?? name} · {failed ? "Non completato" : p.state === "output-available" ? "Completato" : "In corso"}</summary>
+              {failed ? <p className="py-2 text-danger">{p.state === "output-error" ? "Impossibile completare questa operazione." : String(output?.error ?? "Errore")}</p> : output ? <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words py-2 text-ink-soft">{JSON.stringify(output, null, 2).slice(0, 10000)}</pre> : <p className="py-2">Consultazione dei dati in corso…</p>}
+            </details>;
+          })}
+          {!user && text && <button type="button" onClick={() => copy(m.id, text)} className="mt-2 min-h-10 px-1 text-xs text-ink-soft hover:text-brand-deep">{copied === m.id ? "Copiato" : "Copia risposta"}</button>}
+          {(m.metadata as { interrupted?: boolean } | undefined)?.interrupted && <p className="mt-2 text-xs text-warn">Risposta interrotta. Controlla gli esiti delle operazioni prima di continuare.</p>}
+        </article>;
+      })}</div>}
+      {status === "submitted" && <p role="status" className="mx-auto mt-4 max-w-3xl text-sm text-ink-soft">Consulto i dati necessari…</p>}
     </div>
-  );
-}
-
-/** Formattazione inline: **grassetto** e `codice`. */
-function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.length > 4 && p.startsWith("**") && p.endsWith("**")) {
-          return <strong key={i}>{p.slice(2, -2)}</strong>;
-        }
-        if (p.length > 2 && p.startsWith("`") && p.endsWith("`")) {
-          return (
-            <code
-              key={i}
-              className="rounded bg-panel px-1 py-0.5 font-mono text-[0.85em]"
-            >
-              {p.slice(1, -1)}
-            </code>
-          );
-        }
-        return <span key={i}>{p}</span>;
-      })}
-    </>
-  );
+    {error && <div role="alert" className="border-t border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger"><p>{errorText}</p><div className="mt-2 flex gap-4"><button type="button" onClick={() => regenerate()} className="min-h-10 underline">Riprova</button><button type="button" onClick={() => { router.replace(`/assistente?chat=${id}`); router.refresh(); }} className="min-h-10 underline">Ricarica storico</button></div></div>}
+    {copied === "failed" && <p role="status" className="px-4 text-xs text-ink-soft">Copia non disponibile: seleziona il testo della risposta.</p>}
+    <form onSubmit={(e) => { e.preventDefault(); void invia(input); }} className="border-t border-line p-3 sm:p-4">
+      <label htmlFor="ai-message" className="sr-only">Richiesta all’assistente CRM</label>
+      <div className="flex items-end gap-2"><textarea ref={inputRef} id="ai-message" value={input} maxLength={8000} onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void invia(input); } }} rows={2} placeholder="Chiedi un’analisi o descrivi cosa vuoi fare…" className="max-h-40 min-h-12 min-w-0 flex-1 resize-none rounded-lg border border-line bg-panel px-3 py-2 text-sm" />
+        {busy ? <button type="button" onClick={() => stop()} className="min-h-12 rounded-lg border border-line px-4 text-sm font-medium">Interrompi</button> : <button type="submit" disabled={!input.trim()} className="min-h-12 rounded-lg bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50">Invia</button>}
+      </div><p className="mt-2 text-[11px] text-ink-faint">Invio per inviare · Shift+Invio per andare a capo · Le operazioni salvate restano nello storico.</p>
+    </form>
+  </div>;
 }

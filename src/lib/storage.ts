@@ -8,8 +8,10 @@ import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
 /** Radice dell'archivio documenti (override con UPLOADS_DIR). */
-export const UPLOADS_DIR =
-  process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads");
+// Archivio a runtime su volume persistente: non va incluso nel bundle.
+export const UPLOADS_DIR = path.resolve(
+  /* turbopackIgnore: true */ process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"),
+);
 
 /** Ripulisce un nome file: niente separatori di percorso né caratteri ostili. */
 export function sanitizeFilename(name: string): string {
@@ -24,7 +26,8 @@ export function sanitizeFilename(name: string): string {
  */
 export function percorsoAssoluto(percorsoRelativo: string): string {
   const abs = path.resolve(UPLOADS_DIR, percorsoRelativo);
-  if (abs !== UPLOADS_DIR && !abs.startsWith(UPLOADS_DIR + path.sep)) {
+  const relativo = path.relative(UPLOADS_DIR, abs);
+  if (!relativo || relativo === ".." || relativo.startsWith(`..${path.sep}`) || path.isAbsolute(relativo)) {
     throw new Error("Percorso documento non valido.");
   }
   return abs;

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/dal";
 import { puoGestireAnagrafiche } from "@/lib/enums";
 import { estraiDaVisura, visuraToFormValues } from "@/lib/ai-visura";
 import type { AnagraficaFormValues } from "../anagrafica-form";
+import { publicError } from "@/lib/crm/commands";
 
 export type VisuraState =
   | { ok: true; dati: AnagraficaFormValues; nome: string }
@@ -34,7 +35,7 @@ export async function estraiVisura(
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const dati = await estraiDaVisura(bytes);
+    const dati = await estraiDaVisura(bytes, user.id);
     const mappati = visuraToFormValues(dati);
     if (!mappati.ragioneSociale) {
       return {
@@ -44,7 +45,6 @@ export async function estraiVisura(
     }
     return { ok: true, dati: mappati, nome: file.name };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { error: `Estrazione fallita: ${msg.slice(0, 200)}` };
+    return { error: publicError(e) };
   }
 }

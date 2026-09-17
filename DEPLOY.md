@@ -97,7 +97,42 @@ Le milestone sono marcate `dimostrativa` nel database e l'interfaccia lo dichiar
 con un banner nel dettaglio e un badge in lista: commesse, clienti e importi
 restano reali, di esempio sono solo milestone, date di cantiere e note.
 
-## Limiti noti di questa configurazione
+## Controlli AI programmati
+
+La nuova migrazione viene applicata dal normale entrypoint. I controlli
+automatici hanno bisogno di una **Scheduled Task** di Coolify dentro il
+container del CRM:
+
+- Frequenza cron: `*/5 * * * *`
+- Comando: `npm run ai:scheduled`
+- Directory di lavoro: `/app`
+
+Il processo deve usare lo stesso `DATABASE_URL`, `SESSION_SECRET`, volume `/data`
+e configurazione Gemini dell'app. Non esporre un endpoint cron pubblico.
+
+Poi, da Super Admin, aprire **Assistente → Controlli programmati** e configurare
+orario, giorni lavorativi, intervalli e destinatari. **Esegui ora** verifica il
+flusso completo e crea le notifiche; al massimo una esecuzione manuale ogni 5
+minuti per pianificazione.
+
+Gli orari sono in **Europe/Rome**, indipendenti dal fuso del container. Uno slot
+per giorno impedisce doppie esecuzioni al cambio dell'ora. Un riavvio recupera
+il controllo dovuto nello stesso giorno. Lease di 5 minuti e vincoli univoci nel
+database proteggono da job sovrapposti. Le chiamate AI non tengono transazioni
+aperte; le scritture dei tool nello stesso turno sono serializzate per SQLite.
+
+Il controllo identifica follow-up fermi, progetti da pianificare, ritardi,
+scadenze, dati mancanti e sovrapposizioni. Esclude la pianificazione dimostrativa.
+Il dettaglio dichiara il limite di 5.000 record per categoria e conserva gli
+esiti delle regole. Se Gemini non è disponibile, resta un riepilogo
+deterministico. I destinatari ricevono notifiche **nel CRM**, non email.
+
+Le esecuzioni concluse o fallite sono consultabili nello storico. Dopo un
+errore usare **Esegui ora**; un job rimasto in corso oltre la lease può essere
+recuperato automaticamente. Il controllo non modifica commesse o squadre:
+le proposte si aprono nell'assistente con il contesto della scheda.
+
+## Limiti della configurazione
 
 - **SQLite**: adeguato alla demo, un solo processo in scrittura. Lo schema è
   scritto per essere compatibile con PostgreSQL (vedi note in

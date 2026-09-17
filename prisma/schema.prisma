@@ -33,6 +33,11 @@ model User {
 
   commesse      Commessa[]     @relation("CommessaPM")
   segnalazioni  Segnalazione[] @relation("SegnalazioneAutore")
+  aiConversations AiConversation[]
+  aiOperations AiOperation[]
+  aiSchedules AiSchedule[]
+  notifiche Notifica[]
+  attivita Attivita[]
 
   @@index([ruolo])
 }
@@ -71,6 +76,7 @@ model Anagrafica {
   destinazioni    Destinazione[]
   commesse        Commessa[]        @relation("CommessaCliente")
   ordiniFornitore OrdineFornitore[] @relation("OrdineFornitore")
+  attivita Attivita[]
 
   @@index([ragioneSociale])
 }
@@ -167,6 +173,7 @@ model Commessa {
   documenti       Documento[]
   milestone       Milestone[]
   assegnazioni    AssegnazioneOperaio[]
+  attivita        Attivita[]
 
   @@index([clienteId])
   @@index([stato])
@@ -407,4 +414,115 @@ model Impostazione {
   valore    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Cronologia privata. Il server è la fonte autorevole anche per i tool.
+model AiConversation {
+  id String @id @default(cuid())
+  userId String
+  title String
+  context Json?
+  busyUntil DateTime?
+  lockToken String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+  operations AiOperation[]
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id String @id
+  conversationId String
+  payload Json
+  createdAt DateTime @default(now())
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([conversationId, createdAt])
+}
+
+/// Scrittura e ricevuta vengono salvate nella stessa transazione.
+model AiOperation {
+  id String @id @default(cuid())
+  userId String
+  conversationId String?
+  requestKey String @unique
+  command Json
+  preview Json
+  status String @default("PENDING")
+  result Json?
+  error String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  @@index([userId, createdAt])
+}
+
+model AiSchedule {
+  id String @id @default(cuid())
+  userId String
+  name String
+  enabled Boolean @default(true)
+  hour Int @default(8)
+  minute Int @default(0)
+  weekdaysOnly Boolean @default(true)
+  timezone String @default("Europe/Rome")
+  followupDays Int @default(14)
+  horizonDays Int @default(7)
+  recipientIds Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs AiRun[]
+}
+
+model AiRun {
+  id String @id @default(cuid())
+  scheduleId String
+  slot String
+  status String @default("RUNNING")
+  leaseUntil DateTime
+  summary String?
+  findings Json?
+  usage Json?
+  error String?
+  createdAt DateTime @default(now())
+  finishedAt DateTime?
+  schedule AiSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  notifications Notifica[]
+  @@unique([scheduleId, slot])
+}
+
+model Notifica {
+  id String @id @default(cuid())
+  userId String
+  runId String?
+  titolo String
+  testo String
+  href String
+  letta Boolean @default(false)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run AiRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+  @@unique([userId, runId])
+  @@index([userId, letta, createdAt])
+}
+
+model Attivita {
+  id String @id @default(cuid())
+  titolo String
+  note String?
+  scadenza DateTime?
+  stato String @default("DA_FARE")
+  userId String
+  commessaId String?
+  clienteId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: SetNull)
+  cliente Anagrafica? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  @@index([userId, stato, scadenza])
 }

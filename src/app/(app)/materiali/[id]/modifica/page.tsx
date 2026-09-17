@@ -6,6 +6,7 @@ import { puoGestireCatalogo } from "@/lib/enums";
 import { toNumber } from "@/lib/format";
 import ProdottoForm, { type ProdottoFormValues } from "../../prodotto-form";
 import { updateProdotto } from "../../actions";
+import { isAiConfigured } from "@/lib/ai";
 
 export const metadata = { title: "Modifica materiale — CRM Elettra" };
 
@@ -50,6 +51,7 @@ export default async function ModificaMaterialePage({
         submitLabel="Salva modifiche"
         cancelHref={`/materiali/${id}`}
         schedaAttuale={p.schedaNomeFile}
+        aiConfigured={await isAiConfigured()}
       />
     </div>
   );

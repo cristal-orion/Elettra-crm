@@ -36,9 +36,10 @@ export default async function ModificaCommessaPage({
   if (!commessa) notFound();
 
   // Regola P→C: con ordini materiali collegati la tipologia è bloccata a "C".
-  const bloccoConsuntivo = ordiniCollegati > 0;
+  const bloccoConsuntivo = ordiniCollegati > 0 && !["T", "GARA"].includes(commessa.tipologia ?? "");
 
   const initial: CommessaFormValues = {
+    expectedUpdatedAt: commessa.updatedAt.toISOString(),
     clienteId: commessa.clienteId,
     referenteId: commessa.referenteId ?? "",
     pmId: commessa.pmId ?? "",

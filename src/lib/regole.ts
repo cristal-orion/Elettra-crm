@@ -64,10 +64,11 @@ export async function applicaRegolaPC(
   if (!commessa) return false;
 
   const haAcquisti = await commessaHaAcquisti(db, commessaId);
-  if (haAcquisti && commessa.tipologia !== "C") {
+  const tipologia = tipologiaForzata(commessa.tipologia, haAcquisti);
+  if (tipologia !== commessa.tipologia) {
     await db.commessa.update({
       where: { id: commessaId },
-      data: { tipologia: "C" },
+      data: { tipologia },
     });
     return true;
   }

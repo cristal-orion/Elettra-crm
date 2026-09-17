@@ -8,7 +8,7 @@
   --color-panel: #ffffff;
   --color-ink: #191817;
   --color-ink-soft: #4a4f56;
-  --color-ink-faint: #8a9098;
+  --color-ink-faint: #656b73;
   --color-line: #e6e9eb;
 
   /* Brand blu */
@@ -29,7 +29,7 @@
   /* Semantici */
   --color-ok: #2f7d4e;
   --color-ok-soft: #e4f1e8;
-  --color-warn: #c98a0e;
+  --color-warn: #855800;
   --color-warn-soft: #fbf1da;
   --color-danger: #b23a2e;
   --color-danger-soft: #f6e4e1;
@@ -78,4 +78,12 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import AiContextPanel from "@/components/ai/context-panel";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import {
   puoGestireProgetti,
   etichettaStato,
@@ -49,6 +50,7 @@ export default async function ProgettoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
 
   const commessa = await prisma.commessa.findUnique({
     where: { id },
@@ -65,7 +67,6 @@ export default async function ProgettoDetailPage({
 
   if (!commessa) notFound();
 
-  const user = await getCurrentUser();
   const puoModificare = user ? puoGestireProgetti(user.ruolo) : false;
 
   // Una commessa ancora in fase commerciale non ha cantiere: si spiega invece
@@ -109,6 +110,8 @@ export default async function ProgettoDetailPage({
   return (
     <div className="flex flex-col gap-7">
       <Intestazione commessa={commessa} stato={stato} />
+
+      <AiContextPanel type="progetto" id={id} />
 
       {dimostrativo && (
         <div
@@ -242,6 +245,7 @@ export default async function ProgettoDetailPage({
           </p>
           <div className="mt-4">
             <PianificazioneForm
+              expectedUpdatedAt={commessa.updatedAt.toISOString()}
               action={updatePianificazione.bind(null, commessa.id)}
               dataInizioLavori={commessa.dataInizioLavori}
               scadenzaLavori={commessa.scadenzaLavori}
@@ -311,12 +315,14 @@ export default async function ProgettoDetailPage({
                     {puoModificare ? (
                       <>
                         <StatoMilestoneSelect
+                          expectedUpdatedAt={m.updatedAt.toISOString()}
                           action={setStatoMilestone.bind(null, m.id)}
                           stato={m.stato}
                         />
                         <div className="flex items-center">
                           <AzioneIcona
                             action={spostaMilestone.bind(null, m.id, "su")}
+                            expectedUpdatedAt={m.updatedAt.toISOString()}
                             title="Sposta su"
                             disabled={i === 0}
                           >
@@ -326,6 +332,7 @@ export default async function ProgettoDetailPage({
                           </AzioneIcona>
                           <AzioneIcona
                             action={spostaMilestone.bind(null, m.id, "giu")}
+                            expectedUpdatedAt={m.updatedAt.toISOString()}
                             title="Sposta giù"
                             disabled={i === ultimoOrdine}
                           >
@@ -335,6 +342,7 @@ export default async function ProgettoDetailPage({
                           </AzioneIcona>
                           <AzioneIcona
                             action={deleteMilestone.bind(null, m.id)}
+                            expectedUpdatedAt={m.updatedAt.toISOString()}
                             title="Elimina milestone"
                             conferma={`Eliminare la milestone «${m.titolo}»?`}
                             variante="danger"
@@ -363,6 +371,7 @@ export default async function ProgettoDetailPage({
                         Modifica dettagli
                       </summary>
                       <MilestoneEditForm
+                        expectedUpdatedAt={m.updatedAt.toISOString()}
                         action={updateMilestone.bind(null, m.id)}
                         titolo={m.titolo}
                         stato={m.stato}

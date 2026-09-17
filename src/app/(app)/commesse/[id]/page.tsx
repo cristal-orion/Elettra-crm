@@ -1,7 +1,8 @@
 import Link from "next/link";
+import AiContextPanel from "@/components/ai/context-panel";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireUser } from "@/lib/dal";
 import {
   puoGestireCommesse,
   puoGestireOrdini,
@@ -30,6 +31,7 @@ export default async function CommessaDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
 
   const commessa = await prisma.commessa.findUnique({
     where: { id },
@@ -55,7 +57,6 @@ export default async function CommessaDetailPage({
 
   if (!commessa) notFound();
 
-  const user = await getCurrentUser();
   const puoModificare = user ? puoGestireCommesse(user.ruolo) : false;
   const puoAddOrdine = user ? puoGestireOrdini(user.ruolo) : false;
   const puoDocumenti = user ? puoGestireDocumenti(user.ruolo) : false;
@@ -105,6 +106,8 @@ export default async function CommessaDetailPage({
         )}
       </header>
 
+      <AiContextPanel type="commessa" id={id} />
+
       {daFatturare && (
         <div
           role="alert"
@@ -121,10 +124,9 @@ export default async function CommessaDetailPage({
               Materiale già acquistato — commessa da fatturare
             </p>
             <p className="mt-0.5 text-sm text-ink-soft">
-              Esistono ordini a fornitore collegati: la tipologia è forzata a{" "}
-              <span className="font-mono font-medium">Consuntivo (C)</span>{" "}
-              (regola P→C). Sollecita l&apos;ordine al cliente e procedi alla
-              fatturazione.
+              Esistono ordini a fornitore collegati. La regola P→C converte i preventivi
+              a corpo in Consuntivo; Tariffario e Gara mantengono la propria tipologia.
+              Verifica l&apos;ordine del cliente e la fatturazione.
             </p>
           </div>
         </div>
@@ -265,7 +267,7 @@ export default async function CommessaDetailPage({
                       href={`/ordini/${o.id}`}
                       className="font-mono tabular-nums font-medium hover:text-brand-deep"
                     >
-                      {o.numero ?? "—"}
+                        {o.numero ?? "Ordine senza numero"}
                     </Link>
                   </td>
                   <td className="px-4 py-3">{o.fornitore.ragioneSociale}</td>

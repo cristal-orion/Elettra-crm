@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { percorsoAssoluto } from "@/lib/storage";
+import { downloadHeaders } from "@/lib/download";
 
 /**
  * Serve le immagini allegate alle segnalazioni. Come per i documenti di commessa
@@ -26,16 +27,7 @@ export async function GET(
     return new Response("File non disponibile", { status: 404 });
   }
 
-  // In upload si accettano solo immagini raster (mai SVG), quindi inline è sicuro.
-  const inline = allegato.tipoMime?.startsWith("image/") ?? false;
-  const nome = encodeURIComponent(allegato.nomeFile);
-
   return new Response(new Uint8Array(data), {
-    headers: {
-      "Content-Type": allegato.tipoMime ?? "application/octet-stream",
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${nome}`,
-      "Content-Length": String(data.length),
-      "Cache-Control": "private, no-store",
-    },
+    headers: downloadHeaders(allegato.nomeFile, allegato.tipoMime, data.length),
   });
 }
