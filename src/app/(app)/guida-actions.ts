@@ -1,16 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/dal";
+import { aggiungiVisto } from "@/lib/guida";
 import { prisma } from "@/lib/prisma";
 
-/** Segna la guida come vista (conclusa o saltata): non si riapre da sola. */
-export async function completaGuida() {
+/** Segna un tour come visto (o `*` per tutti): non si riapre più da solo. */
+export async function segnaGuidaVista(chiave: string) {
+  if (typeof chiave !== "string" || !/^(\*|[a-z-]{1,40})$/.test(chiave)) return;
   const user = await requireUser();
-  if (user.guidaCompletataAt) return;
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { guidaCompletataAt: new Date() },
-  });
-  revalidatePath("/", "layout");
+  const nuovo = aggiungiVisto(user.guidaVista, chiave);
+  if (nuovo === user.guidaVista) return;
+  await prisma.user.update({ where: { id: user.id }, data: { guidaVista: nuovo } });
 }

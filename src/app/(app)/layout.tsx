@@ -84,7 +84,7 @@ export default async function AppLayout({
           <SegnalaButton />
         </main>
       </div>
-      <Guida ruolo={user.ruolo} aperturaAutomatica={!user.guidaCompletataAt} />
+      <Guida ruolo={user.ruolo} viste={user.guidaVista} />
 
     </div>
   );

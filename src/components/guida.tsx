@@ -1,102 +1,92 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { completaGuida } from "@/app/(app)/guida-actions";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { segnaGuidaVista } from "@/app/(app)/guida-actions";
+import {
+  giaVisto,
+  parseVisti,
+  tourPerPercorso,
+  type PassoGuida,
+  type TourGuida,
+} from "@/lib/guida";
 
 const EVENTO_APRI = "elettra:apri-guida";
+const MARGINE = 16;
+const DISTANZA = 12;
+const LARGHEZZA = 340;
 
-type Passo = {
-  titolo: string;
-  testo: string;
-  punti?: string[];
-  href?: string;
-  /** Se presente, il passo è mostrato solo a questi ruoli. */
-  ruoli?: string[];
+type Posizione = {
+  top: number;
+  left: number;
+  larghezza: number;
+  /** Rettangolo dell'elemento evidenziato; assente per i passi centrati. */
+  target?: { top: number; left: number; width: number; height: number };
 };
 
-const PASSI: Passo[] = [
-  {
-    titolo: "Benvenuto nel CRM Elettra",
-    testo:
-      "In pochi passaggi ti mostriamo dove trovare le cose e come lavorare. Puoi saltare la guida quando vuoi e riaprirla in qualsiasi momento dal pulsante «Guida» nel menu.",
-  },
-  {
-    titolo: "Il menu a sinistra",
-    testo:
-      "Tutte le sezioni sono nel menu (su telefono è la barra scorrevole in alto). La voce evidenziata indica dove ti trovi. La Dashboard è la pagina iniziale: riassume la situazione di commesse e attività.",
-    href: "/",
-  },
-  {
-    titolo: "Anagrafiche: clienti e fornitori",
-    testo:
-      "Ogni azienda ha una sola scheda, anche se è sia cliente sia fornitore: la stessa anagrafica può avere un codice cliente e un codice fornitore.",
-    punti: [
-      "Cerca per ragione sociale o codice.",
-      "Dalla scheda cliente vedi referenti, commesse recenti ed economics.",
-    ],
-    href: "/anagrafiche",
-  },
-  {
-    titolo: "Commesse",
-    testo:
-      "La commessa è il cuore del lavoro: collega cliente, project manager, stato di avanzamento e documenti.",
-    punti: [
-      "Apri una commessa per vedere dettagli e allegare documenti (offerte, disegni, foto, DDT, fatture).",
-      "Usa i filtri per trovare le commesse per stato o cliente.",
-    ],
-    href: "/commesse",
-  },
-  {
-    titolo: "Progetti e cantiere",
-    testo:
-      "Qui pianifichi le milestone di ogni commessa e assegni la squadra di cantiere, così tutti sanno chi fa cosa e quando.",
-    href: "/progetti",
-    ruoli: ["SUPER_ADMIN", "BACKOFFICE", "PROJECT_MANAGER", "UFFICIO_TECNICO"],
-  },
-  {
-    titolo: "Ordini e Materiali",
-    testo:
-      "In Materiali trovi il catalogo con i prezzi dei fornitori; in Ordini gestisci gli ordini d'acquisto legati alle commesse.",
-    href: "/ordini",
-  },
-  {
-    titolo: "Attività e Notifiche",
-    testo:
-      "In Attività trovi le cose da fare e puoi assegnarle. Quando c'è qualcosa di nuovo da vedere, compare una barra in alto che porta alle Notifiche.",
-    href: "/attivita",
-  },
-  {
-    titolo: "L'Assistente AI",
-    testo:
-      "Puoi fare domande sui dati del CRM in linguaggio naturale, ad esempio «quali commesse sono in ritardo?». Controlla sempre le risposte importanti sui dati originali.",
-    href: "/assistente",
-  },
-  {
-    titolo: "Qualcosa non va? Segnalalo",
-    testo:
-      "Siamo in fase di prova e il tuo parere conta. Il pulsante «Segnala» in basso a destra è sempre disponibile: descrivi il problema o l'idea, e la schermata da cui scrivi viene registrata in automatico.",
-    href: "/segnalazioni",
-  },
-  {
-    titolo: "Utenti e Impostazioni",
-    testo:
-      "Come Super Admin crei gli utenti, assegni i ruoli e configuri l'assistente AI. Le segnalazioni ricevute si gestiscono dalla sezione Segnalazioni.",
-    href: "/utenti",
-    ruoli: ["SUPER_ADMIN"],
-  },
-  {
-    titolo: "Sei pronto!",
-    testo:
-      "Per rivedere questa guida clicca su «Guida» nel menu. Buon lavoro!",
-  },
-];
+/** Primo elemento visibile che corrisponde al passo (il menu esiste in due versioni). */
+function trovaElemento(passo: PassoGuida): HTMLElement | null {
+  if (!passo.sel) return null;
+  let trovati: HTMLElement[];
+  try {
+    trovati = Array.from(document.querySelectorAll<HTMLElement>(passo.sel));
+  } catch {
+    return null;
+  }
+  return (
+    trovati.find(
+      (el) =>
+        el.getClientRects().length > 0 &&
+        (!passo.conTesto || el.textContent?.includes(passo.conTesto)),
+    ) ?? null
+  );
+}
 
-/** Pulsante che riapre la guida (la finestra vive una sola volta nel layout). */
+function calcola(passo: PassoGuida, altezzaPopover: number): Posizione {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const larghezza = Math.min(LARGHEZZA, vw - MARGINE * 2);
+  const el = trovaElemento(passo);
+  if (!el) {
+    return {
+      top: Math.max(MARGINE, (vh - altezzaPopover) / 2),
+      left: (vw - larghezza) / 2,
+      larghezza,
+    };
+  }
+  const r = el.getBoundingClientRect();
+  const target = { top: r.top - 4, left: r.left - 4, width: r.width + 8, height: r.height + 8 };
+  const clampX = (x: number) => Math.min(Math.max(MARGINE, x), vw - larghezza - MARGINE);
+  const clampY = (y: number) => Math.min(Math.max(MARGINE, y), vh - altezzaPopover - MARGINE);
+
+  // Elemento stretto con spazio a destra (voci del menu): accanto.
+  if (r.width < 320 && r.right + DISTANZA + larghezza + MARGINE <= vw) {
+    return { top: clampY(r.top + r.height / 2 - altezzaPopover / 2), left: r.right + DISTANZA + 4, larghezza, target };
+  }
+  if (r.bottom + DISTANZA + altezzaPopover + MARGINE <= vh) {
+    return { top: r.bottom + DISTANZA + 4, left: clampX(r.left), larghezza, target };
+  }
+  if (r.top - DISTANZA - altezzaPopover - MARGINE >= 0) {
+    return { top: r.top - DISTANZA - altezzaPopover - 4, left: clampX(r.left), larghezza, target };
+  }
+  // Elemento più grande dello schermo: il popover resta in basso.
+  return { top: vh - altezzaPopover - MARGINE, left: clampX(r.left), larghezza, target };
+}
+
+/** Attende che almeno un elemento del tour sia presente (pagine con caricamento). */
+async function attendiPagina(tour: TourGuida, annullato: () => boolean) {
+  for (let i = 0; i < 20 && !annullato(); i++) {
+    if (tour.passi.some((p) => p.sel && trovaElemento(p))) return;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
+/** Pulsante che rilancia la guida della pagina corrente. */
 export function GuidaButton({ className }: { className?: string }) {
   return (
     <button
       type="button"
+      data-guida-apri
       onClick={() => window.dispatchEvent(new Event(EVENTO_APRI))}
       className={className}
     >
@@ -106,122 +96,202 @@ export function GuidaButton({ className }: { className?: string }) {
 }
 
 /**
- * Guida all'uso in finestre successive. Si apre da sola al primo accesso
- * (`aperturaAutomatica`) e poi solo su richiesta. Usa <dialog> nativo: focus
- * intrappolato, Esc e sfondo oscurato senza librerie.
+ * Guida contestuale: popover accanto agli elementi della pagina, mostrati la
+ * prima volta che l'utente apre ciascuna sezione. Non blocca la pagina: chi
+ * vuole esplorare per conto suo può farlo, e cambiando pagina la guida si
+ * chiude (e parte quella della nuova, se non l'ha ancora vista).
  */
-export default function Guida({
-  ruolo,
-  aperturaAutomatica,
-}: {
-  ruolo: string;
-  aperturaAutomatica: boolean;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
+export default function Guida({ ruolo, viste }: { ruolo: string; viste: string }) {
+  const pathname = usePathname();
+  const visteRef = useRef<string[]>(parseVisti(viste));
+  const [sessione, setSessione] = useState<{
+    tour: TourGuida;
+    passi: PassoGuida[];
+    percorso: string;
+  } | null>(null);
+  // Copia della sessione per leggerla fuori dal render (chiusura, cambio pagina).
+  const sessioneRef = useRef<typeof sessione>(null);
   const [indice, setIndice] = useState(0);
-  const [, startTransition] = useTransition();
-  const segnata = useRef(!aperturaAutomatica);
+  const [pos, setPos] = useState<Posizione | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const avantiRef = useRef<HTMLButtonElement>(null);
 
-  const passi = PASSI.filter((p) => !p.ruoli || p.ruoli.includes(ruolo));
-  const passo = passi[Math.min(indice, passi.length - 1)];
-  const ultimo = indice >= passi.length - 1;
+  const attiva = sessione?.percorso === pathname ? sessione : null;
+  const passi = attiva?.passi;
+  const passo = passi?.[indice];
+  const ultimo = passi ? indice >= passi.length - 1 : false;
 
-  const apri = useCallback(() => {
-    setIndice(0);
-    if (ref.current && !ref.current.open) ref.current.showModal();
+  const imposta = useCallback((nuova: typeof sessione) => {
+    sessioneRef.current = nuova;
+    setSessione(nuova);
   }, []);
 
+  const segna = useCallback((chiave: string) => {
+    if (!visteRef.current.includes(chiave)) visteRef.current.push(chiave);
+    void segnaGuidaVista(chiave);
+  }, []);
+
+  const avvia = useCallback(
+    (tour: TourGuida) => {
+      const utili = tour.passi.filter((p) => !p.sel || trovaElemento(p));
+      if (utili.length === 0) return;
+      setIndice(0);
+      imposta({ tour, passi: utili, percorso: pathname });
+    },
+    [pathname, imposta],
+  );
+
+  const chiudi = useCallback(
+    (tutte = false) => {
+      const corrente = sessioneRef.current;
+      if (corrente) segna(tutte ? "*" : corrente.tour.chiave);
+      imposta(null);
+      setPos(null);
+    },
+    [segna, imposta],
+  );
+
+  // Cambio pagina: il tour aperto si chiude (contato come visto) e parte
+  // quello della nuova pagina, se l'utente non l'ha già visto.
   useEffect(() => {
-    if (aperturaAutomatica) ref.current?.showModal();
-    window.addEventListener(EVENTO_APRI, apri);
-    return () => window.removeEventListener(EVENTO_APRI, apri);
-  }, [aperturaAutomatica, apri]);
+    const tour = tourPerPercorso(pathname, ruolo);
+    let annullato = false;
+    if (tour && !giaVisto(visteRef.current, tour.chiave)) {
+      void attendiPagina(tour, () => annullato).then(() => {
+        if (!annullato) avvia(tour);
+      });
+    }
+    return () => {
+      annullato = true;
+      const corrente = sessioneRef.current;
+      if (corrente) segna(corrente.tour.chiave);
+      imposta(null);
+    };
+  }, [pathname, ruolo, avvia, segna, imposta]);
 
-  // Qualunque chiusura (Fine, Salta, Esc, link) conta come «guida vista».
-  function alChiudi() {
-    if (segnata.current) return;
-    segnata.current = true;
-    startTransition(() => {
-      void completaGuida();
-    });
-  }
+  // Pulsante «Guida»: rilancia il tour della pagina (anche se già visto).
+  useEffect(() => {
+    function alClick() {
+      const tour = tourPerPercorso(pathname, ruolo);
+      if (tour) avvia(tour);
+    }
+    window.addEventListener(EVENTO_APRI, alClick);
+    return () => window.removeEventListener(EVENTO_APRI, alClick);
+  }, [pathname, ruolo, avvia]);
 
-  function chiudi() {
-    ref.current?.close();
-  }
+  // Posizionamento: a ogni passo, resize e scroll.
+  useEffect(() => {
+    if (!passo) return;
+    let frame = 0;
+    const aggiorna = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        setPos(calcola(passo, boxRef.current?.offsetHeight ?? 220));
+      });
+    };
+    const el = trovaElemento(passo);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.top < 80 || r.bottom > window.innerHeight - 80) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
+    aggiorna();
+    window.addEventListener("resize", aggiorna);
+    window.addEventListener("scroll", aggiorna, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", aggiorna);
+      window.removeEventListener("scroll", aggiorna, true);
+    };
+  }, [passo]);
+
+  useEffect(() => {
+    if (passo) avantiRef.current?.focus({ preventScroll: true });
+  }, [passo]);
+
+  useEffect(() => {
+    if (!attiva) return;
+    const alTasto = (e: KeyboardEvent) => {
+      if (e.key === "Escape") chiudi();
+    };
+    window.addEventListener("keydown", alTasto);
+    return () => window.removeEventListener("keydown", alTasto);
+  }, [attiva, chiudi]);
+
+  if (!attiva || !passo || !passi) return null;
+  const centrato = !passo.sel || !pos?.target;
 
   return (
-    <dialog
-      ref={ref}
-      onClose={alChiudi}
-      aria-labelledby="guida-titolo"
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-panel p-0 text-ink shadow-2xl backdrop:bg-slatepanel/60 print:hidden"
-    >
-      <div className="p-6 sm:p-8">
+    <div className="print:hidden">
+      {centrato ? (
+        <div className="pointer-events-none fixed inset-0 z-[60] bg-slatepanel/50" aria-hidden />
+      ) : (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed z-[60] rounded-lg ring-2 ring-brand-light transition-all duration-200"
+          style={{
+            top: pos!.target!.top,
+            left: pos!.target!.left,
+            width: pos!.target!.width,
+            height: pos!.target!.height,
+            boxShadow: "0 0 0 9999px rgba(21, 36, 58, 0.45)",
+          }}
+        />
+      )}
+      <div
+        ref={boxRef}
+        role="dialog"
+        aria-label={`Guida: ${passo.titolo}`}
+        className="fixed z-[61] rounded-xl border border-line bg-panel p-5 text-ink shadow-2xl"
+        style={{
+          top: pos?.top ?? 0,
+          left: pos?.left ?? 0,
+          width: pos?.larghezza ?? LARGHEZZA,
+          visibility: pos ? "visible" : "hidden",
+        }}
+      >
         <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-brand">
           Guida · {indice + 1} di {passi.length}
         </p>
-        <h2 id="guida-titolo" className="mt-2 text-xl font-semibold">
-          {passo.titolo}
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-soft">{passo.testo}</p>
-        {passo.punti && (
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-soft">
-            {passo.punti.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ul>
-        )}
-        {passo.href && (
-          <Link
-            href={passo.href}
-            onClick={chiudi}
-            className="mt-4 inline-block text-sm font-medium text-brand hover:text-brand-deep hover:underline"
-          >
-            Vai alla sezione →
-          </Link>
-        )}
-
-        <div className="mt-6 flex justify-center gap-1.5" aria-hidden>
-          {passi.map((p, i) => (
-            <span
-              key={p.titolo}
-              className={`h-1.5 rounded-full transition-all ${
-                i === indice ? "w-5 bg-brand" : "w-1.5 bg-line"
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="mt-6 flex items-center justify-between gap-3">
+        <h2 className="mt-1.5 text-base font-semibold">{passo.titolo}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">{passo.testo}</p>
+        <div className="mt-4 flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={chiudi}
-            className="min-h-11 rounded-lg px-3 text-sm text-ink-faint hover:text-ink"
+            onClick={() => chiudi()}
+            className="min-h-11 rounded-lg px-2 text-sm text-ink-faint hover:text-ink"
           >
-            {ultimo ? "Chiudi" : "Salta la guida"}
+            {ultimo ? "Chiudi" : "Salta"}
           </button>
           <div className="flex gap-2">
             {indice > 0 && (
               <button
                 type="button"
                 onClick={() => setIndice((i) => i - 1)}
-                className="min-h-11 rounded-lg border border-line px-4 text-sm font-medium hover:bg-paper"
+                className="min-h-11 rounded-lg border border-line px-3 text-sm font-medium hover:bg-paper"
               >
                 Indietro
               </button>
             )}
             <button
+              ref={avantiRef}
               type="button"
-              autoFocus
               onClick={() => (ultimo ? chiudi() : setIndice((i) => i + 1))}
-              className="min-h-11 rounded-lg bg-brand px-5 text-sm font-medium text-white hover:bg-brand-deep"
+              className="min-h-11 rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-deep"
             >
-              {ultimo ? "Inizia" : "Avanti"}
+              {ultimo ? "Ho capito" : "Avanti"}
             </button>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => chiudi(true)}
+          className="mt-1 w-full text-center text-xs text-ink-faint hover:text-ink hover:underline"
+        >
+          Non mostrare più le guide
+        </button>
       </div>
-    </dialog>
+    </div>
   );
 }
