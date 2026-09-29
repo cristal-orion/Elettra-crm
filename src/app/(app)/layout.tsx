@@ -4,6 +4,7 @@ import { etichettaRuolo, puoGestireUtenti } from "@/lib/enums";
 import { logout } from "@/app/login/actions";
 import Nav from "@/components/nav";
 import SegnalaButton from "@/components/segnala-button";
+import Guida, { GuidaButton } from "@/components/guida";
 import { prisma } from "@/lib/prisma";
 
 export default async function AppLayout({
@@ -47,7 +48,8 @@ export default async function AppLayout({
               </p>
             </div>
           </div>
-          <form action={logout} className="mt-3">
+          <GuidaButton className="mt-3 w-full rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white/60 transition hover:bg-white/5 hover:text-white" />
+          <form action={logout} className="mt-2">
             <button
               type="submit"
               className="w-full rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white/60 transition hover:bg-white/5 hover:text-white"
@@ -65,11 +67,14 @@ export default async function AppLayout({
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-light">
             Elettra · CRM
           </p>
-          <form action={logout}>
-            <button type="submit" className="text-sm text-white/70">
-              Esci
-            </button>
-          </form>
+          <div className="flex items-center gap-4">
+            <GuidaButton className="min-h-11 text-sm text-white/70" />
+            <form action={logout}>
+              <button type="submit" className="min-h-11 text-sm text-white/70">
+                Esci
+              </button>
+            </form>
+          </div>
         </header>
         <div className="md:hidden"><Nav mobile canManageUsers={canManageUsers} /></div>
         {unread > 0 && <Link href="/notifiche" className="border-b border-line bg-brand-soft px-5 py-3 text-sm font-medium text-brand-deep">{unread} nuovi riepiloghi operativi · Apri notifiche →</Link>}
@@ -79,6 +84,7 @@ export default async function AppLayout({
           <SegnalaButton />
         </main>
       </div>
+      <Guida ruolo={user.ruolo} aperturaAutomatica={!user.guidaCompletataAt} />
 
     </div>
   );

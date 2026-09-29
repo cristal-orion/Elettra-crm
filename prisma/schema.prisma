@@ -28,6 +28,8 @@ model User {
   cognome      String
   ruolo        String // vedi RUOLI in src/lib/enums.ts
   attivo       Boolean  @default(true)
+  /// Quando l'utente ha concluso (o saltato) la guida al primo accesso.
+  guidaCompletataAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

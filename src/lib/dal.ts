@@ -17,6 +17,7 @@ export const getCurrentUser = cache(async () => {
       email: true,
       ruolo: true,
       attivo: true,
+      guidaCompletataAt: true,
     },
   });
 
