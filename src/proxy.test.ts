@@ -18,3 +18,11 @@ test("il proxy rimanda al login le pagine protette prive di cookie", () => {
   const response = proxy(new NextRequest("http://localhost/commesse"));
   assert.equal(response.headers.get("location"), "http://localhost/login");
 });
+
+test("CSP: nonce imprevedibile per richiesta e script inline limitati al nonce", () => {
+  const a = proxy(new NextRequest("http://localhost/login")).headers.get("content-security-policy")!;
+  const b = proxy(new NextRequest("http://localhost/login")).headers.get("content-security-policy")!;
+  assert.notEqual(a, b);
+  assert.match(a, /script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+  assert.match(a, /frame-ancestors 'none'/);
+});

@@ -1,0 +1,10 @@
+[Unit]
+Description=Backup locale coerente CRM Elettra su Coolify
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/elettra-crm-ops/coolify_ops.py backup
+TimeoutStartSec=20m
+UMask=0077

@@ -33,6 +33,6 @@ export function commessaWhere(input: { testo?: string; stato?: string; clienteId
   return {
     stato: input.stato, clienteId: input.clienteId, pmId: input.pmId,
     dataRichiesta: input.dal || input.al ? { gte: input.dal ? new Date(input.dal) : undefined, lt: input.al ? new Date(new Date(input.al).getTime() + 86400000) : undefined } : undefined,
-    OR: input.testo ? [{ numero: { contains: input.testo } }, { descrizione: { contains: input.testo } }, { cliente: { ragioneSociale: { contains: input.testo } } }] : undefined,
+    OR: input.testo ? [{ numero: { contains: input.testo, mode: "insensitive" } }, { descrizione: { contains: input.testo, mode: "insensitive" } }, { cliente: { ragioneSociale: { contains: input.testo, mode: "insensitive" } } }] : undefined,
   };
 }

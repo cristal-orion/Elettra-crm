@@ -1,9 +1,7 @@
 # CRM Elettra — immagine per il deploy su Coolify (o qualsiasi host Docker).
 #
 # Il client Prisma non è in repo (/src/generated è ignorato): va rigenerato in
-# fase di build. DB SQLite e archivio documenti vivono su /data, che in
-# produzione deve essere un volume persistente: senza volume, ogni redeploy
-# riparte da zero.
+# fase di build. PostgreSQL esterno all'app; /data conserva solo gli allegati.
 
 FROM node:22-alpine AS base
 RUN apk add --no-cache openssl
@@ -20,28 +18,26 @@ RUN npm ci --ignore-scripts
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# DB fittizio e usa-e-getta: "prisma generate" valida il datasource, e applicare
-# le migrazioni evita che il prerender di Next fallisca su tabelle inesistenti
-# riempiendo il log di build di "prisma:error". Le pagine restano dinamiche:
-# leggono i cookie di sessione, quindi non vengono mai rese statiche.
-ENV DATABASE_URL="file:/tmp/build.db"
+# La build non contatta database e non applica migrazioni. URL non sensibile,
+# limitato a questo stage; la connessione reale viene passata solo a runtime.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 RUN npx prisma generate \
-  && npx prisma migrate deploy \
-  && npm run build \
-  && rm -f /tmp/build.db
+  && npm run build
 
 # --------------------------------- runner ---------------------------------
-# Si tengono anche le devDependencies: "prisma migrate deploy" (CLI prisma) e
-# "prisma db seed" (tsx) girano all'avvio del container.
+# CLI Prisma e tsx servono per migrazioni e comandi operativi espliciti.
 FROM base AS runner
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATABASE_URL="file:/data/elettra.db" \
     UPLOADS_DIR="/data/uploads"
-COPY --from=builder /app ./
+COPY --from=builder --chown=node:node /app ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && mkdir -p /data/uploads && chown -R node:node /data
+USER node
 VOLUME /data
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:3000/api/health/ready || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["npm", "run", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start"]

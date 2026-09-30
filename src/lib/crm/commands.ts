@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma";
-import { prisma } from "../prisma";
+import { serializable } from "../transaction";
 import { InputError } from "../form-validation";
 import { puoGestireAnagrafiche, puoGestireCommesse, puoGestireProgetti } from "../enums";
 import { isProgetto } from "../progetti";
@@ -194,5 +194,5 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
 }
 
 export async function runCommand(actorId: string, command: unknown) {
-  return prisma.$transaction((tx) => executeCommand(tx, actorId, command));
+  return serializable((tx) => executeCommand(tx, actorId, command));
 }

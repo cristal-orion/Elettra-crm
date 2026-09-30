@@ -15,8 +15,10 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
+import { passwordError } from "../src/lib/password";
 
 async function main() {
+  if (process.env.NODE_ENV === "production") throw new Error("Password collettive disabilitate in produzione: usare Gestione utenti.");
   const daArgomento = process.argv.slice(2).find((a) => !a.startsWith("--"));
   const password = daArgomento ?? process.env.SEED_PASSWORD;
 
@@ -28,10 +30,8 @@ async function main() {
     );
     process.exit(1);
   }
-  if (password.length < 12) {
-    console.error("Password troppo corta: almeno 12 caratteri.");
-    process.exit(1);
-  }
+  const error = passwordError(password);
+  if (error) throw new Error(error);
 
   const attivi = await prisma.user.findMany({
     where: { attivo: true },
@@ -44,10 +44,10 @@ async function main() {
     return;
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = bcrypt.hashSync(password, 12);
   await prisma.user.updateMany({
     where: { id: { in: attivi.map((u) => u.id) } },
-    data: { passwordHash: hash },
+    data: { passwordHash: hash, sessionVersion: { increment: 1 } },
   });
 
   const disattivati = await prisma.user.count({ where: { attivo: false } });

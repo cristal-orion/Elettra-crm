@@ -5,12 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx scripts/check-runtime.ts && next start",
     "lint": "eslint",
     "test": "tsx --test src/lib/*.test.ts src/proxy.test.ts",
+    "test:integration": "tsx --test scripts/production.test.ts",
+    "test:ops": "tsx --test scripts/ops.test.ts",
     "ai:scheduled": "tsx scripts/ai-scheduled.ts",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:from-sqlite": "tsx scripts/migrate-sqlite.ts",
+    "auth:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "db:seed": "prisma db seed",
     "db:import": "tsx scripts/import-excel.ts",
     "demo:milestone": "tsx scripts/milestone-demo.ts",
@@ -20,6 +25,9 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.12",

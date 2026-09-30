@@ -22,6 +22,7 @@ function passwordRichiesta(): string {
 const DEV_PASSWORD = passwordRichiesta();
 
 async function main() {
+  if (process.env.NODE_ENV === "production") throw new Error("Seed demo disabilitato in produzione. Usare auth:bootstrap su un database vuoto.");
   const hash = bcrypt.hashSync(DEV_PASSWORD, 10);
 
   // Pulizia (ordine rispettoso delle FK) per un seed idempotente.

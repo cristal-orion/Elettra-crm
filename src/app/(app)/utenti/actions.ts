@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { puoGestireUtenti, RUOLI } from "@/lib/enums";
 import { Prisma } from "@/generated/prisma";
+import { passwordError } from "@/lib/password";
 
 export type UtenteState = { error?: string } | undefined;
 
@@ -47,9 +48,8 @@ export async function createUtente(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dati non validi." };
   }
-  if (raw.password.length < 8) {
-    return { error: "La password deve avere almeno 8 caratteri." };
-  }
+  const error = passwordError(raw.password);
+  if (error) return { error };
 
   const { nome, cognome, email, ruolo, attivo } = parsed.data;
 
@@ -61,7 +61,7 @@ export async function createUtente(
         email,
         ruolo,
         attivo,
-        passwordHash: await bcrypt.hash(raw.password, 10),
+        passwordHash: await bcrypt.hash(raw.password, 12),
       },
     });
   } catch (e) {
@@ -121,14 +121,14 @@ export async function updateUtente(
     }
   }
 
-  if (raw.password.length > 0 && raw.password.length < 8) {
-    return { error: "La password deve avere almeno 8 caratteri." };
-  }
+  const error = raw.password ? passwordError(raw.password) : null;
+  if (error) return { error };
 
   const data: Prisma.UserUpdateInput = { nome, cognome, email, ruolo, attivo };
-  if (raw.password.length >= 8) {
-    data.passwordHash = await bcrypt.hash(raw.password, 10);
+  if (raw.password) {
+    data.passwordHash = await bcrypt.hash(raw.password, 12);
   }
+  if (raw.password || email !== target.email || ruolo !== target.ruolo || attivo !== target.attivo) data.sessionVersion = { increment: 1 };
 
   try {
     await prisma.user.update({ where: { id: userId }, data });

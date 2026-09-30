@@ -1,143 +1,230 @@
-# Deploy su Coolify
+# Deploy di produzione — PostgreSQL
 
-Istanza dimostrativa del CRM: build da `Dockerfile`, dati su un volume
-persistente, SQLite. Testato con l'immagine di questo repo (build + boot +
-migrazioni + seed).
+## Architettura
 
-## 1. Risorsa su Coolify
+Una installazione isolata per cliente, trasferibile tra il nostro server e quello
+del cliente. Tre componenti: app Next.js, PostgreSQL 16, archivio allegati.
 
-- **New Resource → Public Repository**
-  (il repo è pubblico: non serve deploy key)
-- Repository: `https://github.com/cristal-orion/Elettra-crm`
-- Branch: `main`
-- **Build Pack: `Dockerfile`** — non Nixpacks: il client Prisma va rigenerato
-  in build e le migrazioni girano all'avvio
-- **Port exposed: `3000`**
+- PostgreSQL vive fuori dal container dell'app, su un volume dedicato.
+- `/data/uploads` è un secondo volume persistente; niente allegati in `public/`.
+- La build non richiede il DB; al boot si applicano soltanto le migrazioni.
+- Mai seed o reset automatico. Bootstrap dell'amministratore solo su DB senza utenti.
+- Container app non-root (UID/GID 1000), health check e segreti solo a runtime.
+- Una sola istanza web con storage locale condiviso col worker. Per più server
+  servono storage oggetti/condiviso e coordinamento cache Next.js: non basta aggiungere repliche.
 
-## 2. Volume persistente — da fare PRIMA del primo deploy
+L'istanza SQLite già esistente **non viene convertita da un semplice deploy**.
+Prima del deploy PostgreSQL seguire la migrazione sotto; il volume storico va conservato.
 
-**Storage → Add volume mount**, destinazione `/data`.
+## Variabili di produzione
 
-Su `/data` vivono il database (`/data/elettra.db`) e i documenti caricati
-(`/data/uploads`). Senza il volume l'app parte comunque, ma **ogni redeploy
-azzera dati e allegati**.
+| Variabile | Uso |
+|---|---|
+| `DATABASE_URL` | Connessione PostgreSQL, password percent-encoded, `connect_timeout=5&pool_timeout=5&connection_limit=10` |
+| `SESSION_SECRET` | Segreto casuale >=32 byte per JWT; `openssl rand -base64 32` |
+| `DATA_ENCRYPTION_SECRET` | **Altro** segreto casuale >=32 byte per cifratura dati applicativi |
+| `APP_ORIGIN` | Origine HTTPS pubblica esatta, es. `https://crm.example.it`, senza slash finale |
+| `UPLOADS_DIR` | `/data/uploads`, su volume persistente scrivibile da UID 1000 |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Opzionali, assistente AI |
+| `RUN_MIGRATIONS` | Default `true`; `false` per worker o migrazioni gestite separatamente |
 
-## 3. Variabili d'ambiente
+I segreti non vanno nel repository, nei build ARG o in variabili `NEXT_PUBLIC_*`.
+Il file `.env` di un server cliente va protetto con permessi 0600. I due segreti
+di firma/cifratura devono essere conservati separatamente dal backup dati in un
+password manager: senza la chiave di cifratura i valori cifrati non sono recuperabili.
 
-| Variabile | Obbligatoria | Note |
-|---|---|---|
-| `SESSION_SECRET` | **sì** | Firma le sessioni JWT e cifra i segreti nel DB. Genera con `openssl rand -base64 32`. Cambiarla invalida le sessioni e rende illeggibile la chiave AI salvata |
-| `SEED_PASSWORD` | **sì** | Password degli utenti creati al primo avvio. Il default nel codice è pubblico in questo repo, quindi **senza questa variabile il container si rifiuta di partire** (a meno di `SEED_ON_FIRST_BOOT=false`). Usane una lunga e casuale |
-| `GEMINI_API_KEY` | no | Assistente AI e lettura visure. Senza chiave il resto del CRM funziona |
-| `GEMINI_MODEL` | no | Default `gemini-3.5-flash` |
-| `SEED_ON_FIRST_BOOT` | no | `false` per partire con un DB vuoto |
+I segreti legacy SQLite sono ancora leggibili con la **vecchia `SESSION_SECRET`**.
+Durante la migrazione mantenerla; risalvare le impostazioni sensibili dall'app
+per cifrarle in formato v2 prima di ruotarla. I valori v2 dipendono soltanto da
+`DATA_ENCRYPTION_SECRET`, che non si può ruotare senza ricifratura.
 
-`DATABASE_URL` e `UPLOADS_DIR` sono già impostate nel `Dockerfile` e puntano a
-`/data`: non serve dichiararle.
+## Coolify
 
-## 4. Dominio
+1. Creare PostgreSQL 16 nello stesso ambiente/rete dell'app, **senza porta pubblica**,
+   con storage persistente. Usare l'URL interno.
+2. Creare un ruolo applicativo non superuser, senza `CREATEDB`/`CREATEROLE`/replication,
+   proprietario solo del DB Elettra. Non usare nell'app il ruolo amministrativo
+   creato di default dal container PostgreSQL. `ops/init-postgres.sh` è il modello SQL.
+3. Build pack **Dockerfile**, porta interna **3000**, dominio HTTPS.
+4. Mount persistente su `/data`; impostare le variabili della tabella come runtime-only.
+5. Se si riusa il volume SQLite con file root-owned: a servizio fermo, dopo il backup,
+   rendere **solo la directory uploads** di proprietà UID/GID 1000. Non aprire permessi 0777.
+6. Readiness: `/api/health/ready`, porta 3000, intervallo 30s, timeout 10s,
+   start period 60s, 3 tentativi. `/api/health/live` misura solo il processo HTTP.
+7. Nuova installazione: bootstrap esplicito dal terminale del container:
 
-Coolify assegna un dominio `sslip.io` con certificato Let's Encrypt: è il link
-provvisorio da far provare. Sostituibile con un dominio reale da
-**Configuration → Domains**.
+   ```sh
+   # ADMIN_EMAIL / ADMIN_PASSWORD passate temporaneamente e in modo riservato.
+   npm run auth:bootstrap
+   ```
 
-## Cosa accade all'avvio
+   Password minima 12 caratteri, massimo 72 byte; rimuovere queste variabili dopo
+   l'uso. Gli altri utenti si creano da **Utenti**, con password individuali.
+   Su un DB migrato gli utenti sono già presenti: **non fare bootstrap**.
+8. Per i controlli AI creare un task `npm run ai:scheduled` ogni 5 minuti (`*/5 * * * *`).
+   Il task usa le stesse variabili del container; non esporre endpoint cron pubblici.
+9. Configurare backup **sia del DB sia degli allegati**, con copia fuori server.
+   Un backup del solo database gestito da Coolify non comprende `/data/uploads`.
 
-`docker-entrypoint.sh`:
+Nell'istanza Coolify 4.0.0-beta.471 verificata il 30/09/2026 non risultavano backup
+di Elettra né task AI. I file di questo repository non attivano da soli backup
+o monitoraggio sull'istanza già online.
 
-1. crea `/data` e `/data/uploads`;
-2. esegue `prisma migrate deploy`;
-3. **solo se il file del DB non esisteva**, esegue `prisma db seed`.
+## Server cliente senza Coolify
 
-Il seed è distruttivo (`deleteMany` su tutte le tabelle): il controllo sul
-primo avvio evita che un redeploy cancelli i dati inseriti durante la prova.
-Per ricaricare i dati demo da zero, elimina il volume e rilancia il deploy.
+Usare `compose.production.yaml` (non il Compose di sviluppo). Configurare `.env`
+partendo da `.env.example`, con password DB applicativa e amministrativa **diverse**.
+Nel DSN usare host `db`; il DB non pubblica porte sull'host.
 
-## Caricare i dati reali di Elettra
-
-**Dall'applicazione, in drag & drop** — è la via consigliata: i file non passano
-da GitHub, non serve copiare database e non serve accedere al server.
-
-1. Accedi come Super Admin
-2. **Impostazioni → Import dati da Excel**
-3. Trascina i due elenchi (`Elenco anagrafiche`, `Elenco Offerte`)
-4. **Analizza senza scrivere** e controlla il riepilogo
-5. Confronta le **somme di controllo** con i totali scritti in testa al foglio
-   offerte: se coincidono, non si è perso nulla
-6. **Importa nel database**
-
-L'import dura circa 25 secondi e sostituisce anagrafiche e commesse quando la
-casella "sostituisci i dati esistenti" è spuntata. È **ripetibile**: le
-anagrafiche hanno per chiave i codici `C####`/`F####` e le commesse il numero,
-quindi rilanciarlo aggiorna invece di duplicare.
-
-I `.xls` si leggono con SheetJS dentro il container: **non serve LibreOffice**.
-
-In alternativa, da riga di comando:
-
-```bash
-npm run db:import -- "<anagrafiche.xls>" "<offerte.xls>" --pulisci   # --prova per l'anteprima
+```sh
+docker compose -f compose.production.yaml up -d --build
+docker compose -f compose.production.yaml exec app npm run auth:bootstrap
 ```
 
-> ⚠️ **`npm run db:seed` cancella tutto e riscrive i dati demo.** Dopo un import
-> reale non va più eseguito. Sul container il seed parte solo al primissimo
-> avvio, quindi il rischio riguarda l'uso locale.
+Il worker AI è incluso. Un reverse proxy HTTPS deve inoltrare a `127.0.0.1:3000`;
+`ops/nginx.conf` è un template, richiede dominio/certificati reali. I limiti login
+per account sono nel DB (10 tentativi/15 minuti, tetto globale 200); il proxy
+aggiunge il limite per IP. Consentire 25 MB di body e almeno 180s di timeout per
+import/AI, mantenendo streaming senza buffering. Limitare le porte pubbliche a
+HTTPS/HTTP e SSH amministrativo; non esporre Node o PostgreSQL direttamente.
 
-## Pianificazione dimostrativa per la presentazione
+`ops/init-postgres.sh` viene eseguito dal container DB soltanto sul volume nuovo.
+Modificare le password in `.env` non ruota le credenziali di un DB già inizializzato.
 
-Gli elenchi Excel non contengono milestone di cantiere: dopo l'import la sezione
-Progetti mostra centinaia di cantieri "da pianificare". Per mostrarla all'opera:
+## Migrazione dell'istanza SQLite esistente
 
-```bash
-npm run demo:milestone              # 22 milestone su 4 commesse reali
-npm run demo:milestone -- --rimuovi # le elimina tutte
+La prova può avvenire prima su una copia. Per il cambio definitivo:
+
+1. Preparare DB PostgreSQL vuoto e nuova immagine; concordare una finestra di fermo.
+2. Fermare app e tutti i worker/task che scrivono. Conservare un backup completo
+   del vecchio volume (SQLite + uploads) e vecchia immagine/configurazione.
+3. Applicare la baseline PostgreSQL alla destinazione: `npm run db:deploy`.
+4. Aprire una copia SQLite aggiornata in sola lettura; impostare `DATABASE_URL`
+   PostgreSQL nella sessione di migrazione. Con Node 22.13+:
+
+   ```sh
+   npm run db:from-sqlite -- /percorso/copia/elettra.db
+   npm run db:from-sqlite -- /percorso/copia/elettra.db --execute
+   ```
+
+   Il primo comando analizza senza scrivere. Il secondo verifica integrità SQLite,
+   FK, tabelle/colonne riconosciute e destinazione vuota, poi copia in una sola
+   transazione: ID, relazioni, date, decimali, JSON, hash password e percorsi file.
+   Rilegge tutti i record e confronta i valori normalizzati; un errore annulla tutto.
+   Il riepilogo contiene conteggi e SHA-256, senza dati anagrafici o credenziali.
+   Non migra la cronologia `_prisma_migrations` SQLite: è specifica del vecchio motore.
+5. Copiare/montare gli stessi allegati, conservando i percorsi relativi e assegnando
+   proprietà UID/GID 1000. Confrontare numero file e checksum con il backup.
+6. Impostare URL PostgreSQL, vecchia `SESSION_SECRET`, nuova chiave dati e origine;
+   avviare la nuova app e verificare readiness, login, liste/importi e download.
+7. Fare il primo backup PostgreSQL+uploads e un restore isolato prima della consegna.
+
+Rollback del cambio motore: se la verifica fallisce **prima di riaprire le scritture**,
+riavviare vecchia immagine/configurazione sul volume SQLite conservato. Dopo nuove
+scritture in PostgreSQL serve riconciliare i dati: non basta tornare alla vecchia immagine.
+
+## Backup automatico e copia cifrata fuori server
+
+Per il Compose produzione sono inclusi wrapper, dump/restore e Restic:
+
+- `BACKUP_DATABASE_URL`: DSN PostgreSQL **libpq**, senza `schema`, `pool_timeout`
+  o `connection_limit` di Prisma; mantenere `sslmode=verify-full` per DB remoti.
+- `BACKUP_DIR`: directory locale dedicata, preferibilmente `/srv/elettra-backups`.
+- `RESTIC_REPOSITORY`: deposito S3/SFTP **fuori da questo server**, non un MinIO
+  sullo stesso disco. `RESTIC_PASSWORD` e credenziali deposito in configurazione riservata.
+
+```sh
+# Solo al primo utilizzo di un deposito nuovo:
+docker compose -f compose.production.yaml run --rm offsite init
+# Primo backup manuale (e prova di configurazione):
+sh ops/backup.sh
 ```
 
-Le milestone sono marcate `dimostrativa` nel database e l'interfaccia lo dichiara
-con un banner nel dettaglio e un badge in lista: commesse, clienti e importi
-restano reali, di esempio sono solo milestone, date di cantiere e note.
+Il wrapper verifica il deposito, ferma app e worker per rendere coerenti DB e
+allegati, esegue `pg_dump` custom + tar uploads, verifica archivi e checksum,
+riavvia i servizi, copia il bundle cifrato con Restic e applica retention:
+7 giornalieri, 4 settimanali, 6 mensili; localmente 7 bundle. Un errore di copia
+non elimina i backup locali. Lo script termina con errore per poter essere monitorato.
 
-## Controlli AI programmati
+Per pianificare: installare `ops/elettra-backup.service` e `.timer` in systemd,
+adattando `WorkingDirectory` al percorso reale, e attivare `elettra-backup.timer`.
+Orario 02:00 UTC con jitter massimo 10 minuti. Controllare `journalctl -u
+elettra-backup.service` e configurare un alert per esito fallito/mancato backup.
+Durante il fermo nessun client esterno deve scrivere nel DB. Il wrapper è per
+Compose: per Coolify adattare esplicitamente stop/start dei suoi container e task.
 
-La nuova migrazione viene applicata dal normale entrypoint. I controlli
-automatici hanno bisogno di una **Scheduled Task** di Coolify dentro il
-container del CRM:
+### Ripristino
 
-- Frequenza cron: `*/5 * * * *`
-- Comando: `npm run ai:scheduled`
-- Directory di lavoro: `/app`
+Recuperare un bundle con `restic restore latest --target /percorso/recupero`.
+Creare **DB e storage vuoti e isolati**, non puntare al DB in uso. Eseguire
+`ops/restore-container.sh` in un container PostgreSQL 16 con:
 
-Il processo deve usare lo stesso `DATABASE_URL`, `SESSION_SECRET`, volume `/data`
-e configurazione Gemini dell'app. Non esporre un endpoint cron pubblico.
+- `RESTORE_DATABASE_URL` libpq verso la destinazione vuota;
+- bundle montato in sola lettura, passato come primo argomento;
+- nuovo storage montato in `/restore-data`.
 
-Poi, da Super Admin, aprire **Assistente → Controlli programmati** e configurare
-orario, giorni lavorativi, intervalli e destinatari. **Esegui ora** verifica il
-flusso completo e crea le notifiche; al massimo una esecuzione manuale ogni 5
-minuti per pianificazione.
+Lo script verifica SHA-256, rifiuta DB/storage popolati, ripristina il dump in una
+transazione e gli allegati con UID/GID 1000. Avviare poi l'app sulla destinazione,
+verificare login/documenti e soltanto dopo cambiare il traffico. Non usare `--clean`
+o `db:reset` su produzione. Le migrazioni distruttive richiedono recupero dati,
+non un semplice rollback dell'immagine. Backup prima di import sostitutivi e aggiornamenti.
 
-Gli orari sono in **Europe/Rome**, indipendenti dal fuso del container. Uno slot
-per giorno impedisce doppie esecuzioni al cambio dell'ora. Un riavvio recupera
-il controllo dovuto nello stesso giorno. Lease di 5 minuti e vincoli univoci nel
-database proteggono da job sovrapposti. Le chiamate AI non tengono transazioni
-aperte; le scritture dei tool nello stesso turno sono serializzate per SQLite.
+## Verifiche ripetibili
 
-Il controllo identifica follow-up fermi, progetti da pianificare, ritardi,
-scadenze, dati mancanti e sovrapposizioni. Esclude la pianificazione dimostrativa.
-Il dettaglio dichiara il limite di 5.000 record per categoria e conserva gli
-esiti delle regole. Se Gemini non è disponibile, resta un riepilogo
-deterministico. I destinatari ricevono notifiche **nel CRM**, non email.
+```sh
+docker compose up -d db
+npm test
+npm run test:integration
+docker build -t elettra-crm:production .
+npm run test:ops
+npm run lint
+npx tsc --noEmit
+npm audit
+```
 
-Le esecuzioni concluse o fallite sono consultabili nello storico. Dopo un
-errore usare **Esegui ora**; un job rimasto in corso oltre la lease può essere
-recuperato automaticamente. Il controllo non modifica commesse o squadre:
-le proposte si aprono nell'assistente con il contesto della scheda.
+I test usano schemi/DB temporanei, non `DATABASE_URL` dell'app. `test:ops` usa il
+cluster locale `elettra-crm-db-1` e l'immagine appena costruita: verifica provisioning
+non superuser, assenza seed, bootstrap, CSP, sessioni revocate, restart, backup,
+integrità Restic e restore di dati/allegati. Il deposito Restic di test è temporaneo:
+non dimostra la raggiungibilità del deposito remoto del cliente.
 
-## Limiti della configurazione
+Monitorare readiness dall'esterno, spazio disco, età/esito dei backup e scadenza
+certificati. Il repository prepara gli strumenti; il monitor/alert e il deposito
+remoto devono essere effettivamente configurati sul server scelto.
 
-- **SQLite**: adeguato alla demo, un solo processo in scrittura. Lo schema è
-  scritto per essere compatibile con PostgreSQL (vedi note in
-  `prisma/schema.prisma`) quando servirà la produzione.
-- **Nessun backup automatico**: i dati stanno solo nel volume. Per conservare
-  quanto inserito durante la prova, fare uno snapshot del volume.
-- **Upload su filesystem**: gli allegati sono legati al volume, non replicabili
-  su più istanze.
+## Operazioni host su Coolify (backup locali)
+
+`ops/coolify_ops.py` adatta backup e restore ai container identificati dalle
+label Coolify, senza dipendere dai nomi che cambiano a ogni deploy. Eseguire come
+root; configurazione e credenziali restano in `/etc/elettra-crm/runtime.json`
+(0600), fuori dal repository e dall'immagine. Gli script installati sono in
+`/opt/elettra-crm-ops`, di proprietà root; non vengono eseguiti da una directory
+scrivibile dal container dell'app.
+
+Il comando `prepare` è riservato all'amministratore della VPS: verifica ambiente
+app/DB, crea il ruolo PostgreSQL ristretto, conserva immagine/configurazione
+legacy e genera la chiave dati. Il token API di configurazione è temporaneo,
+con scadenza e revoca al termine; nessun segreto viene stampato.
+
+`cutover` ferma l'istanza legacy, salva l'intero volume SQLite+uploads in
+`/var/lib/elettra-crm/legacy`, migra/verifica i dati e configura le variabili
+runtime. Il successivo deploy resta esplicito. `mark-live` verifica readiness,
+conteggi e checksum dei file prima di abilitare le operazioni periodiche.
+
+Le unità `elettra-coolify-*` eseguono:
+
+- backup DB+uploads quotidiano alle 02:00 UTC, conservando **14 bundle locali**;
+- restore settimanale su DB temporaneo e confronto conteggi/checksum;
+- monitor ogni cinque minuti: readiness HTTPS, disco (<80%), backup (<36 ore),
+  prova restore (<8 giorni). Esiti strutturati in journal e stato sul server.
+
+I backup sono in `/var/lib/elettra-crm/backups`, accessibili solo a root. Il backup
+ferma brevemente l'app e la riavvia anche se il dump fallisce; viene rimandato
+quando è in corso un deploy. Il restore non modifica il DB operativo e rimuove
+il DB temporaneo anche in caso di errore. Queste unità **non inviano notifiche
+esterne**: collegare il journal/stato a un canale di alert e mantenere un controllo
+di disponibilità da un sistema esterno alla VPS.
+
+La scelta iniziale di soli backup locali non protegge dalla perdita della VPS:
+aggiungere il deposito fuori server prima della consegna. Non eliminare il bundle
+legacy finché il passaggio a PostgreSQL e il ripristino sono stati verificati.

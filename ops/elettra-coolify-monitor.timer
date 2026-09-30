@@ -1,0 +1,9 @@
+[Unit]
+Description=Monitoraggio CRM Elettra ogni cinque minuti
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=5m
+
+[Install]
+WantedBy=timers.target

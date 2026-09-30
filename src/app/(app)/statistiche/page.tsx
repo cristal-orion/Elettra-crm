@@ -3,8 +3,10 @@ import { formatEuro } from "@/lib/format";
 import { winRate } from "@/lib/statistiche";
 import { BarraEsito, IstogrammaMensile } from "@/components/charts";
 import { getStatisticheGlobali } from "./data";
+import { requireUser } from "@/lib/dal";
 
 export default async function StatistichePage() {
+  await requireUser();
   const s = await getStatisticheGlobali(new Date());
   const conversione = winRate(s.vinte, s.perse);
   const picco = Math.max(0, ...s.serieAcquisito.map((p) => p.valore));

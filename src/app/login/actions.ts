@@ -1,14 +1,14 @@
 "use server";
 
 import { z } from "zod";
-import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
+import { allowLogin, verifyPassword } from "@/lib/login-security";
 
 const LoginSchema = z.object({
-  email: z.string().trim().min(1),
-  password: z.string().min(1),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(72).refine((v) => new TextEncoder().encode(v).length <= 72),
 });
 
 export type LoginState = { error?: string } | undefined;
@@ -27,11 +27,13 @@ export async function login(
   }
 
   const { email, password } = parsed.data;
+  if (!await allowLogin(email)) return { error: "Troppi tentativi di accesso. Riprova tra 15 minuti." };
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
   });
 
-  if (!user || !user.attivo || !(await bcrypt.compare(password, user.passwordHash))) {
+  const valid = await verifyPassword(password, user?.passwordHash);
+  if (!user || !user.attivo || !valid) {
     return { error: "Credenziali non valide." };
   }
 

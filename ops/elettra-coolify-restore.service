@@ -1,0 +1,10 @@
+[Unit]
+Description=Verifica ripristino isolato backup CRM Elettra
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/elettra-crm-ops/coolify_ops.py restore-check
+TimeoutStartSec=20m
+UMask=0077

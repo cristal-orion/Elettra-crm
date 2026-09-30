@@ -1,13 +1,11 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { requiredSecret } from "./runtime-config";
 
 export const COOKIE_NAME = "elettra_session";
 
 function sessionKey(): Uint8Array {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.startsWith("cambiami") || new TextEncoder().encode(secret).length < 32) {
-    throw new Error("SESSION_SECRET deve contenere un segreto casuale di almeno 32 byte.");
-  }
+  const secret = requiredSecret("SESSION_SECRET");
   return new TextEncoder().encode(secret);
 }
 const MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -16,6 +14,7 @@ export type SessionPayload = {
   userId: string;
   ruolo: string;
   nome: string;
+  sessionVersion?: number;
 };
 
 export async function encrypt(payload: SessionPayload): Promise<string> {
@@ -36,12 +35,14 @@ export async function decrypt(token?: string): Promise<SessionPayload | null> {
     if (
       typeof payload.userId !== "string" || !payload.userId ||
       typeof payload.ruolo !== "string" || !payload.ruolo ||
-      typeof payload.nome !== "string"
+      typeof payload.nome !== "string" ||
+      (payload.sessionVersion !== undefined && (!Number.isSafeInteger(payload.sessionVersion) || Number(payload.sessionVersion) < 0))
     ) return null;
     return {
       userId: payload.userId,
       ruolo: payload.ruolo,
       nome: payload.nome,
+      ...(payload.sessionVersion !== undefined ? { sessionVersion: Number(payload.sessionVersion) } : {}),
     };
   } catch {
     return null;
@@ -52,11 +53,13 @@ export async function createSession(user: {
   id: string;
   ruolo: string;
   nome: string;
+  sessionVersion: number;
 }): Promise<void> {
   const token = await encrypt({
     userId: user.id,
     ruolo: user.ruolo,
     nome: user.nome,
+    sessionVersion: user.sessionVersion,
   });
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {

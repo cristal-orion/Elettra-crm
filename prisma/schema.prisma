@@ -1,11 +1,9 @@
 // CRM Elettra S.r.l. — Schema dati
 //
 // Note di progetto:
-// - Dev su SQLite (zero setup), produzione su PostgreSQL: lo schema è compatibile.
-// - SQLite non supporta gli enum nativi di Prisma: i campi "a scelta chiusa"
-//   (ruolo, stato, tipologia, titolo...) sono String, validati a livello
-//   applicativo (src/lib/enums.ts + zod). Passando a Postgres si possono
-//   convertire in enum nativi senza cambiare la logica.
+// - PostgreSQL in sviluppo e produzione: stessi tipi e stesse migrazioni.
+// - I campi a scelta chiusa restano String, validati da src/lib/enums.ts + zod.
+// - Lo storico SQLite è archiviato in legacy-sqlite; non applicarlo a Postgres.
 // - Doppia natura Cliente/Fornitore: UNA anagrafica per azienda, con fino a due
 //   codici (codiceCliente "C####" e codiceFornitore "F####").
 
@@ -15,7 +13,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -30,6 +28,7 @@ model User {
   attivo       Boolean  @default(true)
   /// Chiavi dei tour di guida già visti, separate da virgola (`*` = tutti). Vedi src/lib/guida.ts.
   guidaVista   String   @default("")
+  sessionVersion Int    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -527,4 +526,12 @@ model Attivita {
   commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: SetNull)
   cliente Anagrafica? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   @@index([userId, stato, scadenza])
+}
+
+/// Limite login condiviso tra processi; chiavi HMAC, nessuna email in chiaro.
+model LoginRateLimit {
+  key String @id
+  attempts Int
+  windowStartedAt DateTime
+  @@index([windowStartedAt])
 }

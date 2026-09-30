@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 import { Prisma } from "@/generated/prisma";
 import { checkPermission, CrmError, executeCommand, publicError, type Db } from "../crm/commands";
 import { CommandSchema, needsConfirmation, type CrmCommand } from "../crm/schemas";
+import { serializable } from "../transaction";
 
 export const jsonValue = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 function canonical(value: unknown): string {
@@ -30,7 +31,7 @@ async function snapshot(db: Db, c: CrmCommand) {
 export async function submitOperation(userId: string, conversationId: string, requestId: string, raw: unknown) {
   const command = CommandSchema.parse(raw);
   const requestKey = createHash("sha256").update(`${userId}:${conversationId}:${requestId}:${canonical(command)}`).digest("hex");
-  try { return await prisma.$transaction(async (db) => {
+  try { return await serializable(async (db) => {
     await checkPermission(db, userId, command);
     const conversation = await db.aiConversation.findFirst({ where: { id: conversationId, userId } });
     if (!conversation) throw new CrmError("Conversazione non trovata.");
@@ -64,7 +65,7 @@ export function operationOutput(o: { id: string; status: string; preview: Prisma
 
 export async function decideOperation(userId: string, id: string, approved: boolean) {
   try {
-    return await prisma.$transaction(async (db) => {
+    return await serializable(async (db) => {
       const op = await db.aiOperation.findFirst({ where: { id, userId } });
       if (!op) throw new CrmError("Operazione non trovata.", "NOT_FOUND");
       if (op.status !== "PENDING") return operationOutput(op);

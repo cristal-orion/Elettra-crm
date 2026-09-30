@@ -25,6 +25,8 @@ test("sessioni: firma valida, scadenza, manomissioni e validazione dei claim", a
   assert.equal(await decrypt(await sign(user, "-1s")), null);
   assert.equal(await decrypt(await sign(user)), null);
   assert.equal(await decrypt(await sign({ ...user, userId: 123 }, "7d")), null);
+  assert.deepEqual(await decrypt(await encrypt({ ...user, sessionVersion: 3 })), { ...user, sessionVersion: 3 });
+  assert.equal(await decrypt(await sign({ ...user, sessionVersion: -1 }, "7d")), null);
   const token = await encrypt(user);
   process.env.SESSION_SECRET = "another-session-test-key-at-least-32-bytes";
   assert.equal(await decrypt(token), null);

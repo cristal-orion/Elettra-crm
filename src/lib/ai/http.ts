@@ -1,16 +1,12 @@
 import { z } from "zod";
 import { CrmError, publicError } from "../crm/commands";
+import { validRequestOrigin } from "../request-origin";
 
 export class ApiError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
 async function readBytes(req: Request, maxBytes: number): Promise<Buffer> {
-  const origin = req.headers.get("origin");
-  if (origin) {
-    let host: string;
-    try { host = new URL(origin).host; } catch { throw new ApiError("Origine della richiesta non valida.", 403); }
-    if (host !== (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host)) throw new ApiError("Origine della richiesta non valida.", 403);
-  }
+  if (!validRequestOrigin(req)) throw new ApiError("Origine della richiesta non valida.", 403);
   const reader = req.body?.getReader();
   if (!reader) throw new ApiError("Richiesta vuota.");
   let bytes = 0;

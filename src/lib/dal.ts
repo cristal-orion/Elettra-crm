@@ -1,3 +1,4 @@
+import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "./session";
@@ -18,11 +19,12 @@ export const getCurrentUser = cache(async () => {
       ruolo: true,
       attivo: true,
       guidaVista: true,
+      sessionVersion: true,
     },
   });
 
-  if (!user || !user.attivo) return null;
-  return user;
+  if (!user || !user.attivo || user.sessionVersion !== (session.sessionVersion ?? 0)) return null;
+  return { id: user.id, nome: user.nome, cognome: user.cognome, email: user.email, ruolo: user.ruolo, attivo: user.attivo, guidaVista: user.guidaVista };
 });
 
 export type CurrentUser = NonNullable<

@@ -15,5 +15,6 @@ export function downloadHeaders(nome: string, mime: string | null, size: number)
     "Cache-Control": "private, no-store",
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "sandbox",
+    "X-Frame-Options": "SAMEORIGIN",
   };
 }

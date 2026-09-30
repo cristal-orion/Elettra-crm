@@ -27,9 +27,9 @@ export default async function OrdiniPage({
   if (stato) where.stato = stato;
   if (q) {
     where.OR = [
-      { numero: { contains: q } },
-      { fornitore: { ragioneSociale: { contains: q } } },
-      { commessa: { numero: { contains: q } } },
+      { numero: { contains: q, mode: "insensitive" } },
+      { fornitore: { ragioneSociale: { contains: q, mode: "insensitive" } } },
+      { commessa: { numero: { contains: q, mode: "insensitive" } } },
     ];
   }
 

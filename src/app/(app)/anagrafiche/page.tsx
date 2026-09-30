@@ -24,11 +24,11 @@ export default async function AnagrafichePage({
   if (tipo === "fornitore") where.isFornitore = true;
   if (q) {
     where.OR = [
-      { ragioneSociale: { contains: q } },
-      { codiceCliente: { contains: q } },
-      { codiceFornitore: { contains: q } },
-      { partitaIva: { contains: q } },
-      { localita: { contains: q } },
+      { ragioneSociale: { contains: q, mode: "insensitive" } },
+      { codiceCliente: { contains: q, mode: "insensitive" } },
+      { codiceFornitore: { contains: q, mode: "insensitive" } },
+      { partitaIva: { contains: q, mode: "insensitive" } },
+      { localita: { contains: q, mode: "insensitive" } },
     ];
   }
 

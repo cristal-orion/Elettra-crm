@@ -32,9 +32,9 @@ export default async function CommessePage({
   if (sp.daFatturare === "1") { where.AND = [{ stato: { not: "FATTURATA" } }, { ordiniFornitore: { some: {} } }]; }
   if (q) {
     where.OR = [
-      { numero: { contains: q } },
-      { descrizione: { contains: q } },
-      { cliente: { ragioneSociale: { contains: q } } },
+      { numero: { contains: q, mode: "insensitive" } },
+      { descrizione: { contains: q, mode: "insensitive" } },
+      { cliente: { ragioneSociale: { contains: q, mode: "insensitive" } } },
     ];
   }
 

@@ -1,0 +1,86 @@
+# Un'installazione per cliente. Reverse proxy HTTPS davanti a 127.0.0.1:3000.
+name: elettra-production
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Impostare password amministrativa DB separata}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_PASSWORD:?Impostare password ruolo applicativo}
+      POSTGRES_DB: elettra
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./ops/init-postgres.sh:/docker-entrypoint-initdb.d/10-elettra.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d elettra"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+    # Nessuna porta pubblicata: accessibile solo nella rete Docker dedicata.
+  app:
+    image: elettra-crm:production
+    build: .
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment: &app-environment
+      DATABASE_URL: ${DATABASE_URL:?Impostare URL PostgreSQL con host db}
+      SESSION_SECRET: ${SESSION_SECRET:?Impostare SESSION_SECRET}
+      DATA_ENCRYPTION_SECRET: ${DATA_ENCRYPTION_SECRET:?Impostare DATA_ENCRYPTION_SECRET}
+      APP_ORIGIN: ${APP_ORIGIN:?Impostare origine HTTPS}
+      UPLOADS_DIR: /data/uploads
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["uploads:/data"]
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend, frontend]
+  scheduler:
+    image: elettra-crm:production
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 180s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "false"
+    command: ["node_modules/.bin/tsx", "scripts/scheduler.ts"]
+    healthcheck: { disable: true }
+    volumes: ["uploads:/data"]
+    depends_on:
+      app: { condition: service_healthy }
+    networks: [backend, frontend]
+  backup:
+    image: postgres:16-alpine
+    profiles: [ops]
+    environment:
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-}
+    entrypoint: ["sh", "/ops/backup-container.sh"]
+    volumes:
+      - ./ops:/ops:ro
+      - uploads:/data:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    networks: [backend]
+  offsite:
+    image: restic/restic:0.18.1
+    profiles: [ops]
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups:ro
+    networks: [frontend]
+volumes:
+  postgres:
+  uploads:
+networks:
+  backend: { internal: true }
+  frontend:

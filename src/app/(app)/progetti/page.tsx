@@ -62,9 +62,9 @@ export default async function ProgettiPage({
       ...(q
         ? {
             OR: [
-              { numero: { contains: q } },
-              { descrizione: { contains: q } },
-              { cliente: { ragioneSociale: { contains: q } } },
+              { numero: { contains: q, mode: "insensitive" } },
+              { descrizione: { contains: q, mode: "insensitive" } },
+              { cliente: { ragioneSociale: { contains: q, mode: "insensitive" } } },
             ],
           }
         : {}),

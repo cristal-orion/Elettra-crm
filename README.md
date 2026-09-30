@@ -11,7 +11,7 @@ Il flusso completo di riferimento è in `../docs/FLUSSO_CRM_ELETTRA.md`
 ## Stack
 
 - **Next.js 16** (App Router, React 19, TypeScript) — server components + server actions
-- **Prisma 6** ORM — **SQLite** in sviluppo, **PostgreSQL**-ready in produzione
+- **Prisma 6** ORM — **PostgreSQL 16** in sviluppo e produzione
 - **Tailwind CSS v4** — tema rame/slate coerente col diagramma di flusso
 - **Autenticazione** custom: sessione JWT (jose) in cookie httpOnly, password con bcrypt
 
@@ -23,10 +23,13 @@ Il flusso completo di riferimento è in `../docs/FLUSSO_CRM_ELETTRA.md`
 ## Avvio in sviluppo
 
 ```bash
-# 1. Installa le dipendenze
+# 1. Copia .env.example in .env e genera due segreti casuali indipendenti.
+# Avvia il PostgreSQL locale (porta 55432, solo loopback):
+docker compose up -d db
+# Installa le dipendenze
 npm install
 
-# 2. Crea il database SQLite e applica lo schema
+# 2. Applica lo schema PostgreSQL
 npm run db:migrate      # oppure: npx prisma migrate dev
 
 # 3. Popola dati di esempio (utenti, anagrafiche, commesse)
@@ -38,8 +41,9 @@ npm run dev
 
 App su http://localhost:3000 — verrai reindirizzato a `/login`.
 
-> Il file `.env` (con `DATABASE_URL` e `SESSION_SECRET`) è già presente in questo
-> ambiente. In un clone pulito va ricreato prima del passo 2.
+Il file `.env` va creato da `.env.example` e non va versionato. Il seed è solo
+per sviluppo; in produzione si inizializza un amministratore con `auth:bootstrap`.
+La migrazione dell'istanza SQLite esistente è descritta in [DEPLOY.md](DEPLOY.md).
 
 ## Credenziali di sviluppo
 
@@ -63,10 +67,15 @@ Utenti creati dal seed, tutti con quella password:
 |---|---|
 | `npm run dev` | Server di sviluppo |
 | `npm test` | Test di regressione (validazione dati, sessioni, documenti, economics) |
+| `npm run test:integration` | Migrazione SQLite, rollback e concorrenza su PostgreSQL temporaneo |
+| `npm run test:ops` | Immagine Docker, backup Restic e restore completo (richiede build e DB locale) |
 | `npm run lint` | Analisi statica del codice applicativo |
 | `npm run ai:scheduled` | Esegue i controlli AI programmati dovuti (da pianificare ogni 5 minuti) |
 | `npm run build` / `npm start` | Build e avvio di produzione |
 | `npm run db:migrate` | Crea/applica migrazioni |
+| `npm run db:deploy` | Applica migrazioni esistenti senza reset |
+| `npm run db:from-sqlite -- <copia.db> [--execute]` | Analisi/migrazione atomica su PostgreSQL vuoto |
+| `npm run auth:bootstrap` | Crea solo il primo amministratore, richiede ADMIN_EMAIL/ADMIN_PASSWORD |
 | `npm run db:seed` | Ricarica i dati di esempio (richiede `SEED_PASSWORD`) |
 | `npm run db:reset` | Azzera il DB e ri-seeda |
 | `npm run db:studio` | Prisma Studio (browser sui dati) |
@@ -149,11 +158,12 @@ La creazione/modifica anagrafiche è consentita a Super Admin e Backoffice
 
 ## Note tecniche
 
-- **SQLite → PostgreSQL**: lo schema è compatibile. Per la produzione basta
-  cambiare `provider` e `url` in `prisma/schema.prisma` / `.env` e rilanciare le
-  migrazioni. I campi "a scelta chiusa" (ruolo, stato, tipologia, titolo) sono
-  `String` validati in `src/lib/enums.ts` perché SQLite non supporta gli enum
-  nativi: su Postgres si possono promuovere a `enum`.
+- **PostgreSQL**: baseline dedicata, storico SQLite archiviato e script di
+  migrazione dati con confronto integrale. Non basta cambiare il DSN di un DB SQLite.
+- **Produzione**: no seed automatico, container non-root, login limitato nel DB,
+  revoca sessioni al cambio credenziali/ruolo, CSRF su origine canonica e CSP con nonce.
+- **Backup**: strumenti Compose per DB+allegati, copia cifrata Restic e restore
+  su destinazione vuota. Configurazione e attivazione reali in [DEPLOY.md](DEPLOY.md).
 - **Codici C/F**: assegnati automaticamente alla creazione (`C####` per i
   clienti, `F####` per i fornitori). Una stessa azienda può avere entrambi.
 - **Referenti normalizzati**: titolo obbligatorio da lista predefinita.

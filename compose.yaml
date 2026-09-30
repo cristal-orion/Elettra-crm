@@ -1,0 +1,19 @@
+# Solo sviluppo/test. In produzione usare compose.production.yaml o Coolify.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: elettra
+      POSTGRES_PASSWORD: elettra-local-only
+      POSTGRES_DB: elettra
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - dev-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elettra -d elettra"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  dev-postgres:

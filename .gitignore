@@ -47,3 +47,10 @@ next-env.d.ts
 /prisma/dev.db-journal
 /src/generated
 /uploads
+/backups
+*.dump
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+__pycache__/

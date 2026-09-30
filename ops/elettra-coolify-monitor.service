@@ -1,0 +1,9 @@
+[Unit]
+Description=Readiness, disco ed eta backup CRM Elettra
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/elettra-crm-ops/coolify_ops.py monitor
+TimeoutStartSec=30s
+UMask=0077

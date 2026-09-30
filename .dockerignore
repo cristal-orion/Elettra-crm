@@ -12,6 +12,13 @@ build
 uploads
 prisma/dev.db
 prisma/dev.db-journal
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+backups
+**/*.dump
+**/__pycache__
 
 # Rigenerato in fase di build.
 src/generated

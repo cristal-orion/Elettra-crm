@@ -40,8 +40,8 @@ export default async function SegnalazioniPage({
   if (vista === "concluse") where.stato = "CONCLUSA";
   if (q) {
     where.OR = [
-      { titolo: { contains: q } },
-      { descrizione: { contains: q } },
+      { titolo: { contains: q, mode: "insensitive" } },
+      { descrizione: { contains: q, mode: "insensitive" } },
     ];
   }
 

@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import test, { before, after } from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { testDatabase } from "../../scripts/test-database";
 import { dueSlot } from "./ai/schedule-time";
 import { CommandSchema, needsConfirmation } from "./crm/schemas";
 import type { PrismaClient } from "@/generated/prisma";
 
-let directory: string;
+let database: ReturnType<typeof testDatabase>;
 let db: PrismaClient;
 let run: typeof import("./crm/commands").runCommand;
 let submit: typeof import("./ai/operations").submitOperation;
@@ -16,10 +13,9 @@ let decide: typeof import("./ai/operations").decideOperation;
 const oldDb = process.env.DATABASE_URL;
 const oldKey = process.env.GEMINI_API_KEY;
 before(async () => {
-  directory = await mkdtemp(path.join(tmpdir(), "elettra-ai-test-"));
-  process.env.DATABASE_URL = `file:${path.join(directory, "test.db")}`;
+  database = testDatabase();
+  process.env.DATABASE_URL = database.url;
   process.env.GEMINI_API_KEY = "";
-  execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "deploy"], { env: process.env, stdio: "pipe" });
   db = (await import("./prisma")).prisma;
   run = (await import("./crm/commands")).runCommand;
   ({ submitOperation: submit, decideOperation: decide } = await import("./ai/operations"));
@@ -30,8 +26,7 @@ before(async () => {
   await db.aiConversation.create({ data: { id: "chat", userId: "admin", title: "Test" } });
 });
 after(async () => {
-  await db?.$disconnect();
-  if (directory) await rm(directory, { recursive: true, force: true });
+  if (db && database) await database.cleanup(db);
   if (oldDb === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = oldDb;
   if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
 });

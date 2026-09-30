@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup Elettra PostgreSQL e allegati con copia cifrata fuori server
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/elettra-crm
+ExecStart=/usr/bin/sh ops/backup.sh
+TimeoutStartSec=2h
+UMask=0077

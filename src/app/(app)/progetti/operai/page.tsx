@@ -22,10 +22,10 @@ export default async function OperaiPage({
     where: q
       ? {
           OR: [
-            { nome: { contains: q } },
-            { cognome: { contains: q } },
-            { qualifica: { contains: q } },
-            { squadra: { contains: q } },
+            { nome: { contains: q, mode: "insensitive" } },
+            { cognome: { contains: q, mode: "insensitive" } },
+            { qualifica: { contains: q, mode: "insensitive" } },
+            { squadra: { contains: q, mode: "insensitive" } },
           ],
         }
       : {},
