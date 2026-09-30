@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import urllib.error
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +14,22 @@ spec.loader.exec_module(ops)
 
 
 class OperationalTests(unittest.TestCase):
+    def test_monitor_detects_maintenance_lock(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops, "STATE", Path(directory)):
+            self.assertFalse(ops.maintenance_active())
+            with ops.maintenance_lock():
+                self.assertTrue(ops.maintenance_active())
+            self.assertFalse(ops.maintenance_active())
+
+    def test_readiness_wait_handles_proxy_warmup(self):
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self): return b'{"status":"ready"}'
+        with patch.object(ops.urllib.request, "urlopen", side_effect=[urllib.error.URLError("warming up"), Response()]) as request, patch.object(ops.time, "sleep"):
+            ops.wait_ready({"app_origin": "https://crm.example.test"})
+            self.assertEqual(request.call_count, 2)
+
     def test_restart_on_backup_failure(self):
         calls = []
         def docker(*args, **kwargs):

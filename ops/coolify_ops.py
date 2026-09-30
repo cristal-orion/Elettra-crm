@@ -172,6 +172,32 @@ def uploads_manifest(root):
     return records
 
 
+def wait_ready(config, seconds=120):
+    # Il processo riparte prima che Docker/Traefik lo considerino healthy.
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            with urllib.request.urlopen(config["app_origin"] + "/api/health/ready", timeout=10) as response:
+                if json.load(response).get("status") == "ready":
+                    return
+        except (OSError, ValueError):
+            pass
+        if time.monotonic() >= deadline:
+            raise OpsError("App riavviata ma readiness non raggiunta entro il tempo previsto.")
+        time.sleep(3)
+
+
+def maintenance_active():
+    with (STATE / "maintenance.lock").open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    return False
+
+
 def prepare(args):
     if CONFIG.exists():
         raise OpsError("Configurazione già presente: non sovrascrivo credenziali o rollback.")
@@ -298,6 +324,7 @@ def backup(args):
                 raise OpsError("Bundle di backup non identificato.")
             bundle = created[0]
             private_json(bundle / "manifest.json", {"rows": counts, "uploads": manifest, "created": time.time()})
+        wait_ready(cfg)
         state = {"bundle": str(bundle), "created": time.time(), "local_only": True}
         private_json(STATE / "last-backup.json", state)
         complete = sorted([p for p in backups.iterdir() if re.fullmatch(r"\d{8}T\d{6}Z", p.name) and (p / "manifest.json").exists()], reverse=True)
@@ -349,7 +376,7 @@ def mark_live(args):
 
 def monitor(args):
     cfg = load()
-    if cfg["maintenance"]:
+    if cfg["maintenance"] or maintenance_active():
         event("monitor_maintenance")
         return
     issues = []
@@ -374,6 +401,9 @@ def monitor(args):
     usage = shutil.disk_usage(STATE)
     if usage.used / usage.total >= .8:
         issues.append("disk_usage")
+    if issues and maintenance_active():
+        event("monitor_maintenance")
+        return
     private_json(STATE / "monitor.json", {"checked": time.time(), "issues": issues})
     event("monitor_failed" if issues else "monitor_ok", issues=issues)
     if issues:

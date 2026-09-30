@@ -228,3 +228,26 @@ di disponibilità da un sistema esterno alla VPS.
 La scelta iniziale di soli backup locali non protegge dalla perdita della VPS:
 aggiungere il deposito fuori server prima della consegna. Non eliminare il bundle
 legacy finché il passaggio a PostgreSQL e il ripristino sono stati verificati.
+
+### Attivazione dell'istanza Elettra — 30 settembre 2026
+
+L'istanza Coolify `elettra-crm` è stata migrata a PostgreSQL 16, con DB dedicato
+`elettra-postgresql` nel progetto Elettra CRM / production, senza porte pubbliche.
+Il ruolo dell'app è `elettra` (non superuser); il container DB ha limiti di
+512 MiB e 1 CPU. La vecchia immagine SQLite e il backup integrale del volume
+sono conservati per recupero; il file SQLite sul volume non è più il DB operativo.
+
+Sono stati confrontati integralmente i record durante la migrazione: 12 utenti,
+1.044 anagrafiche, 724 commesse, 1.099 destinazioni, oltre alle altre tabelle.
+I percorsi e il checksum dell'allegato esistente sono stati verificati. Sono
+passati i controlli HTTP autenticati, download, CSP e rifiuto richieste non
+autorizzate/cross-origin. La chiave AI legacy è stata letta e ricifrata in v2.
+
+Sono attivi i timer host `elettra-coolify-backup`, `elettra-coolify-restore` e
+`elettra-coolify-monitor`, e il task Coolify `Controlli AI Elettra` ogni cinque
+minuti. Backup e restore sono stati eseguiti tramite le unità systemd reali,
+con confronto dei conteggi di tutte le tabelle e SHA-256 degli allegati.
+
+La copia fuori server è stata rinviata esplicitamente: per ora i backup sono
+locali. Il monitor registra gli esiti nel journal; alert esterni e controllo
+di disponibilità da un altro sistema restano da collegare prima della consegna.
