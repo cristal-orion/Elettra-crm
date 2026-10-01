@@ -226,6 +226,8 @@ const TOUR: Record<string, TourGuida> = {
     passi: [
       { titolo: "Utenti e ruoli", testo: "Solo il Super Admin crea utenti e assegna i ruoli, che decidono cosa ciascuno può fare.", sel: "main h1" },
       { titolo: "Nuovo utente", testo: "Crea un accesso e scegli il ruolo.", sel: "main a[href='/utenti/nuovo']" },
+      { titolo: "Carico di lavoro", testo: "La tabella mostra commesse aperte e totali, attività da fare e scadute, segnalazioni aperte e data di creazione dell’account. Usa i filtri per trovare un utente.", sel: "main table" },
+      { titolo: "Modifica ed eliminazione", testo: "Modifica ruoli e accessi oppure elimina un account trasferendo i dati operativi. Il tuo account non può essere eliminato. Per sospendere un accesso basta disattivarlo.", sel: "main table" },
     ],
   },
   "/impostazioni": {

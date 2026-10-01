@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/dal";
 import { puoGestireUtenti, RUOLI } from "@/lib/enums";
 import { Prisma } from "@/generated/prisma";
 import { passwordError } from "@/lib/password";
+import { eliminaUtente, UtenteError } from "@/lib/utenti";
 
 export type UtenteState = { error?: string } | undefined;
 
@@ -144,4 +145,31 @@ export async function updateUtente(
 
   revalidatePath("/utenti");
   redirect("/utenti");
+}
+
+export async function deleteUtente(
+  userId: string,
+  _prev: UtenteState,
+  formData: FormData,
+): Promise<UtenteState> {
+  const me = await requireUser();
+  if (!puoGestireUtenti(me.ruolo)) {
+    return { error: "Non hai i permessi per eliminare gli utenti." };
+  }
+
+  try {
+    await eliminaUtente(me.id, userId, {
+      emailConferma: String(formData.get("emailConferma") ?? ""),
+      subentranteId: String(formData.get("subentranteId") ?? ""),
+    });
+  } catch (e) {
+    if (e instanceof UtenteError) return { error: e.message };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return { error: "I dati sono cambiati durante l’eliminazione. Ricarica la pagina e riprova." };
+    }
+    return { error: "Eliminazione non completata. Nessun dato è stato cancellato. Riprova." };
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/utenti?esito=eliminato");
 }

@@ -13,7 +13,7 @@ export default async function ModificaUtentePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRuolo(["SUPER_ADMIN"]);
+  const me = await requireRuolo(["SUPER_ADMIN"]);
   const { id } = await params;
 
   const utente = await prisma.user.findUnique({
@@ -57,6 +57,13 @@ export default async function ModificaUtentePage({
         isEdit
         submitLabel="Salva modifiche"
       />
+      {id !== me.id && (
+        <section className="rounded-xl border border-line bg-panel p-5">
+          <h2 className="text-sm font-semibold">Elimina account</h2>
+          <p className="mt-2 text-sm text-ink-soft">Rimuovi definitivamente l’accesso e trasferisci gli eventuali dati operativi a un altro utente.</p>
+          <Link href={`/utenti/${id}/elimina`} className="mt-3 inline-block rounded-lg border border-line px-4 py-2.5 text-sm text-danger hover:bg-danger-soft">Elimina utente</Link>
+        </section>
+      )}
     </div>
   );
 }
