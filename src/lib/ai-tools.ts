@@ -78,7 +78,8 @@ const descriptions: Record<string, string> = {
   assegnaOperaio: "Assegna un operaio attivo a un progetto oppure aggiorna l'intervallo esistente. Blocca sovrapposizioni con cantieri aperti. Non inventare disponibilità.",
   rimuoviAssegnazione: "Propone la rimozione di un'assegnazione: richiede conferma nella UI.",
   creaAttivita: "Registra attività/follow-up con scadenza e responsabile; default utente corrente. Non invia email.",
-  aggiornaAttivita: "Completa, riapre o ripianifica un'attività consentita al ruolo.",
+   aggiornaAttivita: "Modifica titolo, note, scadenza, collegamenti, stato o responsabile di un'attività consentita al ruolo. Campi omessi invariati; leggi prima versione e ID con cercaAttivita.",
+   eliminaAttivita: "Propone l'eliminazione di un'attività consentita al ruolo: richiede conferma nella UI.",
 };
 
 export function buildTools(context: ToolContext): ToolSet {
@@ -87,7 +88,7 @@ export function buildTools(context: ToolContext): ToolSet {
   let commands = 0;
   for (const schema of CommandSchema.options) {
     const name = schema.shape.type.value;
-    const allowed = name === "salvaAnagrafica" || name === "salvaReferente" ? puoGestireAnagrafiche(context.ruolo) : name === "salvaCommessa" ? puoGestireCommesse(context.ruolo) : name === "creaAttivita" || name === "aggiornaAttivita" || puoGestireProgetti(context.ruolo);
+    const allowed = name === "salvaAnagrafica" || name === "salvaReferente" ? puoGestireAnagrafiche(context.ruolo) : name === "salvaCommessa" ? puoGestireCommesse(context.ruolo) : name === "creaAttivita" || name === "aggiornaAttivita" || name === "eliminaAttivita" || puoGestireProgetti(context.ruolo);
     if (!allowed) continue;
     // La riconciliazione completa referenti è riservata al form: l'AI usa il tool puntuale.
     const inputSchema = z.object(Object.fromEntries(Object.entries(schema.shape).filter(([key]) => key !== "type" && !(name === "salvaAnagrafica" && key === "referenti"))));

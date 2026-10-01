@@ -45,12 +45,13 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("assegnaOperaio"), commessaId: id, operaioId: id, ruoloCantiere: z.enum(keys(RUOLI_CANTIERE)).nullable().optional(), dal: day, al: day, note: text, aggiornaEsistente: z.boolean().default(false) }),
   z.object({ type: z.literal("rimuoviAssegnazione"), id }),
   z.object({ type: z.literal("creaAttivita"), titolo: z.string().trim().min(1).max(300), note: text, scadenza: day, userId: id.optional(), commessaId: optionalId, clienteId: optionalId }),
-  z.object({ type: z.literal("aggiornaAttivita"), id, expectedUpdatedAt: version, stato: z.enum(["DA_FARE", "COMPLETATA"]), scadenza: day }),
+  z.object({ type: z.literal("aggiornaAttivita"), id, expectedUpdatedAt: version, stato: z.enum(["DA_FARE", "COMPLETATA"]).optional(), titolo: z.string().trim().min(1).max(300).optional(), note: text, scadenza: day, userId: id.optional(), commessaId: optionalId, clienteId: optionalId }),
+  z.object({ type: z.literal("eliminaAttivita"), id, expectedUpdatedAt: version }),
 ]);
 export type CrmCommand = z.infer<typeof CommandSchema>;
 
 export function needsConfirmation(c: CrmCommand): boolean {
-  if (c.type === "eliminaMilestone" || c.type === "rimuoviAssegnazione") return true;
+  if (c.type === "eliminaMilestone" || c.type === "rimuoviAssegnazione" || c.type === "eliminaAttivita") return true;
   if (c.type !== "salvaCommessa") return false;
   return c.data.importoOfferta !== undefined || c.data.importoOrdine !== undefined ||
     c.data.tipologia !== undefined || (c.data.stato !== undefined && (Boolean(c.id) || c.data.stato !== "LEAD"));

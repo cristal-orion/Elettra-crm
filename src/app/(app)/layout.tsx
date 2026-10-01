@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { etichettaRuolo, puoGestireUtenti } from "@/lib/enums";
 import { logout } from "@/app/login/actions";
@@ -6,6 +5,7 @@ import Nav from "@/components/nav";
 import SegnalaButton from "@/components/segnala-button";
 import Guida, { GuidaButton } from "@/components/guida";
 import { prisma } from "@/lib/prisma";
+import NotificationProvider, { NotificationBanner } from "@/components/notification-provider";
 
 export default async function AppLayout({
   children,
@@ -18,6 +18,7 @@ export default async function AppLayout({
   const unread = await prisma.notifica.count({ where: { userId: user.id, letta: false } });
 
   return (
+    <NotificationProvider key={user.id} initialCount={unread}>
     <div className="flex min-h-screen">
       {/* Sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col overflow-y-auto bg-slatepanel px-4 py-5 text-white md:flex">
@@ -77,7 +78,7 @@ export default async function AppLayout({
           </div>
         </header>
         <div className="md:hidden"><Nav mobile canManageUsers={canManageUsers} /></div>
-        {unread > 0 && <Link href="/notifiche" className="border-b border-line bg-brand-soft px-5 py-3 text-sm font-medium text-brand-deep">{unread} nuovi riepiloghi operativi · Apri notifiche →</Link>}
+        <NotificationBanner />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8">
           {children}
@@ -87,5 +88,6 @@ export default async function AppLayout({
       <Guida ruolo={user.ruolo} viste={user.guidaVista} />
 
     </div>
+    </NotificationProvider>
   );
 }

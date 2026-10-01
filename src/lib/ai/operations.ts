@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma";
 import { checkPermission, CrmError, executeCommand, publicError, type Db } from "../crm/commands";
 import { CommandSchema, needsConfirmation, type CrmCommand } from "../crm/schemas";
 import { serializable } from "../transaction";
+import { puoGestireCommesse } from "../enums";
 
 export const jsonValue = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 function canonical(value: unknown): string {
@@ -13,12 +14,17 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function snapshot(db: Db, c: CrmCommand) {
+async function snapshot(db: Db, c: CrmCommand, userId: string) {
   if (c.type === "salvaAnagrafica" && c.id) return db.anagrafica.findUnique({ where: { id: c.id } });
   if (c.type === "salvaReferente") return db.anagrafica.findUnique({ where: { id: c.anagraficaId } });
   if ((c.type === "salvaCommessa" || c.type === "pianificaProgetto") && c.id) return db.commessa.findUnique({ where: { id: c.id } });
   if (c.type === "aggiornaMilestone" || c.type === "eliminaMilestone" || c.type === "spostaMilestone") return db.milestone.findUnique({ where: { id: c.id } });
-  if (c.type === "aggiornaAttivita") return db.attivita.findUnique({ where: { id: c.id } });
+  if (c.type === "aggiornaAttivita" || c.type === "eliminaAttivita") {
+    const task = await db.attivita.findUnique({ where: { id: c.id } });
+    const actor = await db.user.findUnique({ where: { id: userId }, select: { ruolo: true } });
+    if (task && task.userId !== userId && !puoGestireCommesse(actor?.ruolo ?? "")) throw new CrmError("Non puoi modificare questa attività.", "FORBIDDEN");
+    return task;
+  }
   if (c.type === "rimuoviAssegnazione") {
     const a = await db.assegnazioneOperaio.findUnique({ where: { id: c.id }, include: { operaio: { select: { nome: true, cognome: true } }, commessa: { select: { numero: true } } } });
     return a ? { ...a, titolo: `${a.operaio.nome} ${a.operaio.cognome} · Commessa ${a.commessa.numero}` } : null;
@@ -37,7 +43,7 @@ export async function submitOperation(userId: string, conversationId: string, re
     if (!conversation) throw new CrmError("Conversazione non trovata.");
     const old = await db.aiOperation.findUnique({ where: { requestKey } });
     if (old) return operationOutput(old);
-    const before = await snapshot(db, command);
+    const before = await snapshot(db, command, userId);
     if (before && "updatedAt" in before && "expectedUpdatedAt" in command && command.expectedUpdatedAt && before.updatedAt.toISOString() !== command.expectedUpdatedAt) throw new CrmError("Record modificato: rileggi i dati.", "CONFLICT");
     // Per le conferme la versione viene sempre fissata sul server.
     if (before && "updatedAt" in before) Object.assign(command, { expectedUpdatedAt: before.updatedAt.toISOString() });
@@ -76,7 +82,7 @@ export async function decideOperation(userId: string, id: string, approved: bool
       }
       // Anche le entità prive di updatedAt (assegnazioni) vengono confrontate.
       const preview = op.preview as { prima?: unknown };
-      if (canonical(jsonValue(await snapshot(db, command))) !== canonical(preview.prima)) throw new CrmError("Il record è cambiato dopo la proposta. Richiedi una nuova operazione.", "CONFLICT");
+      if (canonical(jsonValue(await snapshot(db, command, userId))) !== canonical(preview.prima)) throw new CrmError("Il record è cambiato dopo la proposta. Richiedi una nuova operazione.", "CONFLICT");
       const result = await executeCommand(db, userId, command);
       return operationOutput(await db.aiOperation.update({ where: { id }, data: { status: "COMPLETED", result: jsonValue(result) } }));
     });

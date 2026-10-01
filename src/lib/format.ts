@@ -31,6 +31,10 @@ export function formatDate(value: Date | string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
 }
 
+export function formatDateTime(value: Date | string): string {
+  return new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
 /** Dimensione file leggibile: 0–999 B, poi KB/MB/GB con una cifra decimale. */
 export function formatBytes(value: number | null | undefined): string {
   const n = typeof value === "number" && Number.isFinite(value) ? value : 0;

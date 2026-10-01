@@ -5,6 +5,7 @@ import { collectFindings } from "./findings";
 import { dueSlot } from "./schedule-time";
 import { jsonValue } from "./operations";
 import { CrmError } from "../crm/commands";
+import { notifyDueTasks } from "../notifiche";
 
 export async function runSchedule(id: string, slot: string, now = new Date()) {
   const schedule = await prisma.aiSchedule.findUnique({ where: { id }, include: { user: { select: { attivo: true, ruolo: true } } } });
@@ -49,6 +50,7 @@ export async function runSchedule(id: string, slot: string, now = new Date()) {
   }
 }
 export async function runDueSchedules(now = new Date()) {
+  await notifyDueTasks(now);
   const schedules = await prisma.aiSchedule.findMany({ where: { enabled: true, user: { attivo: true, ruolo: "SUPER_ADMIN" } } });
   const results = [];
   for (const schedule of schedules) {

@@ -173,22 +173,18 @@ const TOUR: Record<string, TourGuida> = {
   "/attivita": {
     chiave: "attivita",
     passi: [
-      {
-        titolo: "Le tue attività",
-        testo: "Follow-up e cose da fare assegnate a te. Segna come completata ogni attività quando è chiusa.",
-        sel: "main h1",
-      },
+      { titolo: "Attività e scadenze", testo: "Qui organizzi follow-up e prossimi passi. Il riepilogo distingue attività da fare, scadute, in scadenza oggi e completate.", sel: "main h1" },
+      { titolo: "Nuova attività", testo: "Inserisci titolo, note e scadenza e collega una commessa o un cliente. Chi gestisce le commesse può anche assegnare attività al team.", sel: "main a[href='/attivita/nuova']" },
+      FILTRI,
+      { titolo: "Aggiornamenti e notifiche", testo: "Apri un’attività per modificarla, completarla o riaprirla. Le assegnazioni e le scadenze sono collegate alle notifiche.", sel: "main section[aria-label='Elenco attività']" },
     ],
   },
   "/notifiche": {
     chiave: "notifiche",
     passi: [
-      {
-        titolo: "Notifiche",
-        testo:
-          "Riepiloghi dei controlli programmati. Quando ce ne sono di nuovi compare una barra in alto che porta qui.",
-        sel: "main h1",
-      },
+      { titolo: "Notifiche personali", testo: "Ricevi assegnazioni, promemoria delle attività e riepiloghi dei controlli condivisi con te.", sel: "main h1" },
+      { titolo: "Da leggere o già lette", testo: "Filtra le notifiche per stato e tipo. Puoi segnarle come lette singolarmente o tutte insieme.", sel: "main nav[aria-label='Stato notifiche']" },
+      { titolo: "Apri il dettaglio", testo: "Aprendo una notifica raggiungi l’attività o il controllo corrispondente e la notifica viene segnata come letta. Il contatore nel menu si aggiorna anche quando arrivano nuovi avvisi.", sel: "main h1" },
     ],
   },
   "/assistente": {

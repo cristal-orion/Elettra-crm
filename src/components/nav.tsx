@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUnreadNotifications } from "./notification-provider";
 
 type NavItem = {
   href: string;
@@ -161,6 +162,7 @@ export default function Nav({
   mobile?: boolean;
 }) {
   const pathname = usePathname();
+  const unread = useUnreadNotifications();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -202,7 +204,8 @@ export default function Nav({
             }`}
           >
             {!mobile && <span aria-hidden className={active ? "text-brand-light" : ""}>{item.icon}</span>}
-            <span>{item.label}</span>
+             <span>{item.label}</span>
+             {item.href === "/notifiche" && unread > 0 && <span aria-label={`${unread} notifiche da leggere`} className={`rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${mobile ? "bg-brand-soft text-brand-deep" : "bg-brand-light/20 text-brand-light"}`}>{unread > 99 ? "99+" : unread}</span>}
           </Link>
         );
       })}

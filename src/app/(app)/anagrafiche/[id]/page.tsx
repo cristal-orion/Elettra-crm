@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AiContextPanel from "@/components/ai/context-panel";
+import TaskContext from "@/components/task-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
@@ -93,6 +94,7 @@ export default async function AnagraficaDetailPage({
       </header>
 
       <AiContextPanel type="cliente" id={id} />
+      <TaskContext user={user} clienteId={id} />
 
       {anagrafica.isCliente && (
         <ClienteEconomics economics={economics} commesse={anagrafica.commesse.length} />

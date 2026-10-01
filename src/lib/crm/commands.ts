@@ -6,6 +6,8 @@ import { puoGestireAnagrafiche, puoGestireCommesse, puoGestireProgetti } from ".
 import { isProgetto } from "../progetti";
 import { commessaHaAcquisti, tipologiaForzata } from "../regole";
 import { CommandSchema, dateValue, type CrmCommand } from "./schemas";
+import { notificaAttivita, notificheAttivitaWhere } from "../notifiche";
+import { attivitaHref } from "../attivita";
 
 export class CrmError extends InputError {
   constructor(message: string, public code = "INVALID_INPUT") { super(message); }
@@ -24,7 +26,7 @@ export async function checkPermission(db: Db, actorId: string, command: CrmComma
   if (!actor?.attivo) throw new CrmError("Sessione non valida.", "UNAUTHORIZED");
   const allowed = command.type === "salvaAnagrafica" || command.type === "salvaReferente" ? puoGestireAnagrafiche(actor.ruolo)
     : command.type === "salvaCommessa" ? puoGestireCommesse(actor.ruolo)
-    : command.type === "creaAttivita" || command.type === "aggiornaAttivita" ? true
+    : command.type === "creaAttivita" || command.type === "aggiornaAttivita" || command.type === "eliminaAttivita" ? true
     : puoGestireProgetti(actor.ruolo);
   if (!allowed) throw new CrmError("Non hai i permessi per questa operazione.", "FORBIDDEN");
   return actor;
@@ -180,15 +182,41 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
       if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
       const a = await db.attivita.create({ data: { titolo: c.titolo, note: c.note, scadenza: dateValue(c.scadenza), userId, commessaId: c.commessaId, clienteId } });
-      return { id: a.id, href: "/attivita", message: "Attività creata." };
+      await notificaAttivita(db, actor.id, a, true);
+      return { id: a.id, href: attivitaHref(a.id), message: "Attività creata." };
     }
-    case "aggiornaAttivita": {
+    case "aggiornaAttivita":
+    case "eliminaAttivita": {
       const a = await db.attivita.findUnique({ where: { id: c.id } });
       if (!a) throw new CrmError("Attività non trovata.");
       if (a.userId !== actor.id && !puoGestireCommesse(actor.ruolo)) throw new CrmError("Non puoi modificare questa attività.", "FORBIDDEN");
       checkVersion(a, c.expectedUpdatedAt);
-      await db.attivita.update({ where: { id: a.id }, data: { stato: c.stato, scadenza: dateValue(c.scadenza) } });
-      return { id: a.id, href: "/attivita", message: "Attività aggiornata." };
+      if (c.type === "eliminaAttivita") {
+        await db.notifica.deleteMany({ where: notificheAttivitaWhere(a.id) });
+        await db.attivita.delete({ where: { id: a.id } });
+        return { id: a.id, href: "/attivita", message: "Attività eliminata." };
+      }
+      const userId = c.userId ?? a.userId;
+      if (userId !== a.userId) {
+        if (!puoGestireCommesse(actor.ruolo)) throw new CrmError("Non puoi riassegnare questa attività.", "FORBIDDEN");
+        if (!await db.user.findFirst({ where: { id: userId, attivo: true } })) throw new CrmError("Responsabile non valido.");
+      }
+      const commessaId = c.commessaId === undefined ? a.commessaId : c.commessaId;
+      const commessa = commessaId ? await db.commessa.findUnique({ where: { id: commessaId } }) : null;
+      if (commessaId && !commessa) throw new CrmError("Commessa non trovata.");
+      const clienteId = c.clienteId === undefined ? commessa?.clienteId ?? a.clienteId : c.clienteId;
+      if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
+      if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
+      const data = { titolo: c.titolo, note: c.note, stato: c.stato, scadenza: dateValue(c.scadenza), userId, commessaId, clienteId };
+      const unchanged = (c.titolo === undefined || c.titolo === a.titolo)
+        && (c.note === undefined || c.note === a.note) && (c.stato === undefined || c.stato === a.stato)
+        && (c.scadenza === undefined || dateValue(c.scadenza)?.getTime() === a.scadenza?.getTime())
+        && userId === a.userId && commessaId === a.commessaId && clienteId === a.clienteId;
+      if (unchanged) return { id: a.id, href: attivitaHref(a.id), message: "Nessuna modifica da salvare." };
+      if (userId !== a.userId) await db.notifica.deleteMany({ where: { ...notificheAttivitaWhere(a.id), userId: a.userId } });
+      const updated = await db.attivita.update({ where: { id: a.id }, data });
+      await notificaAttivita(db, actor.id, updated, userId !== a.userId);
+      return { id: a.id, href: attivitaHref(a.id), message: "Attività aggiornata." };
     }
   }
 }
