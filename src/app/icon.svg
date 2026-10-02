@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 1060" fill="none">
+  <title>Elettra</title>
+  <defs>
+    <linearGradient id="elettra-background" x1="0" y1="530" x2="1060" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#343682"/>
+      <stop offset=".5" stop-color="#346C9B"/>
+      <stop offset="1" stop-color="#4AA4B6"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#elettra-background)" d="M0 0h1060v1060H0z"/>
+  <g fill="#fff">
+    <path d="M274 445a170 170 0 0 1 340 0H274Z"/>
+    <path d="M614 275a170 170 0 0 1 0 340V275Z"/>
+    <path d="M784 615a170 170 0 0 1-340 0h340Z"/>
+    <path d="M444 785a170 170 0 0 1 0-340v340Z"/>
+  </g>
+</svg>
