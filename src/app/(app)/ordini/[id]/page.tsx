@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { puoGestireOrdini, etichettaStatoOrdine } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoOrdineBadge } from "@/components/badges";
+import PrintLink from "@/components/print-link";
 
 /** Quantità in formato it-IT, senza decimali superflui. */
 const qtaFmt = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
@@ -71,14 +72,17 @@ export default async function OrdineDetailPage({
             {ordine.fornitore.ragioneSociale}
           </p>
         </div>
-        {puoModificare && (
-          <Link
-            href={`/ordini/${ordine.id}/modifica`}
-            className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
-          >
-            Modifica
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <PrintLink href={`/stampa/ordini/${ordine.id}`} />
+          {puoModificare && (
+            <Link
+              href={`/ordini/${ordine.id}/modifica`}
+              className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
+            >
+              Modifica
+            </Link>
+          )}
+        </div>
       </header>
 
       <div className="grid gap-5 md:grid-cols-2">

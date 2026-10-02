@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AiContextPanel from "@/components/ai/context-panel";
+import PrintLink from "@/components/print-link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
@@ -504,12 +505,15 @@ function Intestazione({
           {commessa.descrizione ?? "Senza descrizione"}
         </p>
       </div>
-      <Link
-        href={`/commesse/${commessa.id}`}
-        className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
-      >
-        Apri commessa
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        {stato && <PrintLink href={`/stampa/progetti/${commessa.id}`} />}
+        <Link
+          href={`/commesse/${commessa.id}`}
+          className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
+        >
+          Apri commessa
+        </Link>
+      </div>
     </header>
   );
 }

@@ -1,0 +1,62 @@
+/* Layout dedicato: nessuna sidebar, modulo, assistente o notifica nel documento. */
+.print-preview { padding: 24px 16px 40px; }
+.print-controls { max-width: 186mm; margin: 0 auto 20px; }
+.print-landscape .print-controls { max-width: 273mm; }
+.print-page { width: min(210mm, 100%); margin: 0 auto; padding: 12mm; background: white; box-shadow: 0 3px 24px #15243a15; color: #191817; font-size: 10pt; line-height: 1.4; }
+.print-landscape .print-page { width: min(297mm, 100%); page: landscape; }
+.print-sheet { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.print-sheet > thead > tr > td, .print-sheet > tbody > tr > td { padding: 0; border: 0; }
+.print-header { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 5mm; margin-bottom: 6mm; border-bottom: 1.5pt solid #1b5583; }
+.print-header img { display: block; width: 48mm; height: auto; }
+.print-company { margin-top: 2mm; color: #555; font-size: 8pt; }
+.print-heading { text-align: right; overflow-wrap: anywhere; }
+.print-heading h1 { margin: 0; font-size: 17pt; font-weight: 700; line-height: 1.15; }
+.print-heading > p { margin-top: 1.5mm; font-size: 9pt; }
+[data-print-date] { display: block; margin-top: 2mm; font-size: 8pt; color: #555; }
+.print-section { margin-bottom: 6mm; }
+.print-section h2, .print-notes h2 { margin: 0 0 3mm; font-size: 11pt; font-weight: 700; color: #143f61; }
+.print-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 6mm; }
+.print-field { min-width: 0; }
+.print-field dt { color: #555; font-size: 8pt; }
+.print-field dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.print-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.print-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
+.print-table th { text-align: left; font-weight: 600; background: #eef2f5; border-bottom: 1pt solid #777; }
+.print-table th, .print-table td { padding: 2.5mm 2mm; vertical-align: top; overflow-wrap: anywhere; }
+.print-table td { border-bottom: .5pt solid #d5d9dd; }
+.print-table th:first-child, .print-table td:first-child { padding-left: 0; }
+.print-table .print-number { text-align: right; font-variant-numeric: tabular-nums; }
+.print-table .print-small { display: block; margin-top: 1mm; font-size: 8pt; color: #555; }
+.print-table .print-task-notes { margin-top: 1.5mm; font-size: 8pt; white-space: pre-wrap; }
+.print-totals { width: 80mm; max-width: 100%; margin: 4mm 0 0 auto; }
+.print-totals .print-field { display: flex; justify-content: space-between; gap: 5mm; padding: 1mm 0; }
+.print-totals dt { font-size: 9pt; }
+.print-totals dd { text-align: right; font-variant-numeric: tabular-nums; }
+.print-totals .print-field:last-child { border-top: 1pt solid #777; margin-top: 1mm; padding-top: 2mm; font-weight: 700; }
+.print-callout { margin-bottom: 5mm; padding: 3mm; border: 1pt solid #777; font-size: 9pt; }
+.print-filters { margin-bottom: 5mm; font-size: 9pt; }
+.print-filters p { margin-bottom: 1mm; }
+.print-check { display: inline-block; width: 3.5mm; height: 3.5mm; border: .8pt solid #333; line-height: 3mm; text-align: center; font-size: 9pt; }
+.print-notes { margin-top: 6mm; }
+.print-note-line { height: 8mm; border-bottom: .5pt solid #aaa; }
+.print-notes p { margin-top: 4mm; font-size: 8pt; }
+.print-empty { font-size: 9pt; color: #555; }
+
+@page { size: A4 portrait; margin: 10mm 12mm 14mm; @bottom-right { content: "Pagina " counter(page) " di " counter(pages); font-size: 8pt; color: #555; } }
+@page landscape { size: A4 landscape; margin: 10mm 12mm 14mm; }
+
+@media print {
+  html, body { height: auto !important; min-height: 0 !important; background: white !important; display: block !important; }
+  .print-controls { display: none !important; }
+  .print-preview { padding: 0; }
+  .print-page { width: auto !important; margin: 0; padding: 0; box-shadow: none; }
+  .print-sheet > thead, .print-table > thead { display: table-header-group; }
+  .print-sheet > tbody { break-inside: auto; }
+  .print-sheet > tbody > tr, .print-sheet > tbody > tr > td { break-inside: auto; }
+  .print-sheet > thead, .print-header, .print-table tr, .print-fields, .print-totals, .print-notes { break-inside: avoid; }
+  .print-section h2 { break-after: avoid; }
+  .print-table { overflow: visible; }
+  .print-table th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .print-heading h1 { font-size: 15pt; }
+  p { orphans: 3; widows: 3; }
+}

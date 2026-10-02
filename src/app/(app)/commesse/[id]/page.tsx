@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AiContextPanel from "@/components/ai/context-panel";
 import TaskContext from "@/components/task-context";
+import PrintLink from "@/components/print-link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
@@ -97,14 +98,17 @@ export default async function CommessaDetailPage({
             {commessa.descrizione ?? "Senza descrizione"}
           </p>
         </div>
-        {puoModificare && (
-          <Link
-            href={`/commesse/${commessa.id}/modifica`}
-            className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
-          >
-            Modifica
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <PrintLink href={`/stampa/commesse/${commessa.id}`} />
+          {puoModificare && (
+            <Link
+              href={`/commesse/${commessa.id}/modifica`}
+              className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
+            >
+              Modifica
+            </Link>
+          )}
+        </div>
       </header>
 
       <AiContextPanel type="commessa" id={id} />

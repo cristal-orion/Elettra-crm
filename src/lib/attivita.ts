@@ -12,9 +12,26 @@ export function attivitaScope(user: { id: string; ruolo: string }, vista?: strin
     : { userId: user.id };
 }
 
-export function attivitaWhere(user: { id: string; ruolo: string }, filters: {
+export type AttivitaFilters = {
   vista?: string; responsabile?: string; stato?: string; scadenza?: string; q?: string; commessaId?: string; clienteId?: string;
-}, now = new Date()): Prisma.AttivitaWhereInput {
+};
+
+/** La vista a schermo e la stampa devono applicare gli stessi filtri e permessi. */
+export function normalizeAttivitaFilters(user: { id: string; ruolo: string }, input: AttivitaFilters) {
+  const text = (value: unknown) => typeof value === "string" ? value : "";
+  const vista = puoGestireCommesse(user.ruolo) && input.vista === "team" ? "team" : "mie";
+  return {
+    vista,
+    stato: input.stato === "COMPLETATA" || input.stato === "tutte" ? input.stato : "DA_FARE",
+    scadenza: ["scadute", "oggi", "prossime", "senza"].includes(input.scadenza ?? "") ? input.scadenza! : "",
+    q: text(input.q).trim(),
+    responsabile: vista === "team" ? text(input.responsabile) : "",
+    commessaId: text(input.commessaId),
+    clienteId: text(input.clienteId),
+  };
+}
+
+export function attivitaWhere(user: { id: string; ruolo: string }, filters: AttivitaFilters, now = new Date()): Prisma.AttivitaWhereInput {
   const oggi = giornoAttivita(now);
   const domani = new Date(oggi.getTime() + 86400000);
   const periodo: Prisma.AttivitaWhereInput = filters.scadenza === "scadute" ? { stato: "DA_FARE", scadenza: { lt: oggi } }

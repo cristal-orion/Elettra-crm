@@ -3,8 +3,9 @@ import { requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { puoGestireCommesse } from "@/lib/enums";
-import { attivitaHref, attivitaScope, attivitaWhere, giornoAttivita, statoScadenza } from "@/lib/attivita";
+import { attivitaHref, attivitaScope, attivitaWhere, giornoAttivita, normalizeAttivitaFilters, statoScadenza } from "@/lib/attivita";
 import TaskActions from "./task-actions";
+import PrintLink from "@/components/print-link";
 
 export const metadata = { title: "Attività — CRM Elettra" };
 const PER_PAGE = 30;
@@ -15,13 +16,7 @@ export default async function TasksPage({ searchParams }: {
   const user = await requireUser();
   const sp = await searchParams;
   const canManage = puoGestireCommesse(user.ruolo);
-  const vista = canManage && sp.vista === "team" ? "team" : "mie";
-  const stato = sp.stato === "COMPLETATA" || sp.stato === "tutte" ? sp.stato : "DA_FARE";
-  const scadenza = ["scadute", "oggi", "prossime", "senza"].includes(sp.scadenza ?? "") ? sp.scadenza! : "";
-  const q = (sp.q ?? "").trim();
-  const responsabile = vista === "team" ? sp.responsabile ?? "" : "";
-  const commessaId = sp.commessaId ?? "";
-  const clienteId = sp.clienteId ?? "";
+  const { vista, stato, scadenza, q, responsabile, commessaId, clienteId } = normalizeAttivitaFilters(user, sp);
   const now = new Date();
   const scope = { ...attivitaScope(user, vista, responsabile), commessaId: commessaId || undefined, clienteId: clienteId || undefined };
   const where = attivitaWhere(user, { vista, responsabile, stato, scadenza, q, commessaId, clienteId }, now);
@@ -53,7 +48,7 @@ export default async function TasksPage({ searchParams }: {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="font-mono text-xs uppercase tracking-wider text-brand-deep">Organizzazione</p><h1 className="mt-1 text-2xl font-bold tracking-tight">Attività</h1><p className="mt-1 text-sm text-ink-soft">Follow-up, scadenze e prossimi passi collegati al CRM.</p></div>
-        <Link href={`/attivita/nuova${prefill.size ? `?${prefill}` : ""}`} className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white">+ Nuova attività</Link>
+        <div className="flex flex-wrap gap-2"><PrintLink href={`/stampa${link({})}`} /><Link href={`/attivita/nuova${prefill.size ? `?${prefill}` : ""}`} className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white">+ Nuova attività</Link></div>
       </header>
       {sp.esito === "eliminata" && <p role="status" className="rounded-lg bg-ok-soft p-4 text-sm text-ok">Attività eliminata. I dati di commesse e anagrafiche sono stati conservati.</p>}
       {(commessaId || clienteId) && <p className="rounded-lg bg-brand-soft p-4 text-sm text-brand-deep">Stai visualizzando le attività del collegamento selezionato. <Link href={link({ commessaId: "", clienteId: "" })} className="ml-2 underline">Mostra tutti i collegamenti</Link></p>}
