@@ -349,7 +349,18 @@ export default function AnagraficaForm({
         </div>
       </fieldset>
 
-      <FormError error={state?.error} />
+      <FormError error={state?.error} fieldNames={state?.errorFields}>
+        {state?.conflitti && state.conflitti.length > 0 && <div className="mt-3">
+          <p className="font-medium">Schede con il dato fiscale già presente (massimo 5):</p>
+          <ul className="mt-1 space-y-2">{state.conflitti.map((a) => <li key={a.id}>
+            <Link href={`/anagrafiche/${encodeURIComponent(a.id)}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+              {a.ragioneSociale} · {[a.codiceCliente, a.codiceFornitore].filter(Boolean).join(" / ") || "Apri scheda"}
+            </Link>
+            <span className="ml-2">({a.campi.map((field) => field === "partitaIva" ? "P. IVA" : "codice fiscale").join(" e ")})</span>
+          </li>)}</ul>
+          <p className="mt-2 text-xs">I link si aprono in una nuova scheda: i dati che stai modificando restano nel modulo.</p>
+        </div>}
+      </FormError>
 
       <div className="flex items-center gap-3">
         <button

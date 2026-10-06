@@ -12,6 +12,17 @@ import { attivitaHref } from "../attivita";
 export class CrmError extends InputError {
   constructor(message: string, public code = "INVALID_INPUT") { super(message); }
 }
+export type AnagraficaConflict = {
+  id: string; ragioneSociale: string; codiceCliente: string | null; codiceFornitore: string | null;
+  campi: ("partitaIva" | "codiceFiscale")[];
+};
+export class DuplicateAnagraficaError extends CrmError {
+  constructor(public conflicts: AnagraficaConflict[]) {
+    const labels = { partitaIva: "P. IVA", codiceFiscale: "codice fiscale" };
+    const details = conflicts.map((a) => `${a.ragioneSociale} (${[a.codiceCliente, a.codiceFornitore].filter(Boolean).join(" / ") || a.id}): ${a.campi.map((field) => labels[field]).join(" e ")}`);
+    super(`P. IVA o codice fiscale già presenti: ${details.join("; ")}. Consulta l'anagrafica esistente o correggi il dato fiscale.`, "DUPLICATE");
+  }
+}
 export function publicError(e: unknown): string {
   if (e instanceof InputError) return e.message;
   if (e instanceof z.ZodError) return e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(" · ");
@@ -66,10 +77,19 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (existing) checkVersion(existing, c.expectedUpdatedAt);
       const data = { ...existing, ...c.data };
       if (!data.ragioneSociale || (!data.isCliente && !data.isFornitore)) throw new CrmError("Indica ragione sociale e almeno Cliente o Fornitore.");
-      const matches: Prisma.AnagraficaWhereInput[] = [];
-      if (c.data.partitaIva) matches.push({ partitaIva: c.data.partitaIva });
-      if (c.data.codiceFiscale) matches.push({ codiceFiscale: c.data.codiceFiscale });
-      if (matches.length && await db.anagrafica.findFirst({ where: { id: c.id ? { not: c.id } : undefined, OR: matches } })) throw new CrmError("P. IVA o codice fiscale già presenti: consulta l'anagrafica esistente.", "DUPLICATE");
+      const normalized = (value: string | null | undefined) => value?.trim().toUpperCase() || null;
+      // Gli import possono contenere duplicati storici: non devono bloccare la
+      // modifica di contatti/referenti. Controlla ogni campo fiscale solo se nuovo
+      // o cambiato, confrontandolo col record attuale del DB (non col client).
+      const fiscalFields = (["partitaIva", "codiceFiscale"] as const).filter((field) =>
+        normalized(c.data[field]) && (!existing || normalized(c.data[field]) !== normalized(existing[field])));
+      const matches: Prisma.AnagraficaWhereInput[] = fiscalFields.map((field) => ({ [field]: { equals: c.data[field]!, mode: "insensitive" } }));
+      if (matches.length) {
+        const duplicates = await db.anagrafica.findMany({ where: { id: c.id ? { not: c.id } : undefined, OR: matches }, take: 5, orderBy: [{ ragioneSociale: "asc" }, { id: "asc" }],
+          select: { id: true, ragioneSociale: true, codiceCliente: true, codiceFornitore: true, partitaIva: true, codiceFiscale: true } });
+        if (duplicates.length) throw new DuplicateAnagraficaError(duplicates.map(({ partitaIva, codiceFiscale, ...a }) => ({ ...a,
+          campi: fiscalFields.filter((field) => normalized({ partitaIva, codiceFiscale }[field]) === normalized(c.data[field])) })));
+      }
       const values = { ...c.data, codiceCliente: existing?.codiceCliente ?? (data.isCliente ? await nextCode(db, "C") : null), codiceFornitore: existing?.codiceFornitore ?? (data.isFornitore ? await nextCode(db, "F") : null) };
       const row = existing ? await db.anagrafica.update({ where: { id: existing.id }, data: values }) : await db.anagrafica.create({ data: { ...values, ragioneSociale: data.ragioneSociale } });
       if (c.referenti !== undefined) {

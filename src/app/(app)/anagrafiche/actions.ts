@@ -5,9 +5,9 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/dal";
 import { parseJsonField } from "@/lib/form-validation";
 import { ReferentiSchema } from "@/lib/referenti-validation";
-import { runCommand, publicError } from "@/lib/crm/commands";
+import { runCommand, publicError, DuplicateAnagraficaError, type AnagraficaConflict } from "@/lib/crm/commands";
 
-export type AnagraficaState = { error?: string } | undefined;
+export type AnagraficaState = { error?: string; conflitti?: AnagraficaConflict[]; errorFields?: string[] } | undefined;
 
 async function save(id: string | undefined, form: FormData): Promise<AnagraficaState> {
   const user = await requireUser();
@@ -19,7 +19,11 @@ async function save(id: string | undefined, form: FormData): Promise<AnagraficaS
   try {
     const result = await runCommand(user.id, { type: "salvaAnagrafica", id, expectedUpdatedAt: form.get("expectedUpdatedAt") || undefined, data: { ...data, isCliente: form.get("isCliente") === "on", isFornitore: form.get("isFornitore") === "on" }, referenti: referenti.data });
     href = result.href;
-  } catch (e) { return { error: publicError(e) }; }
+  } catch (e) {
+    return e instanceof DuplicateAnagraficaError
+      ? { error: publicError(e), conflitti: e.conflicts, errorFields: [...new Set(e.conflicts.flatMap((a) => a.campi))] }
+      : { error: publicError(e) };
+  }
   revalidatePath("/", "layout");
   redirect(href);
 }
