@@ -6,6 +6,7 @@ import { puoGestireOrdini, etichettaStatoOrdine } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoOrdineBadge } from "@/components/badges";
 import PrintLink from "@/components/print-link";
+import AiContextPanel from "@/components/ai/context-panel";
 
 /** Quantità in formato it-IT, senza decimali superflui. */
 const qtaFmt = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
@@ -84,6 +85,8 @@ export default async function OrdineDetailPage({
           )}
         </div>
       </header>
+
+      <AiContextPanel type="ordine" id={id} />
 
       <div className="grid gap-5 md:grid-cols-2">
         <Card title="Ordine">

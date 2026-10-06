@@ -5,6 +5,7 @@ import { puoGestireCatalogo } from "@/lib/enums";
 import { formatEuro, formatDate } from "@/lib/format";
 import { getProdottoConStorico } from "../catalogo";
 import EliminaMateriale from "../elimina-materiale";
+import AiContextPanel from "@/components/ai/context-panel";
 
 export default async function MaterialeDetailPage({
   params,
@@ -61,6 +62,8 @@ export default async function MaterialeDetailPage({
           </div>
         )}
       </header>
+
+      <AiContextPanel type="materiale" id={id} />
 
       <div className="grid gap-5 md:grid-cols-2">
         <div className="rounded-xl border border-line bg-panel p-5">

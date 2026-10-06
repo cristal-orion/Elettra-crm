@@ -11,7 +11,7 @@ export default function AiContextPanel({ type, id }: AiContext) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
-  const actions = type === "cliente" ? ["Riassumi situazione", "Prepara follow-up"] : type === "progetto" ? ["Analizza ritardi", "Proponi piano", "Organizza squadra"] : ["Analizza criticità", "Prepara prossime attività"];
+  const actions = type === "cliente" ? ["Riassumi situazione", "Prepara follow-up"] : type === "progetto" ? ["Analizza ritardi", "Proponi piano", "Organizza squadra"] : type === "ordine" ? ["Riassumi ordine e consegne", "Prepara sollecito fornitore"] : type === "materiale" ? ["Riassumi dati tecnici", "Individua informazioni mancanti"] : ["Analizza criticità", "Prepara prossime attività"];
   const href = (richiesta?: string) => `/assistente?${new URLSearchParams({ tipo: type, id, ...(richiesta ? { richiesta } : {}) })}`;
   async function analyze(task: string) {
     controller.current = new AbortController(); setBusy(true); setError(""); setResult(null);

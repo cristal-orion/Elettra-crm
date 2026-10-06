@@ -35,5 +35,5 @@ export function apiError(e: unknown) {
   const status = e instanceof ApiError ? e.status : e instanceof CrmError ? ({ UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, RATE_LIMIT: 429 }[e.code] ?? 400) : e instanceof z.ZodError ? 400 : 500;
   return Response.json({ error: e instanceof ApiError ? e.message : publicError(e) }, { status });
 }
-export const ContextSchema = z.object({ type: z.enum(["commessa", "progetto", "cliente"]), id: z.string().min(1).max(100) });
+export const ContextSchema = z.object({ type: z.enum(["commessa", "progetto", "cliente", "ordine", "materiale"]), id: z.string().min(1).max(100) });
 export type AiContext = z.infer<typeof ContextSchema>;
