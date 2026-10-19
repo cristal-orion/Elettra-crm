@@ -12,12 +12,11 @@ import {
   puoGestireDocumenti,
   etichettaTitolo,
   etichettaStato,
-  etichettaCategoria,
   METODI_RICEZIONE,
 } from "@/lib/enums";
 import { richiedeFatturazione } from "@/lib/regole";
 import { avanzamento, isProgetto, statoAvanzamento } from "@/lib/progetti";
-import { formatEuro, formatDate, formatBytes, toNumber } from "@/lib/format";
+import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import {
   AvanzamentoBadge,
   StatoBadge,
@@ -25,8 +24,7 @@ import {
   TipologiaBadge,
 } from "@/components/badges";
 import { BarraAvanzamento } from "@/components/charts";
-import { DocumentiUploader, DocDeleteButton } from "../documenti-ui";
-import { uploadDocumenti, deleteDocumento } from "../documenti-actions";
+import CommessaDocumenti from "@/components/commessa-documenti";
 
 export default async function CommessaDetailPage({
   params,
@@ -299,67 +297,7 @@ export default async function CommessaDetailPage({
       </section>
 
       {/* Documenti */}
-      <section className="rounded-xl border border-line bg-panel p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">
-            Documenti{" "}
-            <span className="font-normal text-ink-faint">
-              ({commessa.documenti.length})
-            </span>
-          </h2>
-          <p className="text-xs text-ink-soft">
-            Cartella{" "}
-            <span className="font-mono text-ink-faint">{commessa.numero}/</span>
-          </p>
-        </div>
-
-        {puoDocumenti && (
-          <div className="mt-4">
-            <DocumentiUploader
-              action={uploadDocumenti.bind(null, commessa.id)}
-            />
-          </div>
-        )}
-
-        {commessa.documenti.length === 0 ? (
-          <p className="mt-4 text-sm text-ink-faint">
-            Nessun documento allegato.
-          </p>
-        ) : (
-          <ul className="mt-4 flex flex-col divide-y divide-line">
-            {commessa.documenti.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center gap-3 py-2.5 first:pt-0"
-              >
-                <span className="shrink-0 rounded-md bg-lead-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-soft">
-                  {etichettaCategoria(d.categoria)}
-                </span>
-                <a
-                  href={`/documenti/${d.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 flex-1 truncate text-sm font-medium hover:text-brand-deep"
-                >
-                  {d.nomeFile}
-                </a>
-                <span className="hidden shrink-0 font-mono text-xs text-ink-faint sm:inline">
-                  {formatBytes(d.dimensione)}
-                </span>
-                <span className="hidden shrink-0 font-mono text-xs text-ink-faint md:inline">
-                  {formatDate(d.createdAt)}
-                </span>
-                {puoDocumenti && (
-                  <DocDeleteButton
-                    action={deleteDocumento.bind(null, d.id)}
-                    nome={d.nomeFile}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <CommessaDocumenti id={commessa.id} numero={commessa.numero} documenti={commessa.documenti} puoGestire={puoDocumenti} />
     </div>
   );
 }

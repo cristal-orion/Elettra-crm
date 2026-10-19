@@ -7,7 +7,7 @@ import { listHref } from "@/lib/list-state";
 
 type Filter = { name: string; label: string; value: string; defaultValue?: string; options: { value: string; label: string }[] };
 type Suggestion = { href: string; label: string; type: string };
-const cls = "min-h-11 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+const cls = "min-h-11 min-w-0 max-w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
 
 export default function ListFilters({ q, placeholder, filters = [], total, suggestions = [], similar = false }: {
   q?: string; placeholder?: string; filters?: Filter[]; total: number; suggestions?: Suggestion[]; similar?: boolean;
@@ -62,7 +62,7 @@ export default function ListFilters({ q, placeholder, filters = [], total, sugge
           onChange={(e) => search(e.target.value)} onCompositionStart={() => { composing.current = true; cancel(); }}
           onCompositionEnd={(e) => { composing.current = false; search(e.currentTarget.value); }} />
       </label>}
-      {filters.map((f) => <label key={`${f.name}:${f.value}`} className="flex flex-col gap-1.5 text-xs text-ink-soft">{f.label}
+      {filters.map((f) => <label key={`${f.name}:${f.value}`} className="flex min-w-0 max-w-full flex-col gap-1.5 text-xs text-ink-soft">{f.label}
         <select aria-label={f.label} name={f.name} defaultValue={f.value} className={cls}>{f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
       </label>)}
       <button type="submit" className={`${cls} font-medium hover:bg-paper`}>Applica filtri</button>

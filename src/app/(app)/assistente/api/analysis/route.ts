@@ -5,6 +5,7 @@ import { analyzeContext } from "@/lib/ai/analysis";
 import { prisma } from "@/lib/prisma";
 import { jsonValue } from "@/lib/ai/operations";
 import { reserveAnalysis } from "@/lib/ai/analysis-budget";
+import { analysisFailure } from "@/lib/ai/analysis-error";
 
 export async function POST(req: Request) {
   try {
@@ -17,8 +18,17 @@ export async function POST(req: Request) {
       await prisma.aiOperation.update({ where: { id: op.id }, data: { status: "COMPLETED", result: jsonValue(result) } });
       return Response.json(result);
     } catch (e) {
-      await prisma.aiOperation.update({ where: { id: op.id }, data: { status: "FAILED", error: "Analisi non completata." } });
-      throw e;
+      const failure = analysisFailure(e);
+      console.error("[ai.analysis]", { operationId: op.id, code: failure.code, providerStatus: failure.providerStatus });
+      try {
+        await prisma.aiOperation.update({ where: { id: op.id }, data: { status: "FAILED", error: `${failure.code}: ${failure.message}` } });
+      } catch {
+        console.error("[ai.analysis]", { operationId: op.id, code: "FAILURE_RECORD_UNAVAILABLE" });
+      }
+      return Response.json({ error: failure.message, code: failure.code, retryable: failure.retryable }, {
+        status: failure.status,
+        headers: failure.retryAfter ? { "Retry-After": String(failure.retryAfter) } : undefined,
+      });
     }
   } catch (e) { return apiError(e); }
 }

@@ -2,11 +2,14 @@ import Link from "next/link";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import PrintLink from "@/components/print-link";
+import CommessaDocumenti from "@/components/commessa-documenti";
+import TaskContext from "@/components/task-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import {
   puoGestireProgetti,
+  puoGestireDocumenti,
   etichettaStato,
   etichettaRuoloCantiere,
 } from "@/lib/enums";
@@ -46,12 +49,18 @@ import {
   updatePianificazione,
 } from "../actions";
 
+const SEZIONI = { riepilogo: "Riepilogo", avanzamento: "Avanzamento", squadra: "Squadra", documenti: "Documenti" } as const;
+
 export default async function ProgettoDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const tab = typeof sp.tab === "string" && Object.hasOwn(SEZIONI, sp.tab) ? sp.tab as keyof typeof SEZIONI : "riepilogo";
   const user = await requireUser();
 
   const commessa = await prisma.commessa.findUnique({
@@ -60,6 +69,7 @@ export default async function ProgettoDetailPage({
       cliente: { select: { id: true, ragioneSociale: true } },
       pm: { select: { nome: true, cognome: true } },
       milestone: { orderBy: { ordine: "asc" } },
+      _count: { select: { documenti: true } },
       assegnazioni: {
         include: { operaio: true },
         orderBy: { createdAt: "asc" },
@@ -101,11 +111,15 @@ export default async function ProgettoDetailPage({
   const stato = statoAvanzamento(commessa);
   const giorni = giorniAllaScadenza(commessa.scadenzaLavori);
   const dimostrativo = haPianificazioneDimostrativa(commessa.milestone);
-  const operaiAttivi = await prisma.operaio.findMany({
+  const operaiAttivi = puoModificare && tab === "squadra" ? await prisma.operaio.findMany({
     where: { attivo: true },
     orderBy: [{ cognome: "asc" }, { nome: "asc" }],
     select: { id: true, nome: true, cognome: true, qualifica: true },
-  });
+  }) : [];
+  const documenti = tab === "documenti" ? await prisma.documento.findMany({
+    where: { commessaId: id }, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    select: { id: true, nomeFile: true, categoria: true, dimensione: true, createdAt: true },
+  }) : [];
 
   const ultimoOrdine = commessa.milestone.length - 1;
 
@@ -113,7 +127,13 @@ export default async function ProgettoDetailPage({
     <div className="flex flex-col gap-7">
       <Intestazione commessa={commessa} stato={stato} />
 
-      <AiContextPanel type="progetto" id={id} />
+      <nav aria-label="Sezioni progetto" className="grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel p-2 sm:flex sm:flex-wrap">
+        {Object.entries(SEZIONI).map(([value, label]) => <Link key={value}
+          href={`/progetti/${id}?tab=${value}`} scroll={false} aria-current={tab === value ? "page" : undefined}
+          className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand ${tab === value ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-paper"}`}>
+          {label}{value === "squadra" ? ` (${commessa.assegnazioni.length})` : value === "documenti" ? ` (${commessa._count.documenti})` : ""}
+        </Link>)}
+      </nav>
 
       {dimostrativo && (
         <div
@@ -166,6 +186,7 @@ export default async function ProgettoDetailPage({
         </div>
       )}
 
+      {tab === "riepilogo" && <>
       <div className="grid gap-5 md:grid-cols-3">
         <Card title="Avanzamento">
           <div className="flex flex-col gap-3">
@@ -239,8 +260,21 @@ export default async function ProgettoDetailPage({
         </section>
       )}
 
+      <div className="flex flex-wrap gap-3">
+        <Link href={`/progetti/${id}?tab=avanzamento`} className="inline-flex min-h-11 items-center rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white">{puoModificare ? "Aggiorna avanzamento" : "Vedi avanzamento"}</Link>
+        <Link href={`/progetti/${id}?tab=squadra`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium text-brand-deep">{puoModificare ? "Gestisci squadra" : "Vedi squadra"}</Link>
+      </div>
+      <TaskContext user={user} commessaId={id} />
+      <AiContextPanel type="progetto" id={id} />
+      </>}
+
+      {tab === "avanzamento" && <>
+      <div className="rounded-xl border border-line bg-panel p-4 sm:p-6">
+        <h2 className="text-sm font-semibold">Avanzamento del progetto</h2>
+        <p className="mt-2 text-sm text-ink-soft">{av.totali ? `${av.completate} milestone completate su ${av.totali} (${av.percentuale}%).` : "Nessuna milestone definita: aggiungi le fasi di lavoro per seguirne l’avanzamento."} Il valore è calcolato dalle milestone registrate.</p>
+      </div>
       {puoModificare && (
-        <section className="rounded-xl border border-line bg-panel p-6">
+        <section className="rounded-xl border border-line bg-panel p-4 sm:p-6">
           <h2 className="text-sm font-semibold">Pianificazione</h2>
           <p className="mt-1 text-xs text-ink-soft">
             Date di cantiere, distinte da quelle commerciali della commessa.
@@ -259,7 +293,7 @@ export default async function ProgettoDetailPage({
       )}
 
       {/* Milestone */}
-      <section className="rounded-xl border border-line bg-panel p-6">
+      <section className="rounded-xl border border-line bg-panel p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex flex-wrap items-center gap-2.5 text-sm font-semibold">
             Milestone di rilascio{" "}
@@ -288,7 +322,7 @@ export default async function ProgettoDetailPage({
                     <span className="font-mono text-xs tabular-nums text-ink-faint">
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    <span className="min-w-0 flex-[1_1_12rem] break-words text-sm font-medium">
                       {m.titolo}
                       {m.dimostrativa && (
                         <span
@@ -316,7 +350,7 @@ export default async function ProgettoDetailPage({
 
                     {puoModificare ? (
                       <>
-                        <StatoMilestoneSelect
+                        <StatoMilestoneSelect key={`${m.id}:${m.updatedAt.toISOString()}`}
                           expectedUpdatedAt={m.updatedAt.toISOString()}
                           action={setStatoMilestone.bind(null, m.id)}
                           stato={m.stato}
@@ -369,7 +403,7 @@ export default async function ProgettoDetailPage({
 
                   {puoModificare && (
                     <details className="group mt-1 pl-8">
-                      <summary className="cursor-pointer text-xs text-ink-faint transition hover:text-brand-deep">
+                      <summary className="min-h-11 cursor-pointer py-3 text-sm text-brand-deep transition hover:underline">
                         Modifica dettagli
                       </summary>
                       <MilestoneEditForm
@@ -395,9 +429,10 @@ export default async function ProgettoDetailPage({
           </div>
         )}
       </section>
+      </>}
 
       {/* Squadra assegnata */}
-      <section className="rounded-xl border border-line bg-panel p-6">
+      {tab === "squadra" && <section className="rounded-xl border border-line bg-panel p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold">
             Squadra in cantiere{" "}
@@ -407,7 +442,7 @@ export default async function ProgettoDetailPage({
           </h2>
           <Link
             href="/progetti/operai"
-            className="text-xs font-medium text-brand-deep hover:underline"
+            className="inline-flex min-h-11 items-center text-sm font-medium text-brand-deep hover:underline"
           >
             Anagrafica operai →
           </Link>
@@ -421,7 +456,7 @@ export default async function ProgettoDetailPage({
           <ul className="mt-4 flex flex-col divide-y divide-line">
             {commessa.assegnazioni.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 first:pt-0">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                <span className="min-w-0 flex-[1_1_12rem] break-words text-sm font-medium">
                   {a.operaio.cognome} {a.operaio.nome}
                   {!a.operaio.attivo && (
                     <span className="ml-2 text-xs font-normal text-ink-faint">
@@ -469,7 +504,11 @@ export default async function ProgettoDetailPage({
             />
           </div>
         )}
-      </section>
+      </section>}
+      {tab === "documenti" && <>
+        <p className="text-sm text-ink-soft">Documenti condivisi con la commessa {commessa.numero}. I file caricati qui sono disponibili anche nella scheda commessa.</p>
+        <CommessaDocumenti id={id} numero={commessa.numero} documenti={documenti} puoGestire={puoGestireDocumenti(user.ruolo)} />
+      </>}
     </div>
   );
 }

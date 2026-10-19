@@ -16,7 +16,7 @@ type Azione = (
 ) => Promise<ProgettoState>;
 
 const inputCls =
-  "rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "min-h-11 min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
 const labelCls =
   "font-mono text-[11px] uppercase tracking-wider text-ink-faint";
 
@@ -28,7 +28,7 @@ function Campo({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <label className="flex min-w-0 flex-col gap-1.5">
       <span className={labelCls}>{label}</span>
       {children}
     </label>
@@ -45,7 +45,7 @@ function Esito({ state }: { state: ProgettoState }) {
     );
   }
   if (state?.ok) {
-    return <span className="text-xs font-medium text-ok">{state.ok}</span>;
+    return <span role="status" className="text-xs font-medium text-ok">{state.ok}</span>;
   }
   return null;
 }
@@ -120,7 +120,7 @@ export function PianificazioneForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Salvataggio…" : "Salva pianificazione"}
         </button>
@@ -163,7 +163,7 @@ export function MilestoneAddForm({ action }: { action: Azione }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Aggiunta…" : "+ Aggiungi milestone"}
         </button>
@@ -183,7 +183,7 @@ function StatoSelectInner({ stato }: { stato: string }) {
       disabled={pending}
       aria-label="Stato milestone"
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs outline-none transition focus:border-brand disabled:opacity-50"
+      className="min-h-11 rounded-lg border border-line bg-panel px-2.5 py-2 text-sm outline-none transition focus:border-brand disabled:opacity-50"
     >
       {Object.keys(STATI_MILESTONE).map((k) => (
         <option key={k} value={k}>
@@ -333,7 +333,7 @@ export function MilestoneEditForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg border border-brand/40 px-3 py-1.5 text-xs font-medium text-brand-deep transition hover:bg-brand-soft disabled:opacity-60"
+          className="min-h-11 rounded-lg border border-brand/40 px-3 py-2 text-sm font-medium text-brand-deep transition hover:bg-brand-soft disabled:opacity-60"
         >
           {pending ? "Salvataggio…" : "Salva milestone"}
         </button>
@@ -417,7 +417,7 @@ export function AssegnaOperaioForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Assegnazione…" : "+ Assegna al cantiere"}
         </button>

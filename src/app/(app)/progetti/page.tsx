@@ -10,7 +10,7 @@ import {
   haPianificazioneDimostrativa,
   statoAvanzamento,
   STATI_PROGETTO,
-  STATI_PROGETTO_ATTIVO,
+  ETICHETTE_AVANZAMENTO,
 } from "@/lib/progetti";
 import {
   AvanzamentoBadge,
@@ -22,7 +22,7 @@ import ListFilters from "@/components/list-filters";
 import ListPagination from "@/components/list-pagination";
 import { queryText } from "@/lib/list-state";
 import { inPageOrder, searchListPage } from "@/lib/list-search";
-import { projectListSource } from "@/lib/project-list";
+import { projectFilters, projectListScope, projectListSource } from "@/lib/project-list";
 import { Prisma } from "@/generated/prisma";
 
 export const metadata = { title: "Progetti — CRM Elettra" };
@@ -33,25 +33,33 @@ const VISTE = {
   tutti: "Tutti (storico incluso)",
 } as const;
 
-type Vista = keyof typeof VISTE;
-
 export default async function ProgettiPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; vista?: string; pagina?: string }>;
+  searchParams: Promise<{ q?: string; vista?: string; pagina?: string; avanzamento?: string; pm?: string; cliente?: string; squadra?: string }>;
 }) {
   const sp = await searchParams;
   const q = queryText(sp.q);
-  const vista: Vista =
-    sp.vista && Object.hasOwn(VISTE, sp.vista) ? (sp.vista as Vista) : "attivi";
+  const filters = projectFilters(sp);
+  const { vista, pm, cliente, squadra } = filters;
 
   const user = await requireUser();
   const puoOperai = user ? puoGestireOperai(user.ruolo) : false;
-  const stati =
-    vista === "attivi" ? [...STATI_PROGETTO_ATTIVO] : STATI_PROGETTO;
+  const [managers, clienti, squadre] = await Promise.all([
+    prisma.user.findMany({ where: { commesse: { some: { stato: { in: STATI_PROGETTO } } } }, select: { id: true, nome: true, cognome: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }] }),
+    prisma.anagrafica.findMany({ where: { commesse: { some: { stato: { in: STATI_PROGETTO } } } }, select: { id: true, ragioneSociale: true }, orderBy: { ragioneSociale: "asc" } }),
+    prisma.operaio.findMany({ where: { squadra: { not: null }, assegnazioni: { some: { commessa: { stato: { in: STATI_PROGETTO } } } } }, distinct: ["squadra"], select: { squadra: true }, orderBy: { squadra: "asc" } }),
+  ]);
+  const pmOptions = managers.map((p) => ({ value: p.id, label: `${p.cognome} ${p.nome}` }));
+  const clientOptions = clienti.map((c) => ({ value: c.id, label: c.ragioneSociale }));
+  const teamOptions = squadre.flatMap((o) => o.squadra ? [{ value: o.squadra, label: o.squadra }] : []);
+  // Un link salvato con un filtro ormai assente non deve apparire come "Tutti".
+  if (pm && pm !== "non_assegnato" && !pmOptions.some((o) => o.value === pm)) pmOptions.push({ value: pm, label: "PM non presente nei progetti" });
+  if (cliente && !clientOptions.some((o) => o.value === cliente)) clientOptions.push({ value: cliente, label: "Cliente non presente nei progetti" });
+  if (squadra && !teamOptions.some((o) => o.value === squadra)) teamOptions.push({ value: squadra, label: squadra });
   const pagination = await searchListPage(prisma, projectListSource(), {
     query: q, page: sp.pagina,
-    scope: Prisma.sql`s.stato IN (${Prisma.join(stati)}) AND ${vista === "ritardo" ? Prisma.sql`s.urgency = 0` : Prisma.sql`true`}`,
+    scope: projectListScope(filters),
     orderBy: Prisma.sql`s.urgency ASC, s."dueDay" ASC NULLS LAST, s.anno DESC, s.progressivo DESC`,
     extraCount: Prisma.sql`count(*) FILTER (WHERE s.urgency = 0)`,
   });
@@ -99,7 +107,7 @@ export default async function ProgettiPage({
             Progetti
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">
-            Cantieri in corso
+            Progetti e cantieri
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
             {pagination.total} progett{pagination.total === 1 ? "o" : "i"}
@@ -125,12 +133,17 @@ export default async function ProgettiPage({
 
       <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Numero, descrizione, cliente…" filters={[
         { name: "vista", label: "Situazione", value: vista, defaultValue: "attivi", options: Object.entries(VISTE).map(([value, label]) => ({ value, label })) },
+        { name: "avanzamento", label: "Avanzamento", value: filters.avanzamento, options: [{ value: "", label: "Tutti gli avanzamenti" }, ...Object.entries(ETICHETTE_AVANZAMENTO).map(([value, label]) => ({ value, label }))] },
+        { name: "pm", label: "Project Manager", value: pm, options: [{ value: "", label: "Tutti i PM" }, { value: "non_assegnato", label: "PM non assegnato" }, ...pmOptions] },
+        { name: "cliente", label: "Cliente", value: cliente, options: [{ value: "", label: "Tutti i clienti" }, ...clientOptions] },
+        { name: "squadra", label: "Squadra", value: squadra, options: [{ value: "", label: "Tutte le squadre" }, ...teamOptions] },
       ]} suggestions={progetti.slice(0, 5).map(({ commessa: c }) => ({ href: `/progetti/${c.id}`, label: `${c.numero} · ${c.cliente.ragioneSociale}`, type: "Progetto" }))} />
+      {squadra && <p className="text-xs text-ink-soft">Squadra: include i progetti con almeno un operaio del gruppo assegnato, anche per periodi passati o futuri. Non indica la disponibilità attuale.</p>}
 
       {progetti.length === 0 ? (
         <div className="rounded-xl border border-line bg-panel px-6 py-12 text-center">
           <p className="text-sm text-ink-faint">
-            {vista === "ritardo"
+            {q || pm || cliente || squadra || filters.avanzamento ? "Nessun progetto corrisponde ai filtri selezionati." : vista === "ritardo"
               ? "Nessun progetto in ritardo."
               : "Nessun progetto. Un progetto nasce quando una commessa passa a “Ordine confermato”."}
           </p>

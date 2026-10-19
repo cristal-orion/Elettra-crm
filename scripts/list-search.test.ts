@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PrismaClient, Prisma } from "../src/generated/prisma";
 import { listSources, searchListPage } from "../src/lib/list-search";
-import { projectListSource } from "../src/lib/project-list";
+import { projectFilters, projectListScope, projectListSource } from "../src/lib/project-list";
 import { statoAvanzamento, giorniAllaScadenza, STATI_PROGETTO } from "../src/lib/progetti";
 import { testDatabase } from "./test-database";
 
@@ -73,6 +73,33 @@ test("liste PostgreSQL: ricerca progressiva, filtri e paginazione prima dell'idr
       }
       const late = await searchListPage(db, projectListSource(), { ...projectOptions, scope: Prisma.sql`(${projectOptions.scope}) AND s.urgency = 0` });
       assert.equal(late.total, expected.filter((row) => statoAvanzamento(row) === "IN_RITARDO").length);
+    });
+    await t.test("progetti: filtri PM/cliente/squadra/avanzamento composti, senza duplicati e prima della pagina", async () => {
+      const manager = await db.user.findUniqueOrThrow({ where: { email: "rossi@example.test" } });
+      const workers = await Promise.all(["Uno", "Due"].map((nome) => db.operaio.create({ data: { nome, cognome: "Squadra", squadra: "Èquipe A" } })));
+      const assignedIds = Array.from({ length: 35 }, (_, i) => `project-${i}`);
+      await db.commessa.updateMany({ where: { id: { in: assignedIds } }, data: { pmId: manager.id } });
+      await db.assegnazioneOperaio.createMany({ data: assignedIds.flatMap((commessaId) => workers.map((worker) => ({ commessaId, operaioId: worker.id }))) });
+      const filters = { vista: "tutti", pm: manager.id, cliente: a.id, squadra: "Èquipe A" };
+      const options = { query: "caffe", scope: projectListScope(projectFilters(filters)), orderBy: Prisma.sql`s.id` };
+      const page = await searchListPage(db, projectListSource(), { ...options, page: "2" });
+      assert.equal(page.total, 35); // due operai per progetto non duplicano il conteggio
+      assert.equal(page.ids.length, 5);
+      assert.deepEqual(page.ids, [...assignedIds].sort().slice(30));
+      const fuzzy = await searchListPage(db, projectListSource(), { ...options, query: "alxoe" });
+      assert.equal(fuzzy.total, 35); assert.equal(fuzzy.similar, true);
+      for (const changed of [{ cliente: b.id }, { pm: "inesistente" }, { squadra: "' OR 1=1 --" }]) {
+        const empty = await searchListPage(db, projectListSource(), { ...options, scope: projectListScope(projectFilters({ ...filters, ...changed })) });
+        assert.equal(empty.total, 0);
+      }
+      const all = await db.commessa.findMany({ where: { id: { in: assignedIds } }, include: { milestone: true } });
+      const late = await searchListPage(db, projectListSource(), { ...options, scope: projectListScope(projectFilters({ ...filters, avanzamento: "IN_RITARDO" })) });
+      assert.equal(late.total, all.filter((p) => statoAvanzamento(p) === "IN_RITARDO").length);
+      const inconsistent = await searchListPage(db, projectListSource(), { ...options, scope: projectListScope(projectFilters({ ...filters, vista: "ritardo", avanzamento: "COMPLETATO" })) });
+      assert.equal(inconsistent.total, 0);
+      const noManager = await searchListPage(db, projectListSource(), { ...options, scope: projectListScope(projectFilters({ vista: "tutti", pm: "non_assegnato" })) });
+      assert.equal(noManager.total, 35);
+      assert.deepEqual(projectFilters({ vista: "__proto__", avanzamento: "constructor", pm: [manager.id] }), { vista: "attivi", avanzamento: "", pm: "", cliente: "", squadra: "" });
     });
     await t.test("volume sintetico: 4000 anagrafiche, pagine complete e nessun ID extra trasferito", async () => {
       await db.anagrafica.createMany({ data: Array.from({ length: 4000 }, (_, i) => ({ id: `volume-${String(i).padStart(4, "0")}`, ragioneSociale: `Azienda Campione ${i}`, isCliente: true })) });

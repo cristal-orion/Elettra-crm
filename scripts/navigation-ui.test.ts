@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
 import { SignJWT } from "jose";
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "../src/generated/prisma";
@@ -19,8 +20,9 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
   const port = (portServer.address() as { port: number }).port;
   await new Promise<void>((resolve) => portServer.close(() => resolve()));
   const origin = `http://127.0.0.1:${port}`;
+  const uploads = await mkdtemp("/tmp/opencode/elettra-ui-uploads-");
   const app = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)], {
-    env: { ...process.env, NODE_ENV: "development", DATABASE_URL: database.url, SESSION_SECRET: secret, DATA_ENCRYPTION_SECRET: randomBytes(48).toString("hex"), APP_ORIGIN: origin, GEMINI_API_KEY: "" },
+    env: { ...process.env, NODE_ENV: "development", DATABASE_URL: database.url, SESSION_SECRET: secret, DATA_ENCRYPTION_SECRET: randomBytes(48).toString("hex"), APP_ORIGIN: origin, GEMINI_API_KEY: "", UPLOADS_DIR: uploads },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let logs = "";
@@ -53,6 +55,8 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     page.on("pageerror", (error) => errors.push(error.message));
     const list = `${origin}/commesse?stato=INVIATA&pagina=2&ordine=numero_asc&q=impianto%20aloxe`;
     const ready = async (p: Page) => {
+      // Aspetta anche i bundle: i campi SSR sono visibili prima degli handler React.
+      await p.waitForLoadState("networkidle");
       await p.getByRole("button", { name: "Applica filtri" }).waitFor();
       await p.waitForFunction(() => Boolean(history.state?.crmNavigation));
     };
@@ -178,6 +182,102 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     await page.getByRole("status").filter({ hasText: "1 risultati" }).waitFor();
     console.log("PASS: Ordini, Materiali, Segnalazioni, Operai, Utenti e Storico prezzi");
 
+    await page.goto(`${origin}/progetti/ui-project`);
+    const panel = page.getByRole("region", { name: "Assistenza AI contestuale" });
+    // Risposte simulate: nessuna chiamata a Gemini, si verifica il recupero reale della UI.
+    let analysisCalls = 0;
+    let attemptedTask = "";
+    await page.route("**/assistente/api/analysis", async (route) => {
+      attemptedTask = route.request().postDataJSON().task;
+      if (++analysisCalls === 1) await route.fulfill({ status: 503, headers: { "Retry-After": "1" }, json: { error: "Gemini è temporaneamente sovraccarico.", retryable: true } });
+      else await route.fulfill({ json: { sintesi: "Analisi completata dopo indisponibilità.", punti: [], azioniSuggerite: [] } });
+    });
+    await panel.getByRole("button", { name: "Proponi piano", exact: true }).click();
+    await panel.getByRole("alert").filter({ hasText: "sovraccarico" }).waitFor();
+    assert.equal(await panel.getByRole("button", { name: /Riprova tra/ }).isDisabled(), true);
+    await panel.getByRole("button", { name: "Riprova analisi", exact: true }).click();
+    await panel.getByText("Analisi completata dopo indisponibilità.", { exact: true }).waitFor();
+    assert.equal(attemptedTask, "Proponi piano");
+    assert.equal(analysisCalls, 2);
+    await page.unroute("**/assistente/api/analysis");
+    await page.route("**/assistente/api/analysis", (route) => route.fulfill({ status: 502, contentType: "text/html", body: "<h1>Bad gateway</h1>" }));
+    await panel.getByRole("button", { name: "Analizza ritardi", exact: true }).click();
+    await panel.getByRole("alert").filter({ hasText: "Il servizio di analisi non ha risposto correttamente" }).waitFor();
+    await page.unroute("**/assistente/api/analysis");
+    // Endpoint reale su DB isolato, chiave non configurata: messaggio e stato FAILED persistiti.
+    await panel.getByRole("button", { name: "Organizza squadra", exact: true }).click();
+    await panel.getByRole("alert").filter({ hasText: "Configura Gemini" }).waitFor();
+    const failedAnalysis = await db.aiOperation.findFirstOrThrow({ where: { userId: user.id, status: "FAILED" } });
+    assert.match(failedAnalysis.error ?? "", /Configura Gemini/);
+    console.log("PASS: AI contestuale — cooldown 503, riprova stessa azione, errore proxy e diagnostica persistente");
+
+    const worker = await db.operaio.findFirstOrThrow();
+    await db.commessa.update({ where: { id: "ui-project" }, data: { pmId: user.id } });
+    await db.assegnazioneOperaio.create({ data: { commessaId: "ui-project", operaioId: worker.id } });
+    const otherClient = await db.anagrafica.create({ data: { ragioneSociale: "Altro cliente operativo con una ragione sociale molto lunga per verificare i filtri su telefono", isCliente: true } });
+    await db.commessa.create({ data: { numero: "269998", anno: 2026, progressivo: 9998, clienteId: otherClient.id, stato: "IN_ESECUZIONE" } });
+    await page.goto(`${origin}/progetti`); await ready(page);
+    await page.getByLabel("Project Manager", { exact: true }).selectOption(user.id);
+    await page.getByLabel("Cliente", { exact: true }).selectOption(cliente.id);
+    await page.getByLabel("Squadra", { exact: true }).selectOption("Èquipe");
+    await page.getByLabel("Avanzamento", { exact: true }).selectOption("DA_PIANIFICARE");
+    await page.getByRole("button", { name: "Applica filtri" }).click();
+    await page.waitForURL((u) => u.searchParams.get("squadra") === "Èquipe");
+    await page.getByRole("status").filter({ hasText: "1 risultati" }).waitFor();
+    const projectList = page.url();
+    await page.getByRole("link", { name: /Apri progetto 269999/ }).click();
+    const sections = page.getByRole("navigation", { name: "Sezioni progetto" });
+    await sections.getByRole("link", { name: "Avanzamento", exact: true }).click();
+    await page.waitForURL((u) => u.searchParams.get("tab") === "avanzamento");
+    await page.getByLabel("Nuova milestone", { exact: true }).fill("Sopralluogo operativo");
+    await page.getByRole("button", { name: "+ Aggiungi milestone", exact: true }).click();
+    await page.getByText("Sopralluogo operativo", { exact: true }).waitFor();
+    await page.getByLabel("Stato milestone", { exact: true }).selectOption("COMPLETATA");
+    await page.getByText(/1 milestone completate su 1 \(100%\)/).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("tab"), "avanzamento");
+    assert.equal(await db.milestone.count({ where: { commessaId: "ui-project", stato: "COMPLETATA" } }), 1);
+    await sections.getByRole("link", { name: /^Squadra/ }).click();
+    await page.getByRole("heading", { name: /Squadra in cantiere/ }).waitFor();
+    await page.reload();
+    await page.getByRole("heading", { name: /Squadra in cantiere/ }).waitFor();
+    await page.getByRole("button", { name: "← Indietro", exact: true }).click();
+    await page.waitForURL((u) => u.searchParams.get("tab") === "avanzamento");
+    await page.getByRole("navigation", { name: "Percorso di navigazione" }).getByRole("link", { name: "Progetti", exact: true }).click();
+    await page.waitForURL(projectList); await ready(page);
+    // La milestone completata ha cambiato l'avanzamento; i filtri precedenti restano applicati.
+    await page.getByRole("status").filter({ hasText: "0 risultati" }).waitFor();
+    assert.equal(await page.getByLabel("Project Manager", { exact: true }).inputValue(), user.id);
+    await page.goto(`${origin}/progetti/ui-project?tab=documenti`);
+    await page.getByLabel("File (PDF, immagini, disegni…)", { exact: true }).setInputFiles({ name: "note-cantiere.txt", mimeType: "text/plain", buffer: Buffer.from("Documento di collaudo") });
+    const uploadRequest = page.waitForRequest((r) => r.method() === "POST" && Boolean(r.headers()["next-action"]));
+    await page.getByRole("button", { name: "Carica documenti", exact: true }).click();
+    const sentUpload = await uploadRequest;
+    await page.getByRole("link", { name: "note-cantiere.txt", exact: true }).waitFor();
+    const uploadedDocument = await db.documento.findFirstOrThrow({ where: { commessaId: "ui-project" } });
+    assert.equal(await db.documento.count({ where: { commessaId: "ui-project" } }), 1);
+    const download = await context.request.get(`${origin}/documenti/${uploadedDocument.id}`);
+    assert.equal(await download.text(), "Documento di collaudo");
+    await page.getByRole("link", { name: "Apri commessa", exact: true }).click();
+    await page.getByRole("link", { name: "note-cantiere.txt", exact: true }).waitFor();
+    assert.equal(await page.getByRole("link", { name: "note-cantiere.txt", exact: true }).getAttribute("href"), `/documenti/${uploadedDocument.id}`);
+
+    const reader = await db.user.create({ data: { email: "reader-ui@example.test", nome: "Lettura", cognome: "Test", passwordHash: "unused", ruolo: "AMMINISTRAZIONE", guidaVista: "*" } });
+    const readerContext = await browser.newContext();
+    const readerToken = await new SignJWT({ userId: reader.id, ruolo: reader.ruolo, nome: reader.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
+    await readerContext.addCookies([{ name: "elettra_session", value: readerToken, url: origin }]);
+    const readPage = await readerContext.newPage();
+    await readPage.goto(`${origin}/progetti/ui-project?tab=documenti`);
+    await readPage.getByRole("link", { name: "note-cantiere.txt", exact: true }).waitFor();
+    assert.equal(await readPage.getByRole("button", { name: "Carica documenti", exact: true }).count(), 0);
+    const denied = await readerContext.request.post(sentUpload.url(), { headers: { "next-action": sentUpload.headers()["next-action"], "content-type": sentUpload.headers()["content-type"], origin }, data: sentUpload.postDataBuffer()! });
+    assert.match(await denied.text(), /Non hai i permessi/);
+    assert.equal(await db.documento.count({ where: { commessaId: "ui-project" } }), 1);
+    await readPage.goto(`${origin}/progetti/ui-project?tab=avanzamento`);
+    await readPage.getByRole("heading", { name: "Avanzamento del progetto", exact: true }).waitFor();
+    assert.equal(await readPage.getByRole("button", { name: /Salva pianificazione|Aggiungi milestone/ }).count(), 0);
+    await readerContext.close();
+    console.log("PASS: Progetti — filtri combinati, sezioni URL/back, milestone, documenti condivisi e permessi server");
+
     const direct = await context.newPage();
     await direct.goto(`${origin}/commesse/ui-job-0`);
     await direct.waitForFunction(() => Boolean(history.state?.crmNavigation));
@@ -189,6 +289,14 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     await page.waitForURL((u) => u.searchParams.get("q") === "aloxe");
     await page.getByRole("status").filter({ hasText: "1 risultati" }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    for (const tab of ["riepilogo", "avanzamento", "squadra", "documenti"]) {
+      await page.goto(`${origin}/progetti/ui-project?tab=${tab}`);
+      await page.getByRole("navigation", { name: "Sezioni progetto" }).waitFor();
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow nella sezione ${tab}`);
+      for (const link of await page.getByRole("navigation", { name: "Sezioni progetto" }).getByRole("link").all()) {
+        assert.ok((await link.boundingBox())!.height >= 44);
+      }
+    }
     assert.deepEqual(errors, []);
     console.log("PASS: ingresso diretto con fallback e filtri mobile senza overflow");
   } catch (error) {
@@ -200,5 +308,6 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     app.kill("SIGTERM");
     if (app.exitCode === null) await stopped;
     await database.cleanup(db);
+    await rm(uploads, { recursive: true, force: true });
   }
 });

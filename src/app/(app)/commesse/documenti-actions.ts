@@ -92,11 +92,13 @@ export async function uploadDocumenti(
     } catch {
       if (percorso) await eliminaFile(percorso);
       revalidatePath(`/commesse/${commessaId}`);
+      revalidatePath(`/progetti/${commessaId}`);
       return { error: "Errore durante il salvataggio dei documenti." };
     }
   }
 
   revalidatePath(`/commesse/${commessaId}`);
+  revalidatePath(`/progetti/${commessaId}`);
   return { ok: files.length };
 }
 
@@ -116,4 +118,5 @@ export async function deleteDocumento(
   await prisma.documento.delete({ where: { id: documentoId } });
   await eliminaFile(doc.percorso);
   revalidatePath(`/commesse/${doc.commessaId}`);
+  revalidatePath(`/progetti/${doc.commessaId}`);
 }

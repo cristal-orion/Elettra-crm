@@ -5,7 +5,7 @@ import { CATEGORIE_DOCUMENTO } from "@/lib/enums";
 import type { UploadState } from "./documenti-actions";
 
 const inputCls =
-  "rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "min-h-11 min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
 
 export function DocumentiUploader({
   action,
@@ -26,7 +26,7 @@ export function DocumentiUploader({
       className="flex flex-col gap-3 rounded-lg border border-dashed border-line bg-paper/40 p-4"
     >
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="flex flex-col gap-1.5">
+        <label className="flex min-w-0 flex-col gap-1.5">
           <span className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">
             File (PDF, immagini, disegni…)
           </span>
@@ -35,7 +35,7 @@ export function DocumentiUploader({
             name="files"
             multiple
             required
-            className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-brand-deep hover:file:bg-brand-soft/70"
+            className="min-h-11 w-full min-w-0 text-sm file:mr-3 file:min-h-11 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-brand-deep hover:file:bg-brand-soft/70"
           />
         </label>
         <label className="flex flex-col gap-1.5">
@@ -56,7 +56,7 @@ export function DocumentiUploader({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Caricamento…" : "Carica documenti"}
         </button>
@@ -67,7 +67,7 @@ export function DocumentiUploader({
           </span>
         )}
         {state?.ok ? (
-          <span className="text-xs font-medium text-ok">
+          <span role="status" className="text-xs font-medium text-ok">
             {state.ok} document{state.ok === 1 ? "o" : "i"} caricat
             {state.ok === 1 ? "o" : "i"}.
           </span>
@@ -95,7 +95,7 @@ export function DocDeleteButton({
         type="submit"
         title="Elimina documento"
         aria-label={`Elimina ${nome}`}
-        className="rounded-md p-1.5 text-ink-faint transition hover:bg-danger-soft hover:text-danger"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 text-ink-faint transition hover:bg-danger-soft hover:text-danger"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
           <path

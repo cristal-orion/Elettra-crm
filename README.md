@@ -118,6 +118,24 @@ Non è una misura di produzione: normalizzazione e fallback restano scansioni
 senza indici di ricerca dedicati. Sono ancora da verificare volumi, contatti e
 concorrenza reali; Storico prezzi conserva l'aggregazione applicativa esistente.
 
+## Progetti e cantieri
+
+La lista combina situazione, avanzamento, PM (anche non assegnato), cliente e
+squadra con la ricerca. Il filtro squadra usa il gruppo dell'operaio collegato
+alle assegnazioni registrate, anche passate/future: non misura la disponibilità
+odierna. I filtri sono applicati nel database prima di conteggio e paginazione.
+
+Il dettaglio ha quattro sezioni condivisibili tramite `?tab=`: Riepilogo con
+attività collegate, Avanzamento con pianificazione/milestone, Squadra e Documenti.
+I documenti usano lo stesso archivio e le stesse autorizzazioni della commessa;
+upload ed eliminazione aggiornano entrambe le viste. Il progetto resta una vista
+della commessa e l'avanzamento conserva il calcolo derivato esistente.
+
+Il test Chromium verifica filtri combinati, sezione dopo refresh/indietro,
+aggiornamento milestone, upload/download condiviso con la commessa, rifiuto
+server dell'upload da utente di sola lettura e sezioni a 390px senza overflow.
+Database e allegati del collaudo vengono creati in spazi temporanei isolati.
+
 ## Assistente operativo
 
 L'assistente gestisce commesse/clienti, pianificazione, milestone, squadre e
@@ -153,6 +171,13 @@ secondi e 10 richieste ogni 15 minuti per utente. Il limite della chat è 60
 messaggi registrati ogni 15 minuti per utente. I PDF analizzati dalla chat
 devono essere al massimo 10 MB. Lo storico e gli esiti completati rimangono
 consultabili anche quando il modello o la connessione non rispondono.
+
+Le analisi contestuali ritentano gli errori transitori del provider fino a tre
+volte con attese progressive (entro il timeout complessivo). Se Gemini resta
+indisponibile, il pannello distingue sovraccarico, quota, configurazione e risposta
+incompleta; permette di riprovare la stessa richiesta rispettando una breve attesa.
+Il registro operazioni riporta il codice di errore; i log `[ai.analysis]` includono
+anche l'eventuale stato HTTP del provider, senza prompt, documenti o credenziali.
 
 Il toolset disponibile dipende dal ruolo; ogni scrittura riverifica l'utente
 attivo nel database. I tool usano gli stessi servizi dei form (`src/lib/crm/`).
