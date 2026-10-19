@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireAnagrafiche, puoGestireUtenti } from "@/lib/enums";
@@ -17,12 +18,7 @@ export default async function DaVisuraPage() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/anagrafiche"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Anagrafiche
-        </Link>
+        <DetailNavigation listPath="/anagrafiche" listLabel="Anagrafiche" currentLabel="Da visura" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Nuova anagrafica da visura
         </h1>

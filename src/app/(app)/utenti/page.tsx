@@ -4,36 +4,33 @@ import { requireRuolo } from "@/lib/dal";
 import { etichettaRuolo, RUOLI } from "@/lib/enums";
 import { formatDate } from "@/lib/format";
 import { romeDay } from "@/lib/ai/schedule-time";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { queryText } from "@/lib/list-state";
+import { inPageOrder, listSources, searchListPage } from "@/lib/list-search";
 
 export const metadata = { title: "Utenti — CRM Elettra" };
 
 export default async function UtentiPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; ruolo?: string; stato?: string; esito?: string }>;
+  searchParams: Promise<{ q?: string; ruolo?: string; stato?: string; esito?: string; pagina?: string }>;
 }) {
   const me = await requireRuolo(["SUPER_ADMIN"]);
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim();
+  const q = queryText(sp.q);
   const ruolo = Object.hasOwn(RUOLI, sp.ruolo ?? "") ? sp.ruolo! : "";
   const stato = sp.stato === "attivi" || sp.stato === "disattivati" ? sp.stato : "";
-  const where: Prisma.UserWhereInput = {};
-  if (ruolo) where.ruolo = ruolo;
-  if (stato) where.attivo = stato === "attivi";
-  if (q) {
-    // Ogni parola può corrispondere a nome, cognome o email (anche "Nome Cognome").
-    where.AND = q.split(/\s+/).map((parola) => ({
-      OR: ["nome", "cognome", "email"].map((campo) => ({
-        [campo]: { contains: parola, mode: "insensitive" },
-      })),
-    }));
-  }
+  const pagination = await searchListPage(prisma, listSources.utenti, {
+    query: q, page: sp.pagina,
+    scope: Prisma.sql`${ruolo ? Prisma.sql`s.ruolo = ${ruolo}` : Prisma.sql`true`} AND ${stato ? Prisma.sql`s.attivo = ${stato === "attivi"}` : Prisma.sql`true`}`,
+    orderBy: Prisma.sql`s.attivo DESC, s.cognome ASC, s.nome ASC`,
+  });
 
   const [utenti, riepilogo, commesseAperte, attivitaScadute] = await Promise.all([
     prisma.user.findMany({
-      where,
-      orderBy: [{ attivo: "desc" }, { cognome: "asc" }, { nome: "asc" }],
+      where: { id: { in: pagination.ids } },
       select: {
         id: true, nome: true, cognome: true, email: true, ruolo: true, attivo: true,
         createdAt: true,
@@ -59,7 +56,6 @@ export default async function UtentiPage({
   const admin = riepilogo.filter((r) => r.attivo && r.ruolo === "SUPER_ADMIN").reduce((n, r) => n + r._count._all, 0);
   const apertePerUtente = new Map(commesseAperte.map((r) => [r.pmId, r._count._all]));
   const scadutePerUtente = new Map(attivitaScadute.map((r) => [r.userId, r._count._all]));
-  const inputCls = "min-h-11 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,32 +83,13 @@ export default async function UtentiPage({
         ))}
       </div>
 
-      <form method="get" className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-48 flex-1 flex-col gap-1.5 text-xs text-ink-soft">
-          Cerca utente
-          <input name="q" defaultValue={q} placeholder="Nome, cognome o email…" className={inputCls} />
-        </label>
-        <label className="flex flex-col gap-1.5 text-xs text-ink-soft">
-          Ruolo
-          <select name="ruolo" defaultValue={ruolo} className={inputCls}>
-            <option value="">Tutti i ruoli</option>
-            {Object.entries(RUOLI).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-xs text-ink-soft">
-          Accesso
-          <select name="stato" defaultValue={stato} className={inputCls}>
-            <option value="">Tutti gli stati</option>
-            <option value="attivi">Attivi</option>
-            <option value="disattivati">Disattivati</option>
-          </select>
-        </label>
-        <button className="min-h-11 rounded-lg border border-line bg-panel px-4 text-sm font-medium hover:bg-paper">Filtra</button>
-        {(q || ruolo || stato) && <Link href="/utenti" className="px-2 py-3 text-sm text-ink-soft hover:text-brand-deep">Azzera filtri</Link>}
-      </form>
+      <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Nome, cognome o email…" filters={[
+        { name: "ruolo", label: "Ruolo", value: ruolo, options: [{ value: "", label: "Tutti i ruoli" }, ...Object.entries(RUOLI).map(([value, label]) => ({ value, label }))] },
+        { name: "stato", label: "Accesso", value: stato, options: [{ value: "", label: "Tutti gli stati" }, { value: "attivi", label: "Attivi" }, { value: "disattivati", label: "Disattivati" }] },
+      ]} />
 
       <div>
-        <p className="mb-2 text-xs text-ink-soft" aria-live="polite">{utenti.length} di {totale} utenti</p>
+        <p className="mb-2 text-xs text-ink-soft" aria-live="polite">{pagination.total} di {totale} utenti</p>
         <div className="overflow-x-auto rounded-xl border border-line bg-panel">
           <table className="w-full text-sm">
             <caption className="sr-only">Utenti del CRM, permessi e riepilogo dei dati collegati</caption>
@@ -124,7 +101,7 @@ export default async function UtentiPage({
               </tr>
             </thead>
             <tbody>
-              {utenti.map((u) => {
+              {inPageOrder(utenti, pagination.ids).map((u) => {
                 const scadute = scadutePerUtente.get(u.id) ?? 0;
                 return (
                   <tr key={u.id} className="border-t border-line hover:bg-paper/50">
@@ -160,6 +137,7 @@ export default async function UtentiPage({
         </div>
         <p className="mt-3 text-xs text-ink-soft">Commesse aperte: tutte tranne fatturate e perse. Attività e segnalazioni mostrano gli elementi ancora da completare.</p>
       </div>
+      <ListPagination path="/utenti" params={sp} page={pagination.page} pages={pagination.pages} />
     </div>
   );
 }

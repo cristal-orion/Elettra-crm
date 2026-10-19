@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export default async function TaskPage({ params, searchParams }: {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <header>
-        <Link href="/attivita" className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep">← Attività</Link>
+        <DetailNavigation listPath="/attivita" listLabel="Attività" currentLabel={task.titolo} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">{task.titolo}</h1>
         <p className="mt-1 text-sm text-ink-soft">{task.user.nome} {task.user.cognome} · {task.stato === "COMPLETATA" ? "Completata" : "Da fare"} · Creata il {formatDateTime(task.createdAt)}</p>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">

@@ -3,63 +3,41 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireAnagrafiche, etichettaTitolo } from "@/lib/enums";
 import { CodiceBadge } from "@/components/badges";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { queryText } from "@/lib/list-state";
+import { inPageOrder, listSources, searchListPage } from "@/lib/list-search";
 
 export const metadata = { title: "Anagrafiche — CRM Elettra" };
 
 export default async function AnagrafichePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tipo?: string }>;
+  searchParams: Promise<{ q?: string; tipo?: string; pagina?: string; ordine?: string }>;
 }) {
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim();
+  const q = queryText(sp.q);
+  const ordine = sp.ordine === "nome_desc" ? sp.ordine : "nome";
   const tipo = sp.tipo === "cliente" || sp.tipo === "fornitore" ? sp.tipo : null;
 
   const user = await getCurrentUser();
   const puoCreare = user ? puoGestireAnagrafiche(user.ruolo) : false;
 
-  const where: Prisma.AnagraficaWhereInput = {};
-  if (tipo === "cliente") where.isCliente = true;
-  if (tipo === "fornitore") where.isFornitore = true;
-  if (q) {
-    where.OR = [
-      { ragioneSociale: { contains: q, mode: "insensitive" } },
-      { codiceCliente: { contains: q, mode: "insensitive" } },
-      { codiceFornitore: { contains: q, mode: "insensitive" } },
-      { partitaIva: { contains: q, mode: "insensitive" } },
-      { localita: { contains: q, mode: "insensitive" } },
-    ];
-  }
+  const pagination = await searchListPage(prisma, listSources.anagrafiche, {
+    query: q, page: sp.pagina,
+    scope: tipo === "cliente" ? Prisma.sql`s."isCliente" = true` : tipo === "fornitore" ? Prisma.sql`s."isFornitore" = true` : undefined,
+    orderBy: ordine === "nome_desc" ? Prisma.sql`s."ragioneSociale" DESC` : Prisma.sql`s."ragioneSociale" ASC`,
+  });
+  const total = pagination.total;
 
-  const anagrafiche = await prisma.anagrafica.findMany({
-    where,
-    orderBy: { ragioneSociale: "asc" },
+  const anagrafiche = inPageOrder(await prisma.anagrafica.findMany({
+    where: { id: { in: pagination.ids } },
     include: {
       referenti: { orderBy: { principale: "desc" }, take: 1 },
       _count: { select: { commesse: true } },
     },
-  });
-
-  const filtro = (value: string | null, label: string) => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (value) params.set("tipo", value);
-    const href = `/anagrafiche${params.toString() ? `?${params}` : ""}`;
-    const active = tipo === value;
-    return (
-      <Link
-        href={href}
-        className={`rounded-full px-3 py-1.5 text-sm transition ${
-          active
-            ? "bg-brand text-white"
-            : "border border-line bg-panel text-ink-soft hover:border-brand/40"
-        }`}
-      >
-        {label}
-      </Link>
-    );
-  };
+  }), pagination.ids);
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +50,7 @@ export default async function AnagrafichePage({
             Clienti e fornitori
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            {anagrafiche.length} risultati
+            {total} risultati
           </p>
         </div>
         {puoCreare && (
@@ -93,28 +71,10 @@ export default async function AnagrafichePage({
         )}
       </header>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <form method="get" className="flex flex-1 gap-2">
-          {tipo && <input type="hidden" name="tipo" value={tipo} />}
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Cerca per nome, codice, P.IVA, località…"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-          <button
-            type="submit"
-            className="rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink-soft hover:border-brand/40"
-          >
-            Cerca
-          </button>
-        </form>
-        <div className="flex gap-2">
-          {filtro(null, "Tutti")}
-          {filtro("cliente", "Clienti")}
-          {filtro("fornitore", "Fornitori")}
-        </div>
-      </div>
+      <ListFilters q={q} total={total} similar={pagination.similar} placeholder="Nome, codice, P.IVA, contatto, località…" filters={[
+        { name: "tipo", label: "Tipo", value: tipo ?? "", options: [{ value: "", label: "Clienti e fornitori" }, { value: "cliente", label: "Clienti" }, { value: "fornitore", label: "Fornitori" }] },
+        { name: "ordine", label: "Ordina per", value: ordine, defaultValue: "nome", options: [{ value: "nome", label: "Nome A–Z" }, { value: "nome_desc", label: "Nome Z–A" }] },
+      ]} suggestions={anagrafiche.slice(0, 5).map((a) => ({ href: `/anagrafiche/${a.id}`, label: a.ragioneSociale, type: a.isCliente && a.isFornitore ? "Cliente / Fornitore" : a.isCliente ? "Cliente" : "Fornitore" }))} />
 
       <div className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full text-sm">
@@ -131,7 +91,7 @@ export default async function AnagrafichePage({
             {anagrafiche.map((a) => {
               const ref = a.referenti[0];
               return (
-                <tr key={a.id} className="border-t border-line hover:bg-paper/50">
+                <tr key={a.id} className="relative border-t border-line hover:bg-paper/50 focus-within:bg-brand-soft/50">
                   <td className="px-5 py-3">
                     <CodiceBadge
                       codiceCliente={a.codiceCliente}
@@ -141,7 +101,7 @@ export default async function AnagrafichePage({
                   <td className="px-4 py-3">
                     <Link
                       href={`/anagrafiche/${a.id}`}
-                      className="font-medium hover:text-brand-deep"
+                      className="font-medium text-brand-deep underline underline-offset-4 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-brand"
                     >
                       {a.ragioneSociale}
                     </Link>
@@ -172,6 +132,7 @@ export default async function AnagrafichePage({
           </tbody>
         </table>
       </div>
+      <ListPagination path="/anagrafiche" params={sp} page={pagination.page} pages={pagination.pages} />
     </div>
   );
 }

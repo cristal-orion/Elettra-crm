@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireAnagrafiche } from "@/lib/enums";
@@ -62,12 +62,7 @@ export default async function ModificaAnagraficaPage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href={`/anagrafiche/${id}`}
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← {anagrafica.ragioneSociale}
-        </Link>
+        <DetailNavigation listPath="/anagrafiche" listLabel="Anagrafiche" currentLabel="Modifica" parent={{ href: `/anagrafiche/${id}`, label: anagrafica.ragioneSociale }} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Modifica anagrafica
         </h1>

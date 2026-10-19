@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireOrdini } from "@/lib/enums";
 import OrdineForm from "../ordine-form";
@@ -31,12 +31,7 @@ export default async function NuovoOrdinePage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/ordini"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Ordini
-        </Link>
+        <DetailNavigation listPath="/ordini" listLabel="Ordini" currentLabel="Nuovo ordine" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Nuovo ordine</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Ordine a fornitore con righe di materiale ed eventuale entrata merce.

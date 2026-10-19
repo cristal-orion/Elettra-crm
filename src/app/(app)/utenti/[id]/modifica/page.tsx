@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { DetailNavigation } from "@/components/navigation-context";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRuolo } from "@/lib/dal";
@@ -40,12 +41,7 @@ export default async function ModificaUtentePage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/utenti"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Utenti
-        </Link>
+        <DetailNavigation listPath="/utenti" listLabel="Utenti" currentLabel={`${utente.nome} ${utente.cognome}`} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           {utente.nome} {utente.cognome}
         </h1>

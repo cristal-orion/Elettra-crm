@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireCatalogo } from "@/lib/enums";
@@ -17,12 +17,7 @@ export default async function NuovoMaterialePage() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/materiali"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Catalogo materiali
-        </Link>
+        <DetailNavigation listPath="/materiali" listLabel="Materiali" currentLabel="Nuovo materiale" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Nuovo materiale</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Compila i campi, oppure carica il PDF della scheda tecnica e lascia che

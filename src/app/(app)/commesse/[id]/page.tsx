@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import TaskContext from "@/components/task-context";
 import PrintLink from "@/components/print-link";
@@ -83,12 +84,7 @@ export default async function CommessaDetailPage({
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/commesse"
-            className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-          >
-            ← Commesse
-          </Link>
+          <DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel={commessa.numero} />
           <h1 className="mt-2 flex items-center gap-3 text-2xl font-bold tracking-tight">
             <span className="font-mono tabular-nums">{commessa.numero}</span>
             <StatoBadge stato={commessa.stato} />

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
@@ -51,12 +52,7 @@ export default async function SegnalazioneDetailPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link
-            href="/segnalazioni"
-            className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-          >
-            ← Segnalazioni
-          </Link>
+          <DetailNavigation listPath="/segnalazioni" listLabel="Segnalazioni" currentLabel={s.titolo} />
           <h1 className="mt-2 text-2xl font-bold tracking-tight">{s.titolo}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2.5">
             <StatoSegnalazioneBadge stato={s.stato} />

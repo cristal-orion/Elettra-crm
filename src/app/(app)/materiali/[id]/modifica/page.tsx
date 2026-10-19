@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
@@ -37,12 +37,7 @@ export default async function ModificaMaterialePage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href={`/materiali/${id}`}
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← {p.descrizione}
-        </Link>
+        <DetailNavigation listPath="/materiali" listLabel="Materiali" currentLabel="Modifica" parent={{ href: `/materiali/${id}`, label: p.descrizione }} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Modifica materiale</h1>
       </header>
       <ProdottoForm

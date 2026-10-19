@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireCommesse } from "@/lib/enums";
 import CommessaForm from "../commessa-form";
@@ -18,12 +18,7 @@ export default async function NuovaCommessaPage() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/commesse"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Commesse
-        </Link>
+        <DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel="Nuova commessa" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Nuova commessa
         </h1>

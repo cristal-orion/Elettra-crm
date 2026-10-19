@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import TaskContext from "@/components/task-context";
 import { notFound } from "next/navigation";
@@ -57,12 +58,7 @@ export default async function AnagraficaDetailPage({
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/anagrafiche"
-            className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-          >
-            ← Anagrafiche
-          </Link>
+          <DetailNavigation listPath="/anagrafiche" listLabel="Anagrafiche" currentLabel={anagrafica.ragioneSociale} />
           <h1 className="mt-2 text-2xl font-bold tracking-tight">
             {anagrafica.ragioneSociale}
           </h1>

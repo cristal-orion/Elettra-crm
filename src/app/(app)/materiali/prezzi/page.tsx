@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { formatEuro, formatDate } from "@/lib/format";
 import { getStoricoMateriali, type MaterialeStorico } from "../data";
+import { DetailNavigation } from "@/components/navigation-context";
+import ListFilters from "@/components/list-filters";
+import { queryText } from "@/lib/list-state";
 
 export const metadata = { title: "Storico prezzi — CRM Elettra" };
 
@@ -10,18 +13,13 @@ export default async function StoricoPrezziPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim();
+  const q = queryText(sp.q);
   const materiali = await getStoricoMateriali(q);
 
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/materiali"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Catalogo materiali
-        </Link>
+        <DetailNavigation listPath="/materiali" listLabel="Materiali" currentLabel="Storico prezzi" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Storico prezzi acquisti
         </h1>
@@ -31,28 +29,7 @@ export default async function StoricoPrezziPage({
         </p>
       </header>
 
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Cerca materiale per descrizione o codice… (es. cavo 3G2,5)"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <button
-          type="submit"
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition"
-        >
-          Cerca
-        </button>
-        {q && (
-          <Link
-            href="/materiali/prezzi"
-            className="rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink-soft hover:border-brand/40"
-          >
-            Azzera
-          </Link>
-        )}
-      </form>
+      <ListFilters q={q} total={materiali.length} placeholder="Descrizione o codice… (es. cavo 3G2,5)" />
 
       {materiali.length === 0 ? (
         <div className="rounded-xl border border-line bg-panel p-8 text-center text-sm text-ink-faint">

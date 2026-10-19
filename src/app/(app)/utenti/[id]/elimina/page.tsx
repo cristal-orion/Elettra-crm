@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRuolo } from "@/lib/dal";
@@ -28,7 +28,7 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <header>
-        <Link href="/utenti" className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep">← Utenti</Link>
+        <DetailNavigation listPath="/utenti" listLabel="Utenti" currentLabel={`Elimina ${utente.nome} ${utente.cognome}`} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Elimina {utente.nome} {utente.cognome}</h1>
         <p className="mt-1 text-sm text-ink-soft">{utente.email} · {etichettaRuolo(utente.ruolo)}</p>
       </header>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import PrintLink from "@/components/print-link";
 import { notFound } from "next/navigation";
@@ -489,12 +490,7 @@ function Intestazione({
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <Link
-          href="/progetti"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Progetti
-        </Link>
+        <DetailNavigation listPath="/progetti" listLabel="Progetti" currentLabel={commessa.numero} />
         <h1 className="mt-2 flex flex-wrap items-center gap-3 text-2xl font-bold tracking-tight">
           <span className="font-mono tabular-nums">{commessa.numero}</span>
           {stato && <AvanzamentoBadge stato={stato} />}

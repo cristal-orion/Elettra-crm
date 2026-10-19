@@ -67,7 +67,8 @@ Utenti creati dal seed, tutti con quella password:
 |---|---|
 | `npm run dev` | Server di sviluppo |
 | `npm test` | Test di regressione (validazione dati, sessioni, documenti, economics) |
-| `npm run test:integration` | Migrazione SQLite, rollback e concorrenza su PostgreSQL temporaneo |
+| `npm run test:integration` | Migrazione SQLite, rollback, concorrenza, ricerca e paginazione su PostgreSQL temporaneo |
+| `npm run test:ui` | Chromium: ricerca live, filtri, indietro/breadcrumb, scroll e mobile su dati isolati |
 | `npm run test:ops` | Immagine Docker, backup Restic e restore completo (richiede build e DB locale) |
 | `npm run lint` | Analisi statica del codice applicativo |
 | `npm run ai:scheduled` | Esegue i controlli AI programmati dovuti (da pianificare ogni 5 minuti) |
@@ -82,6 +83,40 @@ Utenti creati dal seed, tutti con quella password:
 | `npm run db:import -- <anag.xls> <off.xls>` | Import degli elenchi Excel (`--prova` per l'anteprima) |
 | `npm run demo:milestone` | Pianificazione dimostrativa su 4 commesse (`-- --rimuovi` per togliere) |
 | `npm run auth:password -- '<password>'` | Ruota la password di tutti gli utenti attivi |
+
+## Collaudo navigazione e ricerca
+
+Per `npm run test:ui`, installare prima Chromium con `npx playwright install chromium`
+e avviare il PostgreSQL locale. Come i test integrativi, il collaudo usa uno schema
+temporaneo su `TEST_DATABASE_URL` (default: PostgreSQL locale sulla porta 55432),
+crea dati sintetici e li rimuove al termine. Avvia una propria istanza Next in
+sviluppo su porta loopback libera: eseguirlo senza un altro `next dev` del progetto.
+
+Copre ricerca senza Invio, accenti e parole riordinate, risposte fuori ordine,
+Applica/Azzera, lista paginata → dettaglio → indietro, breadcrumb, ingresso diretto
+e layout mobile. Include Anagrafiche, Commesse, Progetti, Attività, Notifiche,
+Ordini, Materiali, Segnalazioni, Operai, Utenti e Storico prezzi.
+
+Anagrafiche, Commesse/Progetti, Ordini, Materiali, Segnalazioni, Operai e Utenti
+cercano prima corrispondenze esatte normalizzate nei filtri attivi. Solo in assenza
+di risultati provano un refuso per parola (inserimento, cancellazione, sostituzione
+o trasposizione), mostrando un avviso esplicito. Il fallback riguarda token
+alfabetici normalizzati di 4–32 lettere, con al massimo 8 token nella query;
+numeri e token con punteggiatura, come codici ed email, restano letterali.
+Attività, Notifiche e Storico prezzi mantengono la propria semantica di ricerca.
+
+Le liste con ricerca normalizzata contano, ordinano e paginano nel database:
+l'applicazione carica al massimo 30 record per pagina. Anche ritardo/urgenza dei
+Progetti vengono calcolati nel database, conservando le regole esistenti e
+caricando le milestone di dettaglio solo per la pagina corrente. I test PostgreSQL
+confrontano il risultato SQL con i calcoli applicativi e verificano i filtri
+prima della paginazione e della ricerca approssimata.
+
+Misura locale indicativa su 4.000 anagrafiche sintetiche (19/10/2026): 43 ms per
+ricerca esatta, 704 ms per fallback con refuso, conteggio e pagina inclusi.
+Non è una misura di produzione: normalizzazione e fallback restano scansioni
+senza indici di ricerca dedicati. Sono ancora da verificare volumi, contatti e
+concorrenza reali; Storico prezzi conserva l'aggregazione applicativa esistente.
 
 ## Assistente operativo
 

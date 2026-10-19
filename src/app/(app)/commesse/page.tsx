@@ -8,17 +8,22 @@ import {
 } from "@/lib/enums";
 import { formatEuro } from "@/lib/format";
 import { StatoBadge, TipologiaBadge } from "@/components/badges";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { queryText } from "@/lib/list-state";
+import { inPageOrder, listSources, searchListPage } from "@/lib/list-search";
 
 export const metadata = { title: "Commesse — CRM Elettra" };
 
 export default async function CommessePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stato?: string; daFatturare?: string }>;
+  searchParams: Promise<{ q?: string; stato?: string; daFatturare?: string; pagina?: string; ordine?: string }>;
 }) {
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim();
+  const q = queryText(sp.q);
+  const ordine = sp.ordine === "cliente" || sp.ordine === "numero_asc" ? sp.ordine : "recenti";
   const stato =
     sp.stato && (STATI_COMMESSA_LIST as string[]).includes(sp.stato)
       ? sp.stato
@@ -27,22 +32,16 @@ export default async function CommessePage({
   const user = await requireUser();
   const puoCreare = user ? puoGestireCommesse(user.ruolo) : false;
 
-  const where: Prisma.CommessaWhereInput = {};
-  if (stato) where.stato = stato;
-  if (sp.daFatturare === "1") { where.AND = [{ stato: { not: "FATTURATA" } }, { ordiniFornitore: { some: {} } }]; }
-  if (q) {
-    where.OR = [
-      { numero: { contains: q, mode: "insensitive" } },
-      { descrizione: { contains: q, mode: "insensitive" } },
-      { cliente: { ragioneSociale: { contains: q, mode: "insensitive" } } },
-    ];
-  }
-
-  const commesse = await prisma.commessa.findMany({
-    where,
-    orderBy: [{ anno: "desc" }, { progressivo: "desc" }],
-    include: { cliente: true, pm: true },
+  const pagination = await searchListPage(prisma, listSources.commesse, {
+    query: q, page: sp.pagina,
+    scope: Prisma.sql`${stato ? Prisma.sql`s.stato = ${stato}` : Prisma.sql`true`} AND ${sp.daFatturare === "1" ? Prisma.sql`s.stato <> 'FATTURATA' AND EXISTS (SELECT 1 FROM "OrdineFornitore" o WHERE o."commessaId" = s.id)` : Prisma.sql`true`}`,
+    orderBy: ordine === "cliente" ? Prisma.sql`s."clienteNome" ASC` : ordine === "numero_asc" ? Prisma.sql`s.anno ASC, s.progressivo ASC` : Prisma.sql`s.anno DESC, s.progressivo DESC`,
   });
+  const total = pagination.total;
+  const commesse = inPageOrder(await prisma.commessa.findMany({
+    where: { id: { in: pagination.ids } },
+    include: { cliente: true, pm: true },
+  }), pagination.ids);
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,7 +54,7 @@ export default async function CommessePage({
             Pipeline commerciale
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            {commesse.length} risultati
+            {total} risultati
           </p>
         </div>
         {puoCreare && (
@@ -68,36 +67,11 @@ export default async function CommessePage({
         )}
       </header>
 
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        {sp.daFatturare === "1" && <input type="hidden" name="daFatturare" value="1" />}
-        <input
-          aria-label="Cerca commesse"
-          name="q"
-          defaultValue={q}
-          placeholder="Cerca per numero, descrizione, cliente…"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <select
-          aria-label="Stato commessa"
-          name="stato"
-          defaultValue={stato ?? ""}
-          className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"
-        >
-          <option value="">Tutti gli stati</option>
-          {Object.entries(STATI_COMMESSA).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink-soft hover:border-brand/40"
-        >
-          Filtra
-        </button>
-      </form>
-      {sp.daFatturare === "1" && <p className="text-sm text-warn">Commesse con acquisti collegati e non ancora fatturate. <Link href="/commesse" className="underline">Rimuovi filtro</Link></p>}
+      <ListFilters q={q} total={total} similar={pagination.similar} placeholder="Numero, descrizione, cliente…" filters={[
+        { name: "stato", label: "Stato", value: stato ?? "", options: [{ value: "", label: "Tutti gli stati" }, ...Object.entries(STATI_COMMESSA).map(([value, label]) => ({ value, label }))] },
+        { name: "daFatturare", label: "Acquisti", value: sp.daFatturare === "1" ? "1" : "", options: [{ value: "", label: "Tutte le commesse" }, { value: "1", label: "Con acquisti, non fatturate" }] },
+        { name: "ordine", label: "Ordina per", value: ordine, defaultValue: "recenti", options: [{ value: "recenti", label: "Numero decrescente" }, { value: "numero_asc", label: "Numero crescente" }, { value: "cliente", label: "Cliente" }] },
+      ]} suggestions={commesse.slice(0, 5).map((c) => ({ href: `/commesse/${c.id}`, label: `${c.numero} · ${c.cliente.ragioneSociale}`, type: "Commessa" }))} />
 
       <div className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full text-sm">
@@ -114,11 +88,12 @@ export default async function CommessePage({
           </thead>
           <tbody>
             {commesse.map((c) => (
-              <tr key={c.id} className="border-t border-line hover:bg-paper/50">
+              <tr key={c.id} className="relative border-t border-line hover:bg-paper/50 focus-within:bg-brand-soft/50">
                 <td className="px-5 py-3">
                   <Link
                     href={`/commesse/${c.id}`}
-                    className="font-mono tabular-nums font-medium hover:text-brand-deep"
+                    aria-label={`Apri commessa ${c.numero} — ${c.cliente.ragioneSociale}`}
+                    className="font-mono tabular-nums font-medium text-brand-deep underline underline-offset-4 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-brand"
                   >
                     {c.numero}
                   </Link>
@@ -151,6 +126,7 @@ export default async function CommessePage({
           </tbody>
         </table>
       </div>
+      <ListPagination path="/commesse" params={sp} page={pagination.page} pages={pagination.pages} />
     </div>
   );
 }

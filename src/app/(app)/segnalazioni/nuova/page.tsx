@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { requireUser } from "@/lib/dal";
 import { NuovaSegnalazioneForm } from "../segnalazioni-ui";
 import { createSegnalazione } from "../actions";
@@ -22,12 +22,7 @@ export default async function NuovaSegnalazionePage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href="/segnalazioni"
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← Segnalazioni
-        </Link>
+        <DetailNavigation listPath="/segnalazioni" listLabel="Segnalazioni" currentLabel="Nuova segnalazione" />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Nuova segnalazione
         </h1>

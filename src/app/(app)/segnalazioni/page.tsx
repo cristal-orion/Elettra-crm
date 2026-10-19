@@ -8,7 +8,11 @@ import {
   StatoSegnalazioneBadge,
   TipoSegnalazioneBadge,
 } from "@/components/badges";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { queryText } from "@/lib/list-state";
+import { inPageOrder, listSources, searchListPage } from "@/lib/list-search";
 
 export const metadata = { title: "Segnalazioni — CRM Elettra" };
 
@@ -20,48 +24,30 @@ const VISTE = {
 
 type Vista = keyof typeof VISTE;
 
-/** Prima le più urgenti: alta priorità in cima, poi le più recenti. */
-const PESO_PRIORITA: Record<string, number> = { ALTA: 0, MEDIA: 1, BASSA: 2 };
-
 export default async function SegnalazioniPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; q?: string }>;
+  searchParams: Promise<{ vista?: string; q?: string; pagina?: string }>;
 }) {
   const sp = await searchParams;
-  const vista: Vista = sp.vista && sp.vista in VISTE ? (sp.vista as Vista) : "aperte";
-  const q = (sp.q ?? "").trim();
+  const vista: Vista = sp.vista && Object.hasOwn(VISTE, sp.vista) ? (sp.vista as Vista) : "aperte";
+  const q = queryText(sp.q);
 
   const user = await requireUser();
   const puoGestire = puoGestireSegnalazioni(user.ruolo);
 
-  const where: Prisma.SegnalazioneWhereInput = {};
-  if (vista === "aperte") where.stato = { in: ["APERTA", "IN_LAVORAZIONE"] };
-  if (vista === "concluse") where.stato = "CONCLUSA";
-  if (q) {
-    where.OR = [
-      { titolo: { contains: q, mode: "insensitive" } },
-      { descrizione: { contains: q, mode: "insensitive" } },
-    ];
-  }
-
-  const segnalazioni = await prisma.segnalazione.findMany({
-    where,
+  const pagination = await searchListPage(prisma, listSources.segnalazioni, {
+    query: q, page: sp.pagina,
+    scope: vista === "aperte" ? Prisma.sql`s.stato IN ('APERTA', 'IN_LAVORAZIONE')` : vista === "concluse" ? Prisma.sql`s.stato = 'CONCLUSA'` : undefined,
+    orderBy: Prisma.sql`(s.stato = 'CONCLUSA') ASC, CASE s.priorita WHEN 'ALTA' THEN 0 WHEN 'BASSA' THEN 2 ELSE 1 END ASC, s."createdAt" DESC`,
+  });
+  const ordinate = inPageOrder(await prisma.segnalazione.findMany({
+    where: { id: { in: pagination.ids } },
     include: {
       autore: { select: { nome: true, cognome: true } },
       _count: { select: { allegati: true } },
     },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const ordinate = [...segnalazioni].sort((a, b) => {
-    // Le concluse scendono in fondo anche nella vista "tutte".
-    const chiusa = Number(a.stato === "CONCLUSA") - Number(b.stato === "CONCLUSA");
-    if (chiusa !== 0) return chiusa;
-    const p = (PESO_PRIORITA[a.priorita] ?? 1) - (PESO_PRIORITA[b.priorita] ?? 1);
-    if (p !== 0) return p;
-    return b.createdAt.getTime() - a.createdAt.getTime();
-  });
+  }), pagination.ids);
 
   const [aperte, inLavorazione] = await Promise.all([
     prisma.segnalazione.count({ where: { stato: "APERTA" } }),
@@ -100,31 +86,9 @@ export default async function SegnalazioniPage({
         </p>
       </div>
 
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Cerca nel titolo o nel testo…"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <select
-          name="vista"
-          defaultValue={vista}
-          className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"
-        >
-          {Object.entries(VISTE).map(([k, l]) => (
-            <option key={k} value={k}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink-soft hover:border-brand/40"
-        >
-          Filtra
-        </button>
-      </form>
+      <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Titolo o testo della segnalazione…" filters={[
+        { name: "vista", label: "Situazione", value: vista, defaultValue: "aperte", options: Object.entries(VISTE).map(([value, label]) => ({ value, label })) },
+      ]} />
 
       {ordinate.length === 0 ? (
         <div className="rounded-xl border border-line bg-panel px-6 py-12 text-center">
@@ -141,7 +105,7 @@ export default async function SegnalazioniPage({
           {ordinate.map((s) => (
             <li
               key={s.id}
-              className={`rounded-xl border bg-panel p-5 transition hover:border-brand/40 ${
+              className={`relative rounded-xl border bg-panel p-5 transition hover:border-brand/40 focus-within:ring-2 focus-within:ring-brand ${
                 s.stato === "CONCLUSA" ? "border-line/60 opacity-75" : "border-line"
               }`}
             >
@@ -150,7 +114,7 @@ export default async function SegnalazioniPage({
                   <div className="flex flex-wrap items-center gap-2.5">
                     <Link
                       href={`/segnalazioni/${s.id}`}
-                      className="text-sm font-semibold hover:text-brand-deep"
+                      className="text-sm font-semibold text-brand-deep underline underline-offset-4 after:absolute after:inset-0 after:rounded-xl"
                     >
                       {s.titolo}
                     </Link>
@@ -191,6 +155,7 @@ export default async function SegnalazioniPage({
         </ul>
       )}
 
+      <ListPagination path="/segnalazioni" params={sp} page={pagination.page} pages={pagination.pages} />
       {!puoGestire && (
         <p className="text-xs text-ink-faint">
           Puoi aprire segnalazioni e seguirne lo stato. La presa in carico e la

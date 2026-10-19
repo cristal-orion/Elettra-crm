@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireOrdini } from "@/lib/enums";
@@ -67,12 +67,7 @@ export default async function ModificaOrdinePage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href={`/ordini/${id}`}
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← {ordine.numero ?? "Ordine"}
-        </Link>
+        <DetailNavigation listPath="/ordini" listLabel="Ordini" currentLabel="Modifica" parent={{ href: `/ordini/${id}`, label: ordine.numero ?? "Ordine" }} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Modifica ordine
         </h1>

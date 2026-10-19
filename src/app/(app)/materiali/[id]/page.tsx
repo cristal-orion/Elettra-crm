@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireCatalogo } from "@/lib/enums";
@@ -23,12 +24,7 @@ export default async function MaterialeDetailPage({
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link
-            href="/materiali"
-            className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-          >
-            ← Catalogo materiali
-          </Link>
+          <DetailNavigation listPath="/materiali" listLabel="Materiali" currentLabel={prodotto.descrizione} />
           <h1 className="mt-2 text-2xl font-bold tracking-tight">
             {prodotto.descrizione}
           </h1>

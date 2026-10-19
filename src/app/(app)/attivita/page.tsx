@@ -6,6 +6,9 @@ import { puoGestireCommesse } from "@/lib/enums";
 import { attivitaHref, attivitaScope, attivitaWhere, giornoAttivita, normalizeAttivitaFilters, statoScadenza } from "@/lib/attivita";
 import TaskActions from "./task-actions";
 import PrintLink from "@/components/print-link";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { listPage } from "@/lib/list-state";
 
 export const metadata = { title: "Attività — CRM Elettra" };
 const PER_PAGE = 30;
@@ -28,8 +31,7 @@ export default async function TasksPage({ searchParams }: {
     prisma.attivita.count({ where: { ...scope, stato: "DA_FARE", scadenza: { gte: oggi, lt: new Date(oggi.getTime() + 86400000) } } }),
     canManage ? prisma.user.findMany({ orderBy: [{ cognome: "asc" }, { nome: "asc" }], select: { id: true, nome: true, cognome: true, attivo: true } }) : [],
   ]);
-  const pages = Math.max(1, Math.ceil(totale / PER_PAGE));
-  const pagina = Math.min(pages, Math.max(1, Math.floor(Number(sp.pagina) || 1)));
+  const { page: pagina, pages } = listPage(sp.pagina, totale, PER_PAGE);
   const tasks = await prisma.attivita.findMany({
     where, skip: (pagina - 1) * PER_PAGE, take: PER_PAGE,
     orderBy: [{ stato: "desc" }, { scadenza: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }],
@@ -40,7 +42,6 @@ export default async function TasksPage({ searchParams }: {
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     return `/attivita?${params}`;
   };
-  const cls = "min-h-11 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
   const prefill = new URLSearchParams();
   if (commessaId) prefill.set("commessaId", commessaId);
   if (clienteId) prefill.set("clienteId", clienteId);
@@ -56,17 +57,11 @@ export default async function TasksPage({ searchParams }: {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[["Da fare", riepilogo.find((r) => r.stato === "DA_FARE")?._count._all ?? 0], ["Scadute", scadute], ["In scadenza oggi", inScadenza], ["Completate", riepilogo.find((r) => r.stato === "COMPLETATA")?._count._all ?? 0]].map(([label, count]) => <div key={label} className="rounded-xl border border-line bg-panel px-5 py-4"><p className="text-xs text-ink-soft">{label}</p><p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${label === "Scadute" && Number(count) > 0 ? "text-danger" : ""}`}>{count}</p></div>)}
       </div>
-      <form method="get" className="flex flex-wrap items-end gap-3">
-        <input type="hidden" name="vista" value={vista} />
-        {commessaId && <input type="hidden" name="commessaId" value={commessaId} />}
-        {clienteId && <input type="hidden" name="clienteId" value={clienteId} />}
-        <label className="flex min-w-48 flex-1 flex-col gap-1.5 text-xs text-ink-soft">Cerca<input name="q" defaultValue={q} placeholder="Titolo, note, commessa o cliente…" className={cls} /></label>
-        <label className="flex flex-col gap-1.5 text-xs text-ink-soft">Stato<select name="stato" defaultValue={stato} className={cls}><option value="DA_FARE">Da fare</option><option value="COMPLETATA">Completate</option><option value="tutte">Tutti gli stati</option></select></label>
-        <label className="flex flex-col gap-1.5 text-xs text-ink-soft">Scadenza<select name="scadenza" defaultValue={scadenza} className={cls}><option value="">Tutte le scadenze</option><option value="scadute">Scadute</option><option value="oggi">Oggi</option><option value="prossime">Prossimi 7 giorni</option><option value="senza">Senza scadenza</option></select></label>
-        {vista === "team" && <label className="flex flex-col gap-1.5 text-xs text-ink-soft">Responsabile<select name="responsabile" defaultValue={responsabile} className={cls}><option value="">Tutto il team</option>{utenti.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.cognome}{u.attivo ? "" : " (disattivato)"}</option>)}</select></label>}
-        <button className="min-h-11 rounded-lg border border-line bg-panel px-4 text-sm font-medium hover:bg-paper">Filtra</button>
-        {(q || scadenza || responsabile || stato !== "DA_FARE") && <Link href={link({ q: "", scadenza: "", responsabile: "", stato: "DA_FARE" })} className="px-2 py-3 text-sm text-ink-soft">Azzera filtri</Link>}
-      </form>
+      <ListFilters q={q} total={totale} placeholder="Titolo, note, commessa o cliente…" filters={[
+        { name: "stato", label: "Stato", value: stato, defaultValue: "DA_FARE", options: [{ value: "DA_FARE", label: "Da fare" }, { value: "COMPLETATA", label: "Completate" }, { value: "tutte", label: "Tutti gli stati" }] },
+        { name: "scadenza", label: "Scadenza", value: scadenza, options: [{ value: "", label: "Tutte le scadenze" }, { value: "scadute", label: "Scadute" }, { value: "oggi", label: "Oggi" }, { value: "prossime", label: "Prossimi 7 giorni" }, { value: "senza", label: "Senza scadenza" }] },
+        ...(vista === "team" ? [{ name: "responsabile", label: "Responsabile", value: responsabile, options: [{ value: "", label: "Tutto il team" }, ...utenti.map((u) => ({ value: u.id, label: `${u.nome} ${u.cognome}${u.attivo ? "" : " (disattivato)"}` }))] }] : []),
+      ]} />
       <section aria-label="Elenco attività" className="space-y-3">
         <p className="text-xs text-ink-soft">{totale} attività trovate · {vista === "team" ? "Vista del team" : "Assegnate a te"}</p>
         {!tasks.length && <div className="rounded-xl border border-line bg-panel p-6"><p className="font-medium">Nessuna attività in questa vista.</p><p className="mt-2 text-sm text-ink-soft">Modifica i filtri oppure crea un’attività per pianificare il prossimo passo.</p></div>}
@@ -83,7 +78,7 @@ export default async function TasksPage({ searchParams }: {
           </li>;
         })}</ul>
       </section>
-      {pages > 1 && <nav aria-label="Pagine attività" className="flex items-center justify-between gap-3 text-sm">{pagina > 1 ? <Link href={link({ pagina: String(pagina - 1) })} className={cls}>← Precedente</Link> : <span />}<span className="text-ink-soft">Pagina {pagina} di {pages}</span>{pagina < pages ? <Link href={link({ pagina: String(pagina + 1) })} className={cls}>Successiva →</Link> : <span />}</nav>}
+      <ListPagination path="/attivita" params={{ vista, stato, scadenza, q, responsabile, commessaId, clienteId }} page={pagina} pages={pages} />
       <p className="text-xs text-ink-soft">Le scadenze seguono il giorno italiano. Le assegnazioni effettuate da altri e i promemoria di scadenza compaiono nelle <Link href="/notifiche" className="text-brand-deep underline">notifiche</Link>.</p>
     </div>
   );

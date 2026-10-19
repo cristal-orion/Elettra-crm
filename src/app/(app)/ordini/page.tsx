@@ -4,17 +4,21 @@ import { requireUser } from "@/lib/dal";
 import { puoGestireOrdini, STATI_ORDINE, STATI_ORDINE_LIST } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoOrdineBadge } from "@/components/badges";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
+import ListFilters from "@/components/list-filters";
+import ListPagination from "@/components/list-pagination";
+import { queryText } from "@/lib/list-state";
+import { inPageOrder, listSources, searchListPage } from "@/lib/list-search";
 
 export const metadata = { title: "Ordini a fornitore — CRM Elettra" };
 
 export default async function OrdiniPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stato?: string }>;
+  searchParams: Promise<{ q?: string; stato?: string; pagina?: string }>;
 }) {
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim();
+  const q = queryText(sp.q);
   const stato =
     sp.stato && (STATI_ORDINE_LIST as string[]).includes(sp.stato)
       ? sp.stato
@@ -23,25 +27,18 @@ export default async function OrdiniPage({
   const user = await requireUser();
   const puoCreare = user ? puoGestireOrdini(user.ruolo) : false;
 
-  const where: Prisma.OrdineFornitoreWhereInput = {};
-  if (stato) where.stato = stato;
-  if (q) {
-    where.OR = [
-      { numero: { contains: q, mode: "insensitive" } },
-      { fornitore: { ragioneSociale: { contains: q, mode: "insensitive" } } },
-      { commessa: { numero: { contains: q, mode: "insensitive" } } },
-    ];
-  }
-
-  const ordini = await prisma.ordineFornitore.findMany({
-    where,
-    orderBy: { data: "desc" },
+  const pagination = await searchListPage(prisma, listSources.ordini, {
+    query: q, page: sp.pagina, scope: stato ? Prisma.sql`s.stato = ${stato}` : undefined,
+    orderBy: Prisma.sql`s.data DESC`,
+  });
+  const ordini = inPageOrder(await prisma.ordineFornitore.findMany({
+    where: { id: { in: pagination.ids } },
     include: {
       fornitore: { select: { ragioneSociale: true } },
       commessa: { select: { id: true, numero: true } },
       righe: { select: { imponibile: true } },
     },
-  });
+  }), pagination.ids);
 
   const totale = (righe: { imponibile: Prisma.Decimal }[]) =>
     righe.reduce((acc, r) => acc + toNumber(r.imponibile), 0);
@@ -56,7 +53,7 @@ export default async function OrdiniPage({
           <h1 className="mt-1 text-2xl font-bold tracking-tight">
             Ordini a fornitore
           </h1>
-          <p className="mt-1 text-sm text-ink-soft">{ordini.length} risultati</p>
+          <p className="mt-1 text-sm text-ink-soft">{pagination.total} risultati</p>
         </div>
         {puoCreare && (
           <Link
@@ -68,34 +65,9 @@ export default async function OrdiniPage({
         )}
       </header>
 
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        <input
-          aria-label="Cerca ordini"
-          name="q"
-          defaultValue={q}
-          placeholder="Cerca per numero, fornitore, commessa…"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <select
-          aria-label="Stato ordine"
-          name="stato"
-          defaultValue={stato ?? ""}
-          className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand"
-        >
-          <option value="">Tutti gli stati</option>
-          {Object.entries(STATI_ORDINE).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="rounded-lg border border-line bg-panel px-4 py-2 text-sm text-ink-soft hover:border-brand/40"
-        >
-          Filtra
-        </button>
-      </form>
+      <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Numero, fornitore, commessa…" filters={[
+        { name: "stato", label: "Stato", value: stato ?? "", options: [{ value: "", label: "Tutti gli stati" }, ...Object.entries(STATI_ORDINE).map(([value, label]) => ({ value, label }))] },
+      ]} />
 
       <div className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full text-sm">
@@ -111,11 +83,11 @@ export default async function OrdiniPage({
           </thead>
           <tbody>
             {ordini.map((o) => (
-              <tr key={o.id} className="border-t border-line hover:bg-paper/50">
+              <tr key={o.id} className="relative border-t border-line hover:bg-paper/50 focus-within:bg-brand-soft/50">
                 <td className="px-5 py-3">
                   <Link
                     href={`/ordini/${o.id}`}
-                    className="font-mono tabular-nums font-medium hover:text-brand-deep"
+                    className="font-mono tabular-nums font-medium text-brand-deep underline underline-offset-4 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-brand"
                   >
                     {o.numero ?? "Ordine senza numero"}
                   </Link>
@@ -143,6 +115,7 @@ export default async function OrdiniPage({
           </tbody>
         </table>
       </div>
+      <ListPagination path="/ordini" params={sp} page={pagination.page} pages={pagination.pages} />
     </div>
   );
 }

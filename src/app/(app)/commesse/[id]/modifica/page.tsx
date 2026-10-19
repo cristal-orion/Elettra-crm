@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
 import { puoGestireCommesse } from "@/lib/enums";
@@ -59,12 +59,7 @@ export default async function ModificaCommessaPage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <Link
-          href={`/commesse/${id}`}
-          className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-        >
-          ← {commessa.numero}
-        </Link>
+        <DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel="Modifica" parent={{ href: `/commesse/${id}`, label: commessa.numero }} />
         <h1 className="mt-2 text-2xl font-bold tracking-tight">
           Modifica commessa
         </h1>

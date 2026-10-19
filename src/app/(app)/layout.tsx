@@ -6,6 +6,7 @@ import SegnalaButton from "@/components/segnala-button";
 import Guida, { GuidaButton } from "@/components/guida";
 import { prisma } from "@/lib/prisma";
 import NotificationProvider, { NotificationBanner } from "@/components/notification-provider";
+import { NavigationProvider } from "@/components/navigation-context";
 
 export default async function AppLayout({
   children,
@@ -19,6 +20,7 @@ export default async function AppLayout({
 
   return (
     <NotificationProvider key={user.id} initialCount={unread}>
+    <NavigationProvider key={user.id} userId={user.id}>
     <div className="flex min-h-screen">
       {/* Sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col overflow-y-auto bg-slatepanel px-4 py-5 text-white md:flex">
@@ -88,6 +90,7 @@ export default async function AppLayout({
       <Guida ruolo={user.ruolo} viste={user.guidaVista} />
 
     </div>
+    </NavigationProvider>
     </NotificationProvider>
   );
 }

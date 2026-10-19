@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/dal";
@@ -57,12 +58,7 @@ export default async function OrdineDetailPage({
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/ordini"
-            className="font-mono text-xs uppercase tracking-wider text-ink-faint hover:text-brand-deep"
-          >
-            ← Ordini
-          </Link>
+          <DetailNavigation listPath="/ordini" listLabel="Ordini" currentLabel={ordine.numero ?? "Ordine senza numero"} />
           <h1 className="mt-2 flex items-center gap-3 text-2xl font-bold tracking-tight">
             <span className="font-mono tabular-nums">
               {ordine.numero ?? "Senza numero"}
