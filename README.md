@@ -228,6 +228,27 @@ La ricerca è PostgreSQL senza modifiche allo schema né servizi AI; rimane una
 scansione normalizzata da valutare sui volumi reali. I test PostgreSQL dedicati
 sono in `scripts/anagrafica-duplicates.test.ts` (`npm run test:integration`).
 
+## Dashboard: Da fare oggi
+
+Il riquadro iniziale mostra le attività assegnate all'utente corrente, anche per
+gli amministratori. I quattro contatori aprono le liste personali di attività
+scadute, in scadenza oggi, nei prossimi sette giorni (da domani) e senza data.
+Il totale delle attività aperte include anche quelle pianificate oltre sette giorni.
+
+L'anteprima contiene al massimo sei attività scadute o in scadenza oggi, dalla
+scadenza più vecchia; il link «Vedi tutte» apre il filtro `scadenza=entro_oggi`,
+disponibile anche nella lista e nella stampa. Conteggi e anteprima vengono letti
+nella stessa transazione e riusano `attivitaWhere` e il giorno italiano.
+
+«Segna completata» usa l'azione attività esistente con controllo autorizzazioni
+e versione; l'attività scompare dall'anteprima e i conteggi vengono aggiornati.
+I collegamenti portano alla scheda attività, commessa o cliente. Il riquadro
+personale è una prima tranche della home operativa, disponibile per tutti i ruoli.
+
+`src/lib/today-tasks.test.ts` verifica perimetro, soglie temporali, conteggi,
+destinazioni, limite anteprima e completamento. Il collaudo Chromium include
+navigazione da tastiera, ritorno al cruscotto, stampa coerente e mobile a 390 px.
+
 ## Ruoli e permessi (Fase 1)
 
 - **Super Admin** (Fabio): accesso completo, gestione utenti e configurazione.

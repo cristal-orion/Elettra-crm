@@ -59,7 +59,7 @@ export default async function TasksPage({ searchParams }: {
       </div>
       <ListFilters q={q} total={totale} placeholder="Titolo, note, commessa o cliente…" filters={[
         { name: "stato", label: "Stato", value: stato, defaultValue: "DA_FARE", options: [{ value: "DA_FARE", label: "Da fare" }, { value: "COMPLETATA", label: "Completate" }, { value: "tutte", label: "Tutti gli stati" }] },
-        { name: "scadenza", label: "Scadenza", value: scadenza, options: [{ value: "", label: "Tutte le scadenze" }, { value: "scadute", label: "Scadute" }, { value: "oggi", label: "Oggi" }, { value: "prossime", label: "Prossimi 7 giorni" }, { value: "senza", label: "Senza scadenza" }] },
+        { name: "scadenza", label: "Scadenza", value: scadenza, options: [{ value: "", label: "Tutte le scadenze" }, { value: "scadute", label: "Scadute" }, { value: "oggi", label: "Oggi" }, { value: "entro_oggi", label: "Entro oggi (scadute incluse)" }, { value: "prossime", label: "Prossimi 7 giorni" }, { value: "senza", label: "Senza scadenza" }] },
         ...(vista === "team" ? [{ name: "responsabile", label: "Responsabile", value: responsabile, options: [{ value: "", label: "Tutto il team" }, ...utenti.map((u) => ({ value: u.id, label: `${u.nome} ${u.cognome}${u.attivo ? "" : " (disattivato)"}` }))] }] : []),
       ]} />
       <section aria-label="Elenco attività" className="space-y-3">

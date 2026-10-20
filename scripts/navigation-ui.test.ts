@@ -9,8 +9,9 @@ import { SignJWT } from "jose";
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "../src/generated/prisma";
 import { testDatabase } from "./test-database";
+import { giornoAttivita } from "../src/lib/attivita";
 
-test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", { timeout: 180_000 }, async () => {
+test("UX CRM: filtri, navigazione, progetti, anagrafiche e agenda su dati isolati", { timeout: 240_000 }, async () => {
   const database = testDatabase();
   const db = new PrismaClient({ datasourceUrl: database.url });
   const secret = randomBytes(48).toString("hex");
@@ -354,6 +355,63 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     assert.equal((await context.request.post(`${origin}/anagrafiche/simili`, { headers: { origin: "https://altro.example" }, data: { ragioneSociale: "aloxe" } })).status(), 403);
     console.log("PASS: anagrafiche simili — ricerca live, bozza preservata, controllo fiscale, omonimi consentiti, esclusione di sé, risposte obsolete/errori e permessi API");
 
+    const today = giornoAttivita();
+    const yesterday = new Date(today.getTime() - 86400000);
+    const tomorrow = new Date(today.getTime() + 86400000);
+    await db.attivita.createMany({ data: [
+      { id: "agenda-today", titolo: "Verifica documenti di cantiere", userId: user.id, scadenza: today, commessaId: "ui-project", clienteId: cliente.id },
+      { id: "agenda-late-1", titolo: "Sopralluogo di verifica degli impianti e dei collegamenti elettrici della struttura principale del cliente", userId: user.id, scadenza: yesterday },
+      { id: "agenda-late-2", titolo: "Sollecito offerta materiali", userId: user.id, scadenza: yesterday },
+      { id: "agenda-next", titolo: "Pianificare consegna", userId: user.id, scadenza: tomorrow },
+      { id: "agenda-done", titolo: "Verifica già eseguita", userId: user.id, scadenza: yesterday, stato: "COMPLETATA" },
+      { id: "agenda-other", titolo: "Attività riservata ad altro utente", userId: reader.id, scadenza: today },
+    ] });
+    await page.goto(origin); await page.waitForLoadState("networkidle");
+    const agenda = page.getByRole("region", { name: "Da fare oggi", exact: true });
+    await agenda.getByRole("status").filter({ hasText: "3 attività scadute o in scadenza oggi · 5 attività aperte" }).waitFor();
+    assert.equal(await agenda.getByText("Attività riservata ad altro utente", { exact: true }).count(), 0);
+    assert.equal(await agenda.getByText("Verifica già eseguita", { exact: true }).count(), 0);
+    for (const [label, count, due] of [["Scadute", 2, "scadute"], ["In scadenza oggi", 1, "oggi"], ["Prossimi 7 giorni", 1, "prossime"], ["Senza scadenza", 1, "senza"]] as const) {
+      const card = agenda.getByRole("link", { name: `${label}: ${count} attività`, exact: true });
+      await card.focus(); await card.press("Enter");
+      await page.waitForURL((u) => u.pathname === "/attivita" && u.searchParams.get("scadenza") === due);
+      await ready(page);
+      assert.equal(new URL(page.url()).searchParams.get("vista"), "mie");
+      await page.getByRole("status").filter({ hasText: `${count} risultati` }).waitFor();
+      await page.goBack(); await page.waitForURL(`${origin}/`);
+      await agenda.getByRole("heading", { name: "Da fare oggi", exact: true }).waitFor();
+    }
+    await agenda.getByRole("link", { name: "Verifica documenti di cantiere", exact: true }).click();
+    await page.getByRole("heading", { name: "Verifica documenti di cantiere", exact: true }).waitFor();
+    await page.getByRole("button", { name: "← Indietro", exact: true }).click();
+    await page.waitForURL(`${origin}/`);
+    await agenda.getByRole("button", { name: "Completa Verifica documenti di cantiere", exact: true }).click();
+    await agenda.getByRole("status").filter({ hasText: "2 attività scadute o in scadenza oggi · 4 attività aperte" }).waitFor();
+    assert.equal(await agenda.getByRole("link", { name: "Verifica documenti di cantiere", exact: true }).count(), 0);
+    assert.equal((await db.attivita.findUniqueOrThrow({ where: { id: "agenda-today" } })).stato, "COMPLETATA");
+    await agenda.getByRole("link", { name: /Vedi tutte le attività entro oggi/ }).click();
+    await page.waitForURL((u) => u.searchParams.get("scadenza") === "entro_oggi"); await ready(page);
+    await page.getByRole("status").filter({ hasText: "2 risultati" }).waitFor();
+    assert.equal(await page.getByLabel("Scadenza", { exact: true }).inputValue(), "entro_oggi");
+    const print = await context.request.get(`${origin}/stampa/attivita?vista=mie&stato=DA_FARE&scadenza=entro_oggi`);
+    assert.equal(print.status(), 200);
+    const printed = await print.text();
+    assert.match(printed, /Entro oggi \(scadute incluse\)/);
+    assert.match(printed, /Sollecito offerta materiali/);
+    assert.doesNotMatch(printed, /Verifica documenti di cantiere|Attività riservata ad altro utente/);
+
+    const personalContext = await browser.newContext();
+    await personalContext.addCookies([{ name: "elettra_session", value: readerToken, url: origin }]);
+    const personalPage = await personalContext.newPage();
+    await personalPage.goto(origin); await personalPage.waitForLoadState("networkidle");
+    const personalAgenda = personalPage.getByRole("region", { name: "Da fare oggi", exact: true });
+    await personalAgenda.getByRole("status").filter({ hasText: "1 attività scadute o in scadenza oggi · 1 attività aperte" }).waitFor();
+    assert.equal(await personalAgenda.getByText("Sollecito offerta materiali", { exact: true }).count(), 0);
+    await personalAgenda.getByRole("button", { name: "Completa Attività riservata ad altro utente", exact: true }).click();
+    await personalAgenda.getByText("Non hai attività aperte. Crea un’attività per pianificare il prossimo passo.", { exact: true }).waitFor();
+    await personalContext.close();
+    console.log("PASS: Da fare oggi — perimetro personale, contatori/lista/stampa coerenti, tastiera, ritorno al cruscotto e completamento con aggiornamento immediato");
+
     const direct = await context.newPage();
     await direct.goto(`${origin}/commesse/ui-job-0`);
     await direct.waitForFunction(() => Boolean(history.state?.crmNavigation));
@@ -378,6 +436,10 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     await matches.getByRole("link", { name: /Apri scheda esistente/ }).first().waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Overflow suggerimenti anagrafiche mobile");
     assert.ok((await matches.getByRole("link").first().boundingBox())!.height >= 44);
+    await page.goto(origin); await page.waitForLoadState("networkidle");
+    await agenda.getByRole("heading", { name: "Da fare oggi", exact: true }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Overflow agenda mobile");
+    for (const button of await agenda.getByRole("button").all()) assert.ok((await button.boundingBox())!.height >= 44);
     assert.deepEqual(errors, []);
     console.log("PASS: ingresso diretto con fallback e filtri mobile senza overflow");
   } catch (error) {

@@ -42,9 +42,14 @@ const TOUR: Record<string, TourGuida> = {
           "Ti accompagniamo pagina per pagina: la prima volta che apri una sezione compare una breve guida vicino agli elementi principali. Puoi chiuderla quando vuoi.",
       },
       {
+        titolo: "Da fare oggi",
+        testo: "Qui trovi le attività assegnate a te: scadute, in scadenza oggi, prossime e senza data. Apri un contatore per vedere l'elenco completo oppure segna un'attività come completata.",
+        sel: "main section[aria-labelledby='today-tasks-title']",
+      },
+      {
         titolo: "La situazione in un colpo d'occhio",
         testo: "Questi numeri riassumono clienti, fornitori e offerte. È la pagina da cui iniziare ogni giorno.",
-        sel: "main section",
+        sel: "main section[aria-label='Riepilogo CRM']",
       },
       {
         titolo: "Il menu",

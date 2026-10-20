@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/dal";
 import { formatEuro, toNumber } from "@/lib/format";
 import { etichettaStato, STATI_COMMESSA_LIST } from "@/lib/enums";
 import { StatoBadge, TipologiaBadge } from "@/components/badges";
+import TodayTasks from "@/components/today-tasks";
+import { getTodayTasks } from "@/lib/today-tasks";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -15,6 +17,7 @@ export default async function DashboardPage() {
   } as const;
 
   const [
+    todayTasks,
     clienti,
     fornitori,
     commesseTotali,
@@ -25,6 +28,7 @@ export default async function DashboardPage() {
     daFatturareCount,
     daFatturare,
   ] = await Promise.all([
+    getTodayTasks(prisma, user),
     prisma.anagrafica.count({ where: { isCliente: true } }),
     prisma.anagrafica.count({ where: { isFornitore: true } }),
     prisma.commessa.count(),
@@ -75,12 +79,14 @@ export default async function DashboardPage() {
           Ciao{user ? `, ${user.nome}` : ""}
         </h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Panoramica di anagrafiche, pipeline e conversione.
+          Attività personali e panoramica di anagrafiche, pipeline e conversione.
         </p>
       </header>
 
+      <TodayTasks data={todayTasks} />
+
       {/* KPI */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section aria-label="Riepilogo CRM" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Clienti" value={clienti} href="/anagrafiche?tipo=cliente" />
         <Stat
           label="Fornitori"

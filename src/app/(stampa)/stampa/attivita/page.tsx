@@ -5,7 +5,7 @@ import { statoScadenza, type AttivitaFilters } from "@/lib/attivita";
 import PrintDocument, { PrintNotes } from "@/components/stampa/print-document";
 
 export const metadata = { title: "Stampa elenco attività — Elettra" };
-const SCADENZE: Record<string, string> = { scadute: "Scadute", oggi: "In scadenza oggi", prossime: "Prossimi 7 giorni", senza: "Senza scadenza" };
+const SCADENZE: Record<string, string> = { scadute: "Scadute", oggi: "In scadenza oggi", entro_oggi: "Entro oggi (scadute incluse)", prossime: "Prossimi 7 giorni", senza: "Senza scadenza" };
 
 export default async function PrintTasksPage({ searchParams }: { searchParams: Promise<AttivitaFilters> }) {
   const user = await requireUser();

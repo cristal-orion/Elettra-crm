@@ -23,7 +23,7 @@ export function normalizeAttivitaFilters(user: { id: string; ruolo: string }, in
   return {
     vista,
     stato: input.stato === "COMPLETATA" || input.stato === "tutte" ? input.stato : "DA_FARE",
-    scadenza: ["scadute", "oggi", "prossime", "senza"].includes(input.scadenza ?? "") ? input.scadenza! : "",
+    scadenza: ["scadute", "oggi", "entro_oggi", "prossime", "senza"].includes(input.scadenza ?? "") ? input.scadenza! : "",
     q: text(input.q).trim(),
     responsabile: vista === "team" ? text(input.responsabile) : "",
     commessaId: text(input.commessaId),
@@ -36,6 +36,7 @@ export function attivitaWhere(user: { id: string; ruolo: string }, filters: Atti
   const domani = new Date(oggi.getTime() + 86400000);
   const periodo: Prisma.AttivitaWhereInput = filters.scadenza === "scadute" ? { stato: "DA_FARE", scadenza: { lt: oggi } }
     : filters.scadenza === "oggi" ? { stato: "DA_FARE", scadenza: { gte: oggi, lt: domani } }
+    : filters.scadenza === "entro_oggi" ? { stato: "DA_FARE", scadenza: { lt: domani } }
     : filters.scadenza === "prossime" ? { stato: "DA_FARE", scadenza: { gte: domani, lt: new Date(oggi.getTime() + 8 * 86400000) } }
     : filters.scadenza === "senza" ? { scadenza: null } : {};
   const q = filters.q?.trim();
