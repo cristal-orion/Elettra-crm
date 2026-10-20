@@ -68,6 +68,7 @@ export default async function ModificaAnagraficaPage({
         </h1>
       </header>
       <AnagraficaForm
+        anagraficaId={id}
         action={updateAnagrafica.bind(null, id)}
         initial={initial}
         submitLabel="Salva modifiche"

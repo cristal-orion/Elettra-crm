@@ -275,8 +275,84 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
     await readPage.goto(`${origin}/progetti/ui-project?tab=avanzamento`);
     await readPage.getByRole("heading", { name: "Avanzamento del progetto", exact: true }).waitFor();
     assert.equal(await readPage.getByRole("button", { name: /Salva pianificazione|Aggiungi milestone/ }).count(), 0);
+    assert.equal((await readerContext.request.post(`${origin}/anagrafiche/simili`, { headers: { origin }, data: { ragioneSociale: "aloxe" } })).status(), 403);
     await readerContext.close();
     console.log("PASS: Progetti — filtri combinati, sezioni URL/back, milestone, documenti condivisi e permessi server");
+
+    const existing = await db.anagrafica.create({ data: { ragioneSociale: "Identità Impianti S.r.l.", isFornitore: true, partitaIva: "01234567890" } });
+    const beforeCreate = await db.anagrafica.count();
+    // Compila il dettaglio prima di aprirlo in un'altra scheda: il Fast Refresh di
+    // next dev può rimontare i form aperti quando compila nuove route condivise.
+    await page.goto(`${origin}/anagrafiche/${existing.id}`); await page.waitForLoadState("networkidle");
+    await page.goto(`${origin}/anagrafiche/nuova`); await page.waitForLoadState("networkidle");
+    const matches = page.getByRole("region", { name: "Verifica anagrafiche simili" });
+    const nameInput = page.getByLabel("Ragione sociale *", { exact: true });
+    await nameInput.fill("identita impainti");
+    await matches.getByText(existing.ragioneSociale, { exact: true }).waitFor();
+    await matches.getByText("Ragione sociale simile", { exact: true }).waitFor();
+    await page.getByLabel("Note", { exact: true }).fill("Bozza da conservare");
+    const popup = page.waitForEvent("popup");
+    await matches.getByRole("link", { name: /Apri scheda esistente/ }).click();
+    const existingPage = await popup;
+    await existingPage.waitForURL(`${origin}/anagrafiche/${existing.id}`);
+    assert.equal(await nameInput.inputValue(), "identita impainti");
+    assert.equal(await page.getByLabel("Note", { exact: true }).inputValue(), "Bozza da conservare");
+    await existingPage.close();
+    await nameInput.fill("Soggetto differente");
+    await page.getByLabel("Partita IVA", { exact: true }).fill("01234567890");
+    await matches.getByText("Stessa partita IVA", { exact: true }).waitFor();
+    await page.getByRole("checkbox", { name: "Cliente (C)", exact: true }).check();
+    await page.getByRole("button", { name: "Crea anagrafica", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "P. IVA o codice fiscale già presenti" }).waitFor();
+    assert.equal(await db.anagrafica.count(), beforeCreate);
+    assert.equal(await nameInput.inputValue(), "Soggetto differente");
+
+    await page.goto(`${origin}/anagrafiche/${existing.id}/modifica`);
+    await matches.getByRole("status").filter({ hasText: "Nessuna corrispondenza suggerita" }).waitFor();
+    assert.equal(await matches.getByRole("link").count(), 0); // dati precompilati, esclusione del record stesso
+    await page.goto(`${origin}/anagrafiche/nuova`); await page.waitForLoadState("networkidle");
+    await nameInput.fill(existing.ragioneSociale);
+    await matches.getByText(existing.ragioneSociale, { exact: true }).waitFor();
+    await page.getByRole("checkbox", { name: "Cliente (C)", exact: true }).check();
+    await page.getByRole("button", { name: "Crea anagrafica", exact: true }).click();
+    await page.waitForURL((u) => /^\/anagrafiche\/[^/]+$/.test(u.pathname) && u.pathname !== "/anagrafiche/nuova");
+    assert.equal(await db.anagrafica.count(), beforeCreate + 1); // il nome simile è consultivo
+
+    await page.goto(`${origin}/anagrafiche/nuova`); await page.waitForLoadState("networkidle");
+    let releaseOld!: () => void;
+    const holdOld = new Promise<void>((resolve) => { releaseOld = resolve; });
+    let oldDone!: () => void;
+    const oldFinished = new Promise<void>((resolve) => { oldDone = resolve; });
+    await page.route("**/anagrafiche/simili", async (route) => {
+      if (route.request().postDataJSON().ragioneSociale !== "Vecchia ricerca") return route.continue();
+      await holdOld;
+      await route.fulfill({ json: { candidati: [{ ...existing, ragioneSociale: "Risposta obsoleta", motivi: ["nome"] }], altri: false } }).catch(() => {});
+      oldDone();
+    });
+    const oldRequest = page.waitForRequest((r) => r.url().endsWith("/anagrafiche/simili") && r.postDataJSON().ragioneSociale === "Vecchia ricerca");
+    await nameInput.fill("Vecchia ricerca"); await oldRequest;
+    await nameInput.fill("aloxe");
+    await matches.getByText(cliente.ragioneSociale, { exact: true }).waitFor();
+    releaseOld(); await oldFinished;
+    assert.equal(await matches.getByText("Risposta obsoleta", { exact: true }).count(), 0);
+    await page.unroute("**/anagrafiche/simili");
+    await page.route("**/anagrafiche/simili", (route) => route.fulfill({ status: 503, json: { error: "Verifica non disponibile." } }));
+    await nameInput.fill("aloxe caffe");
+    await matches.getByText("Verifica non disponibile.", { exact: true }).waitFor();
+    assert.equal(await matches.getByRole("link").count(), 0);
+    await page.unroute("**/anagrafiche/simili");
+    await matches.getByRole("button", { name: "Riprova verifica", exact: true }).click();
+    await matches.getByText(cliente.ragioneSociale, { exact: true }).waitFor();
+    await nameInput.fill("");
+    await matches.getByRole("status").filter({ hasText: "Compila la ragione sociale" }).waitFor();
+    assert.equal(await matches.getByRole("link").count(), 0);
+    const anon = await browser.newContext();
+    assert.equal((await anon.request.post(`${origin}/anagrafiche/simili`, { data: { ragioneSociale: "aloxe" } })).status(), 401);
+    await anon.close();
+    assert.equal((await context.request.post(`${origin}/anagrafiche/simili`, { headers: { origin }, data: { ragioneSociale: ["aloxe"] } })).status(), 400);
+    assert.equal((await context.request.post(`${origin}/anagrafiche/simili`, { headers: { origin }, data: { ragioneSociale: "x".repeat(9000) } })).status(), 413);
+    assert.equal((await context.request.post(`${origin}/anagrafiche/simili`, { headers: { origin: "https://altro.example" }, data: { ragioneSociale: "aloxe" } })).status(), 403);
+    console.log("PASS: anagrafiche simili — ricerca live, bozza preservata, controllo fiscale, omonimi consentiti, esclusione di sé, risposte obsolete/errori e permessi API");
 
     const direct = await context.newPage();
     await direct.goto(`${origin}/commesse/ui-job-0`);
@@ -297,6 +373,11 @@ test("Sprint 0: filtri live, cronologia, breadcrumb e scroll su dati isolati", {
         assert.ok((await link.boundingBox())!.height >= 44);
       }
     }
+    await page.goto(`${origin}/anagrafiche/nuova`); await page.waitForLoadState("networkidle");
+    await nameInput.fill("identita impianti");
+    await matches.getByRole("link", { name: /Apri scheda esistente/ }).first().waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Overflow suggerimenti anagrafiche mobile");
+    assert.ok((await matches.getByRole("link").first().boundingBox())!.height >= 44);
     assert.deepEqual(errors, []);
     console.log("PASS: ingresso diretto con fallback e filtri mobile senza overflow");
   } catch (error) {

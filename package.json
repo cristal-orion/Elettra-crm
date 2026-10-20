@@ -8,7 +8,7 @@
     "start": "NODE_ENV=production tsx scripts/check-runtime.ts && next start",
     "lint": "eslint",
     "test": "tsx --test src/lib/*.test.ts src/proxy.test.ts",
-    "test:integration": "tsx --test scripts/production.test.ts scripts/list-search.test.ts",
+    "test:integration": "tsx --test scripts/production.test.ts scripts/list-search.test.ts scripts/anagrafica-duplicates.test.ts",
     "test:ui": "tsx --test scripts/navigation-ui.test.ts",
     "test:ops": "tsx --test scripts/ops.test.ts",
     "ai:scheduled": "tsx scripts/ai-scheduled.ts",

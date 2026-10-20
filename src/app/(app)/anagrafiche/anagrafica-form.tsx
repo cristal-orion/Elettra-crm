@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import FormError from "@/components/form-error";
 import { TITOLI } from "@/lib/enums";
 import type { AnagraficaState } from "./actions";
+import AnagraficaDuplicates from "@/components/anagrafica-duplicates";
+import type { AnagraficaMatchInput } from "@/lib/anagrafica-match";
 
 export type ReferenteValue = {
   id?: string;
@@ -60,16 +62,26 @@ export default function AnagraficaForm({
   initial,
   submitLabel = "Salva",
   cancelHref = "/anagrafiche",
+  anagraficaId,
 }: {
   action: (state: AnagraficaState, formData: FormData) => Promise<AnagraficaState>;
   initial?: Partial<AnagraficaFormValues>;
   submitLabel?: string;
   cancelHref?: string;
+  anagraficaId?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [referenti, setReferenti] = useState<ReferenteValue[]>(
     initial?.referenti?.length ? initial.referenti : [],
   );
+  const [matchInput, setMatchInput] = useState<AnagraficaMatchInput>(() => ({
+    ragioneSociale: initial?.ragioneSociale ?? "", partitaIva: initial?.partitaIva ?? "",
+    codiceFiscale: initial?.codiceFiscale ?? "", email: initial?.email ?? "", telefono: initial?.telefono ?? "",
+  }));
+  const matchField = (name: keyof AnagraficaMatchInput) => ({
+    name, value: matchInput[name],
+    onChange: (event: ChangeEvent<HTMLInputElement>) => setMatchInput((prev) => ({ ...prev, [name]: event.target.value })),
+  });
 
   const v = (k: keyof AnagraficaFormValues) =>
     (initial?.[k] as string | undefined) ?? "";
@@ -125,21 +137,19 @@ export default function AnagraficaForm({
           <label className="flex flex-col gap-1.5 sm:col-span-2">
             <span className={labelCls}>Ragione sociale *</span>
             <input
-              name="ragioneSociale"
+              {...matchField("ragioneSociale")}
               required
-              defaultValue={v("ragioneSociale")}
               className={inputCls}
             />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Partita IVA</span>
-            <input name="partitaIva" defaultValue={v("partitaIva")} className={inputCls} />
+            <input {...matchField("partitaIva")} className={inputCls} />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Codice fiscale</span>
             <input
-              name="codiceFiscale"
-              defaultValue={v("codiceFiscale")}
+              {...matchField("codiceFiscale")}
               className={inputCls}
             />
           </label>
@@ -149,6 +159,8 @@ export default function AnagraficaForm({
           </label>
         </div>
       </fieldset>
+
+      <AnagraficaDuplicates input={matchInput} excludeId={anagraficaId} />
 
       {/* Indirizzo */}
       <fieldset className="rounded-xl border border-line bg-panel p-5">
@@ -184,7 +196,7 @@ export default function AnagraficaForm({
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Telefono</span>
-            <input name="telefono" defaultValue={v("telefono")} className={inputCls} />
+            <input {...matchField("telefono")} className={inputCls} />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Fax</span>
@@ -192,7 +204,7 @@ export default function AnagraficaForm({
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Email</span>
-            <input name="email" type="email" defaultValue={v("email")} className={inputCls} />
+            <input {...matchField("email")} type="email" className={inputCls} />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelCls}>Web</span>

@@ -11,7 +11,7 @@ export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !validRequestOrigin(req)) return new NextResponse("Origine non valida", { status: 403 });
   // Le API applicano l'autenticazione nel route handler e restituiscono JSON/401.
-  if (pathname === "/assistente/api" || pathname.startsWith("/assistente/api/") || pathname === "/materiali/estrai") return NextResponse.next();
+  if (pathname === "/assistente/api" || pathname.startsWith("/assistente/api/") || pathname === "/materiali/estrai" || pathname === "/anagrafiche/simili") return NextResponse.next();
   const hasSession = Boolean(req.cookies.get(COOKIE_NAME)?.value);
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),

@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma";
 import { listPage, searchTerms, typoPattern } from "./list-state";
 
 /** PostgreSQL 16: normalizzazione Unicode senza estensioni o modifiche ai dati. */
-function normalized(value: Prisma.Sql) {
+export function normalizedSearchText(value: Prisma.Sql) {
   return Prisma.sql`lower(regexp_replace(normalize(coalesce(${value}, ''), NFD), '[̀-ͯ]', '', 'g'))`;
 }
 
@@ -26,7 +26,7 @@ export async function searchListPage(db: PrismaClient, source: Prisma.Sql, optio
   query: string; page?: string; scope?: Prisma.Sql; orderBy: Prisma.Sql; extraCount?: Prisma.Sql;
 }) {
   const terms = searchTerms(options.query);
-  const text = normalized(Prisma.sql`s.text`);
+  const text = normalizedSearchText(Prisma.sql`s.text`);
   const exact = terms.map((term) => Prisma.sql`strpos(${text}, ${term}) > 0`);
   const scope = options.scope ?? Prisma.sql`true`;
   const exactWhere = Prisma.sql`(${scope}) AND (${exact.length ? Prisma.join(exact, " AND ") : Prisma.sql`true`})`;

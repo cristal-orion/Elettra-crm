@@ -207,6 +207,27 @@ prisma/
   seed.ts                  # dati di esempio
 ```
 
+## Anagrafiche già presenti
+
+In creazione, modifica e nel modulo precompilato da visura, il controllo live
+propone fino a cinque schede simili dopo 300 ms di pausa nella compilazione.
+Confronta ragione sociale (accenti, parole riordinate, sigle societarie e un refuso
+per parola), P. IVA/CF esatti ignorando spazi esterni e maiuscole, email e telefono.
+I contatti vengono cercati anche nei referenti delle schede esistenti; i numeri
+ignorano separatori e la differenza tra `+` e `00`, senza inferire il prefisso paese.
+Le corrispondenze fiscali hanno priorità; ogni suggerimento spiega il motivo.
+
+Il controllo è consultivo: non fonde schede e non blocca gli omonimi. Il servizio
+di salvataggio conserva il controllo fiscale transazionale e la gestione dei
+duplicati storici invariati. In modifica la scheda corrente è esclusa dai suggerimenti.
+L'apertura dei risultati in un'altra scheda conserva il modulo in compilazione.
+
+L'endpoint `POST /anagrafiche/simili` è di sola lettura, riservato a Super Admin e
+Backoffice, con verifica sessione/origine, input limitato e risposta `no-store`.
+La ricerca è PostgreSQL senza modifiche allo schema né servizi AI; rimane una
+scansione normalizzata da valutare sui volumi reali. I test PostgreSQL dedicati
+sono in `scripts/anagrafica-duplicates.test.ts` (`npm run test:integration`).
+
 ## Ruoli e permessi (Fase 1)
 
 - **Super Admin** (Fabio): accesso completo, gestione utenti e configurazione.
