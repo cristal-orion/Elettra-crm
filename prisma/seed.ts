@@ -40,6 +40,8 @@ async function main() {
   await prisma.milestone.deleteMany();
   await prisma.operaio.deleteMany();
   await prisma.commessa.deleteMany();
+  await prisma.eventoCommerciale.deleteMany();
+  await prisma.opportunita.deleteMany();
   await prisma.referente.deleteMany();
   await prisma.prodotto.deleteMany();
   await prisma.anagrafica.deleteMany();

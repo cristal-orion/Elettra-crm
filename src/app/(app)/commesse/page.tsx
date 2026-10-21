@@ -51,7 +51,7 @@ export default async function CommessePage({
             Commesse
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">
-            Pipeline commerciale
+            Commesse e storico
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
             {total} risultati
@@ -66,6 +66,7 @@ export default async function CommessePage({
           </Link>
         )}
       </header>
+      <p className="text-sm text-ink-soft">Per seguire nuove trattative, contatti e offerte apri il <Link href="/commerciale" className="text-brand-deep underline">Commerciale</Link>.</p>
 
       <ListFilters q={q} total={total} similar={pagination.similar} placeholder="Numero, descrizione, cliente…" filters={[
         { name: "stato", label: "Stato", value: stato ?? "", options: [{ value: "", label: "Tutti gli stati" }, ...Object.entries(STATI_COMMESSA).map(([value, label]) => ({ value, label }))] },

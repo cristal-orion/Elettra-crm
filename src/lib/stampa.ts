@@ -7,7 +7,7 @@ export const printQuantity = new Intl.NumberFormat("it-IT", { maximumFractionDig
 export async function getPrintableTasks(user: { id: string; ruolo: string }, input: AttivitaFilters, db: PrismaClient = prisma, now = new Date()) {
   const filters = normalizeAttivitaFilters(user, input);
   // Nessun take/skip: si stampa l'intero risultato filtrato, non solo la pagina corrente.
-  const [tasks, responsabile, commessa, cliente] = await Promise.all([
+  const [tasks, responsabile, commessa, cliente, opportunita] = await Promise.all([
     db.attivita.findMany({
       where: attivitaWhere(user, filters, now),
       orderBy: [{ stato: "desc" }, { scadenza: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "asc" }],
@@ -16,11 +16,13 @@ export async function getPrintableTasks(user: { id: string; ruolo: string }, inp
         user: { select: { nome: true, cognome: true } },
         commessa: { select: { numero: true } },
         cliente: { select: { ragioneSociale: true } },
+        opportunita: { select: { titolo: true } },
       },
     }),
     filters.responsabile ? db.user.findUnique({ where: { id: filters.responsabile }, select: { nome: true, cognome: true } }) : null,
     filters.commessaId ? db.commessa.findUnique({ where: { id: filters.commessaId }, select: { numero: true } }) : null,
     filters.clienteId ? db.anagrafica.findUnique({ where: { id: filters.clienteId }, select: { ragioneSociale: true } }) : null,
+    filters.opportunitaId ? db.opportunita.findUnique({ where: { id: filters.opportunitaId }, select: { titolo: true } }) : null,
   ]);
-  return { filters, tasks, responsabile, commessa, cliente };
+  return { filters, tasks, responsabile, commessa, cliente, opportunita };
 }

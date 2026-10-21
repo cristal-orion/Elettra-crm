@@ -10,7 +10,7 @@ const SCADENZE: Record<string, string> = { scadute: "Scadute", oggi: "In scadenz
 export default async function PrintTasksPage({ searchParams }: { searchParams: Promise<AttivitaFilters> }) {
   const user = await requireUser();
   const now = new Date();
-  const { filters, tasks, responsabile, commessa, cliente } = await getPrintableTasks(user, await searchParams, undefined, now);
+  const { filters, tasks, responsabile, commessa, cliente, opportunita } = await getPrintableTasks(user, await searchParams, undefined, now);
   const params = new URLSearchParams(filters);
   for (const [key, value] of [...params]) if (!value) params.delete(key);
   return (
@@ -21,6 +21,7 @@ export default async function PrintTasksPage({ searchParams }: { searchParams: P
         {filters.q && <p>Ricerca: {filters.q}</p>}
         {filters.commessaId && <p>Commessa: {commessa?.numero ?? "Non disponibile"}</p>}
         {filters.clienteId && <p>Cliente / anagrafica: {cliente?.ragioneSociale ?? "Non disponibile"}</p>}
+        {filters.opportunitaId && <p>Trattativa: {opportunita?.titolo ?? "Non disponibile"}</p>}
       </section>
       <table className="print-table"><colgroup><col style={{ width: "4%" }} /><col style={{ width: "34%" }} /><col style={{ width: "15%" }} /><col style={{ width: "12%" }} /><col style={{ width: "25%" }} /><col style={{ width: "10%" }} /></colgroup><thead><tr><th scope="col" aria-label="Spunta">✓</th><th scope="col">Attività e note</th><th scope="col">Responsabile</th><th scope="col">Scadenza</th><th scope="col">Commessa / cliente</th><th scope="col">Stato</th></tr></thead><tbody>{tasks.map((t) => {
         const due = statoScadenza(t.scadenza, t.stato, now);

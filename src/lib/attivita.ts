@@ -13,7 +13,7 @@ export function attivitaScope(user: { id: string; ruolo: string }, vista?: strin
 }
 
 export type AttivitaFilters = {
-  vista?: string; responsabile?: string; stato?: string; scadenza?: string; q?: string; commessaId?: string; clienteId?: string;
+  vista?: string; responsabile?: string; stato?: string; scadenza?: string; q?: string; commessaId?: string; clienteId?: string; opportunitaId?: string;
 };
 
 /** La vista a schermo e la stampa devono applicare gli stessi filtri e permessi. */
@@ -28,6 +28,7 @@ export function normalizeAttivitaFilters(user: { id: string; ruolo: string }, in
     responsabile: vista === "team" ? text(input.responsabile) : "",
     commessaId: text(input.commessaId),
     clienteId: text(input.clienteId),
+    opportunitaId: text(input.opportunitaId),
   };
 }
 
@@ -44,6 +45,7 @@ export function attivitaWhere(user: { id: string; ruolo: string }, filters: Atti
     ...attivitaScope(user, filters.vista, filters.responsabile),
     commessaId: filters.commessaId || undefined,
     clienteId: filters.clienteId || undefined,
+    opportunitaId: filters.opportunitaId || undefined,
     AND: [
       { stato: filters.stato === "tutte" ? undefined : filters.stato === "COMPLETATA" ? "COMPLETATA" : "DA_FARE" },
       periodo,

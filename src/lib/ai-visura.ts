@@ -70,6 +70,7 @@ export function visuraToFormValues(v: VisuraDati): AnagraficaFormValues {
     ragioneSociale: s(v.ragioneSociale),
     isCliente: true,
     isFornitore: false,
+    isProspect: false,
     partitaIva: s(v.partitaIva),
     codiceFiscale: s(v.codiceFiscale),
     codiceSDI: s(v.codiceSDI),

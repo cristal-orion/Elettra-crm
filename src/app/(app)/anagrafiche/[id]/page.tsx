@@ -5,7 +5,7 @@ import TaskContext from "@/components/task-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
-import { puoGestireAnagrafiche, etichettaTitolo } from "@/lib/enums";
+import { puoGestireAnagrafiche, puoGestireCommesse, etichettaTitolo } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import {
   CodiceBadge,
@@ -67,6 +67,7 @@ export default async function AnagraficaDetailPage({
               codiceCliente={anagrafica.codiceCliente}
               codiceFornitore={anagrafica.codiceFornitore}
             />
+            {anagrafica.isProspect && <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs text-brand-deep">Potenziale cliente</span>}
             {anagrafica.isCliente && (
               <span className="rounded-full bg-lead-soft px-2.5 py-0.5 text-[11px] text-ink-soft">
                 Cliente
@@ -91,6 +92,7 @@ export default async function AnagraficaDetailPage({
 
       <AiContextPanel type="cliente" id={id} />
       <TaskContext user={user} clienteId={id} />
+      {(anagrafica.isCliente || anagrafica.isProspect) && <div className="flex flex-wrap gap-3 text-sm"><Link href={`/commerciale?cliente=${id}`} className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Trattative collegate →</Link>{puoGestireCommesse(user.ruolo) && <Link href={`/commerciale/nuova?cliente=${id}`} className="min-h-11 px-4 py-3 text-brand-deep underline">Nuova trattativa</Link>}</div>}
 
       {anagrafica.isCliente && <Link href={`/anagrafiche/${id}/tariffario`} className="rounded-xl border border-line bg-panel p-5 text-sm font-medium text-brand-deep hover:border-brand">Tariffario cliente → <span className="mt-1 block font-normal text-ink-soft">Tariffe per mansione, fasce orarie e ricarichi dei materiali per i lavori a consuntivo.</span></Link>}
 

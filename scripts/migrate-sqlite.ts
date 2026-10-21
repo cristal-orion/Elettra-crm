@@ -68,6 +68,9 @@ export async function migrateSqlite(source: string, url: string, execute = false
     const summary: { table: string; rows: number; sha256: string }[] = [];
     await db.$transaction(async (tx) => {
       for (const m of models) {
+        // La migrazione Commerciale installa le fasi di configurazione. Lo storico
+        // SQLite non le contiene: conservarle, senza allargare l'eccezione ai dati.
+        if (m.name === "FaseCommerciale" && !sourceTables.has("FaseCommerciale")) continue;
         const delegate = (tx as unknown as Record<string, Delegate>)[m.name[0].toLowerCase() + m.name.slice(1)];
         if (await delegate.count()) throw new Error(`Destinazione non vuota: ${m.name}. Nessun dato sovrascritto.`);
       }

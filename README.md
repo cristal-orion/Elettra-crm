@@ -194,6 +194,7 @@ src/
     (app)/                 # area protetta (shell con sidebar)
       page.tsx             # dashboard (KPI, pipeline, commesse recenti)
       anagrafiche/         # modulo Clienti/Fornitori (lista, nuova, dettaglio, modifica)
+      commerciale/        # opportunità, Kanban/elenco, contatti e conferma incarico
   components/              # nav, badge riutilizzabili
   lib/
     prisma.ts              # client Prisma (singleton)
@@ -290,6 +291,90 @@ senza riclassificare i record storici `C`/`CONSUNTIVO` o cambiare la regola P→
 Il test `src/lib/consuntivi.test.ts` usa PostgreSQL isolato e copre calcoli, audit,
 rollback, override, versioni e autorizzazioni. `npm run test:ui` verifica anche
 default, fasce, salvataggi successivi, conflitti, lettura/stampa e mobile.
+
+## Commerciale: dal contatto alla commessa
+
+**Commerciale** gestisce nuove opportunità distinte dalle commesse. Le fasi iniziali
+sono Lead → Contattato → Qualificato → Preventivo → Offerta inviata → Negoziazione →
+Vinta/Persa. Il Super Admin personalizza nomi e ordine, aggiunge fasi aperte o di
+offerta inviata e disattiva quelle inutilizzate. La categoria semantica è stabile:
+Vinta e Persa restano disponibili, una fase in uso va prima svuotata.
+
+La vista **Kanban** mostra fino a dieci schede per fase e permette di spostarle
+con il comando «Sposta fase», utilizzabile anche da tastiera/mobile. «Mostra tutte»
+apre l'elenco paginato da 30 righe. Ricerca normalizzata, filtri cliente/responsabile,
+fase, situazione e periodo di creazione, ordinamento e ritorno alla lista seguono
+i componenti condivisi. I contatori coprono l'intero risultato, non la sola pagina.
+
+Ogni opportunità collega un cliente o un **potenziale cliente** dell'anagrafica
+unica, un referente della stessa azienda, responsabile, origine, descrizione,
+valore previsto e dati di offerta. Una società può essere potenziale cliente e
+fornitore. Il potenziale cliente non riceve il codice C fino alla promozione;
+ricerca e controllo duplicati delle anagrafiche restano disponibili.
+
+Nella scheda si registrano chiamate, email, incontri, sopralluoghi e note con data
+effettiva, esito e indicazione «Risposta ricevuta». Il prossimo contatto genera
+una sola **Attività**, condivisa con agenda, notifiche, lista e stampa. Le attività
+rispettano il perimetro personale/team esistente. La cronologia, 20 eventi per
+pagina, conserva autore, ruolo, data di registrazione e valori prima/dopo delle
+modifiche commerciali; i nomi storici restano anche eliminando un account.
+L'eliminazione del responsabile richiede un subentrante abilitato e registra il
+trasferimento. Gli allegati usano archivio, download e permessi documentali comuni.
+
+### Conferma incarico
+
+- «Vinta» si raggiunge con **Conferma incarico e crea commessa**, inserendo data,
+  riferimento, canale della conferma, importo effettivo e PM facoltativo. Per
+  Preventivo/Gara servono riferimento, importo e data di invio offerta completi.
+  L'importo suggerito dall'offerta resta modificabile e richiede conferma esplicita.
+- Il **Consuntivo** consente la conferma diretta senza offerta e senza importo:
+  il valore sarà determinato dal lavoro effettivo. La stima commerciale non diventa
+  automaticamente un ricavo approvato.
+- Transazione Serializable, versione ottimistica e relazione univoca rendono
+  conversione e retry idempotenti. Il cliente potenziale viene promosso sullo
+  stesso record dopo il controllo fiscale; eventuali duplicati richiedono di
+  ricollegare la trattativa al cliente esistente.
+- La commessa nasce in `ORDINE_CONFERMATO` con cliente, referente, descrizione,
+  tipologia e dati offerta/conferma. File e attività conservano l'identificativo
+  originale e risultano collegati anche alla commessa; il link di origine è
+  bidirezionale. Il cliente della commessa convertita rimane vincolato.
+- «Persa» richiede il motivo; si può riaprire conservando la cronologia. La
+  trattativa già convertita resta consultabile con nuovi contatti/allegati,
+  mentre i dati dell'incarico si gestiscono nella commessa.
+
+### Indicatori e permessi
+
+Valore pipeline = somma dei **valori previsti delle aperte** (le stime mancanti
+sono contate separatamente). Tasso di successo = vinte / (vinte + perse), vuoto
+se non ci sono chiuse. Le offerte senza risposta sono aperte con invio da almeno
+7 giorni e senza risposta registrata da quella data; una revisione dei dati offerta
+azzera la risposta precedente. «Ferme» significa oltre 14 giorni dall'ultima
+interazione o passaggio di fase. I prossimi contatti usano il giorno italiano:
+entro oggi, oppure da domani ai successivi sette giorni. L'attività assegnata ad
+altri produce la notifica esistente; le scadenze usano i promemoria giornalieri
+già configurati. Tutti gli indicatori rispettano i filtri correnti.
+
+Super Admin, Backoffice e PM gestiscono trattative, contatti e conferme;
+configurazione fasi riservata al Super Admin. Gli altri utenti autenticati leggono;
+gli allegati seguono `puoGestireDocumenti`. Ogni mutazione verifica ruolo e account
+attivo sul server. Le versioni impediscono aggiornamenti obsoleti; contatto e
+follow-up sono atomici e una chiave richiesta impedisce duplicati su retry.
+
+La migrazione additiva `20261021150000_commerciale` crea fasi, opportunità e timeline,
+aggiungendo i collegamenti a documenti/attività/commesse e il ruolo prospect.
+Le vecchie commesse non sono convertite né reinterpretate: i KPI Commerciale
+riguardano le nuove opportunità, quelli storici restano basati sulle commesse.
+La mappatura storica, l'integrazione del nuovo dominio nei tool Elettro e il
+cruscotto unificato appartengono alle tranche successive. L'import SQLite
+conserva la configurazione fasi installata dalla migrazione quando assente dalla
+sorgente, richiedendo comunque tutte le tabelle operative di destinazione vuote.
+
+Verifiche: `src/lib/commerciale.test.ts` copre il flusso su PostgreSQL isolato,
+conversioni concorrenti, rollback, permessi, audit, filtri e conteggi oltre pagina.
+`npm run test:ui` include prospect → interazione/follow-up → allegato → cambi fase
+→ conversione, conflitto tra due schede, navigazione, autorizzazione server e 390 px.
+`npm run test:ui:commerciale` esegue solo questo percorso su dati isolati.
+Il superamento dei test tecnici non sostituisce l'accettazione con casi aziendali.
 
 ## Ruoli e permessi (Fase 1)
 

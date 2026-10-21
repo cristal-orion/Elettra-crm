@@ -2,7 +2,7 @@ import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRuolo } from "@/lib/dal";
-import { etichettaRuolo } from "@/lib/enums";
+import { etichettaRuolo, puoGestireCommesse } from "@/lib/enums";
 import EliminaUtenteForm from "../../elimina-utente-form";
 
 export const metadata = { title: "Elimina utente — CRM Elettra" };
@@ -14,7 +14,7 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
     where: { id },
     select: {
       id: true, nome: true, cognome: true, email: true, ruolo: true,
-      _count: { select: { commesse: true, attivita: true, segnalazioni: true } },
+      _count: { select: { commesse: true, attivita: true, segnalazioni: true, opportunita: true } },
     },
   });
   if (!utente) notFound();
@@ -40,12 +40,12 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
           <section className="rounded-xl border border-line bg-panel p-5">
             <h2 className="font-semibold">Dati collegati all’utente</h2>
             <dl className="mt-4 grid grid-cols-3 gap-3">
-              {[["Commesse", utente._count.commesse], ["Attività", utente._count.attivita], ["Segnalazioni", utente._count.segnalazioni]].map(([label, n]) => (
+              {[["Commesse", utente._count.commesse], ["Attività", utente._count.attivita], ["Segnalazioni", utente._count.segnalazioni], ["Trattative", utente._count.opportunita]].map(([label, n]) => (
                 <div key={label}><dt className="text-xs text-ink-soft">{label}</dt><dd className="mt-1 font-mono text-xl tabular-nums">{n}</dd></div>
               ))}
             </dl>
             <p className="mt-4 text-sm text-ink-soft">
-              {haDati ? "Questi dati, inclusi quelli già conclusi, saranno conservati e trasferiti al subentrante. Nelle segnalazioni l’autore precedente resterà annotato nella descrizione." : "Non ci sono commesse, attività o segnalazioni da trasferire."}
+              {haDati ? "Questi dati, inclusi quelli già conclusi, saranno conservati e trasferiti al subentrante. Nelle segnalazioni l’autore precedente resterà annotato nella descrizione; nelle trattative il trasferimento sarà registrato nella cronologia." : "Non ci sono dati operativi da trasferire."}
             </p>
           </section>
           <EliminaUtenteForm
@@ -53,7 +53,7 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
             email={utente.email}
             haDati={haDati}
             richiedePM={utente._count.commesse > 0}
-            subentranti={subentranti}
+            subentranti={subentranti.filter((u) => !utente._count.opportunita || puoGestireCommesse(u.ruolo))}
           />
         </>
       )}

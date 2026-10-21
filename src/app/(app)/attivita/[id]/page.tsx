@@ -31,6 +31,7 @@ export default async function TaskPage({ params, searchParams }: {
         <p className="mt-1 text-sm text-ink-soft">{task.user.nome} {task.user.cognome} · {task.stato === "COMPLETATA" ? "Completata" : "Da fare"} · Creata il {formatDateTime(task.createdAt)}</p>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
           {task.commessaId && <Link href={`/commesse/${task.commessaId}`} className="text-brand-deep underline">Commessa {task.commessa?.numero}</Link>}
+          {task.opportunitaId && <Link href={`/commerciale/${task.opportunitaId}`} className="text-brand-deep underline">Trattativa collegata</Link>}
           {task.clienteId && <Link href={`/anagrafiche/${task.clienteId}`} className="text-brand-deep underline">{task.cliente?.ragioneSociale}</Link>}
         </div>
       </header>

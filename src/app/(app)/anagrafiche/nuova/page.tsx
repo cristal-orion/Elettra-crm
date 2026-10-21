@@ -7,7 +7,7 @@ import { createAnagrafica } from "../actions";
 
 export const metadata = { title: "Nuova anagrafica — CRM Elettra" };
 
-export default async function NuovaAnagraficaPage() {
+export default async function NuovaAnagraficaPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
   const user = await getCurrentUser();
   if (!user || !puoGestireAnagrafiche(user.ruolo)) redirect("/anagrafiche");
 
@@ -19,7 +19,7 @@ export default async function NuovaAnagraficaPage() {
           Nuova anagrafica
         </h1>
       </header>
-      <AnagraficaForm action={createAnagrafica} submitLabel="Crea anagrafica" />
+      <AnagraficaForm action={createAnagrafica} initial={{ isProspect: (await searchParams).tipo === "prospect" }} submitLabel="Crea anagrafica" />
     </div>
   );
 }

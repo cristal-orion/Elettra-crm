@@ -14,15 +14,15 @@ export const metadata = { title: "Attività — CRM Elettra" };
 const PER_PAGE = 30;
 
 export default async function TasksPage({ searchParams }: {
-  searchParams: Promise<{ stato?: string; vista?: string; responsabile?: string; scadenza?: string; q?: string; pagina?: string; esito?: string; commessaId?: string; clienteId?: string }>;
+  searchParams: Promise<{ stato?: string; vista?: string; responsabile?: string; scadenza?: string; q?: string; pagina?: string; esito?: string; commessaId?: string; clienteId?: string; opportunitaId?: string }>;
 }) {
   const user = await requireUser();
   const sp = await searchParams;
   const canManage = puoGestireCommesse(user.ruolo);
-  const { vista, stato, scadenza, q, responsabile, commessaId, clienteId } = normalizeAttivitaFilters(user, sp);
+  const { vista, stato, scadenza, q, responsabile, commessaId, clienteId, opportunitaId } = normalizeAttivitaFilters(user, sp);
   const now = new Date();
-  const scope = { ...attivitaScope(user, vista, responsabile), commessaId: commessaId || undefined, clienteId: clienteId || undefined };
-  const where = attivitaWhere(user, { vista, responsabile, stato, scadenza, q, commessaId, clienteId }, now);
+  const scope = { ...attivitaScope(user, vista, responsabile), commessaId: commessaId || undefined, clienteId: clienteId || undefined, opportunitaId: opportunitaId || undefined };
+  const where = attivitaWhere(user, { vista, responsabile, stato, scadenza, q, commessaId, clienteId, opportunitaId }, now);
   const oggi = giornoAttivita(now);
   const [totale, riepilogo, scadute, inScadenza, utenti] = await Promise.all([
     prisma.attivita.count({ where }),
@@ -38,13 +38,14 @@ export default async function TasksPage({ searchParams }: {
     include: { user: { select: { nome: true, cognome: true } }, commessa: { select: { numero: true } }, cliente: { select: { ragioneSociale: true } } },
   });
   const link = (changes: Record<string, string>) => {
-    const params = new URLSearchParams({ vista, stato, scadenza, q, responsabile, commessaId, clienteId, ...changes });
+    const params = new URLSearchParams({ vista, stato, scadenza, q, responsabile, commessaId, clienteId, opportunitaId, ...changes });
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     return `/attivita?${params}`;
   };
   const prefill = new URLSearchParams();
   if (commessaId) prefill.set("commessaId", commessaId);
   if (clienteId) prefill.set("clienteId", clienteId);
+  if (opportunitaId) prefill.set("opportunitaId", opportunitaId);
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -52,7 +53,7 @@ export default async function TasksPage({ searchParams }: {
         <div className="flex flex-wrap gap-2"><PrintLink href={`/stampa${link({})}`} /><Link href={`/attivita/nuova${prefill.size ? `?${prefill}` : ""}`} className="rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white">+ Nuova attività</Link></div>
       </header>
       {sp.esito === "eliminata" && <p role="status" className="rounded-lg bg-ok-soft p-4 text-sm text-ok">Attività eliminata. I dati di commesse e anagrafiche sono stati conservati.</p>}
-      {(commessaId || clienteId) && <p className="rounded-lg bg-brand-soft p-4 text-sm text-brand-deep">Stai visualizzando le attività del collegamento selezionato. <Link href={link({ commessaId: "", clienteId: "" })} className="ml-2 underline">Mostra tutti i collegamenti</Link></p>}
+      {(commessaId || clienteId || opportunitaId) && <p className="rounded-lg bg-brand-soft p-4 text-sm text-brand-deep">Stai visualizzando le attività del collegamento selezionato. <Link href={link({ commessaId: "", clienteId: "", opportunitaId: "" })} className="ml-2 underline">Mostra tutti i collegamenti</Link></p>}
       {canManage && <nav aria-label="Vista attività" className="flex flex-wrap gap-2">{[["mie", "Le mie attività"], ["team", "Attività del team"]].map(([key, label]) => <Link key={key} href={link({ vista: key, responsabile: "", pagina: "" })} aria-current={vista === key ? "page" : undefined} className={`min-h-11 rounded-lg px-4 py-3 text-sm ${vista === key ? "bg-brand-soft font-semibold text-brand-deep" : "border border-line bg-panel text-ink-soft"}`}>{label}</Link>)}</nav>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[["Da fare", riepilogo.find((r) => r.stato === "DA_FARE")?._count._all ?? 0], ["Scadute", scadute], ["In scadenza oggi", inScadenza], ["Completate", riepilogo.find((r) => r.stato === "COMPLETATA")?._count._all ?? 0]].map(([label, count]) => <div key={label} className="rounded-xl border border-line bg-panel px-5 py-4"><p className="text-xs text-ink-soft">{label}</p><p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${label === "Scadute" && Number(count) > 0 ? "text-danger" : ""}`}>{count}</p></div>)}
@@ -73,12 +74,13 @@ export default async function TasksPage({ searchParams }: {
               <div className="flex flex-wrap items-center gap-2 text-xs"><span className={`rounded-full px-2.5 py-1 font-medium ${t.stato === "COMPLETATA" ? "bg-ok-soft text-ok" : "bg-brand-soft text-brand-deep"}`}>{t.stato === "COMPLETATA" ? "Completata" : "Da fare"}</span><span className={`rounded-full px-2.5 py-1 ${due === "scaduta" ? "bg-danger-soft text-danger" : due === "oggi" ? "bg-warn-soft text-warn" : "bg-paper text-ink-soft"}`}>{due === "scaduta" ? "Scaduta · " : due === "oggi" ? "Oggi · " : ""}{t.scadenza ? formatDate(t.scadenza) : "Senza scadenza"}</span></div>
             </div>
             {t.note && <p className="line-clamp-3 whitespace-pre-wrap text-sm text-ink-soft">{t.note}</p>}
+            {t.opportunitaId && <Link href={`/commerciale/${t.opportunitaId}`} className="inline-flex min-h-11 items-center text-sm text-brand-deep underline">Trattativa collegata</Link>}
             <div className="flex flex-wrap gap-4 text-sm">{t.commessaId && <Link href={`/commesse/${t.commessaId}`} className="text-brand-deep underline">Commessa {t.commessa?.numero}</Link>}{t.clienteId && <Link href={`/anagrafiche/${t.clienteId}`} className="text-brand-deep underline">{t.cliente?.ragioneSociale}</Link>}<Link href={attivitaHref(t.id)} className="text-brand-deep underline">Apri / modifica</Link></div>
             <TaskActions task={{ id: t.id, titolo: t.titolo, stato: t.stato, updatedAt: t.updatedAt.toISOString() }} />
           </li>;
         })}</ul>
       </section>
-      <ListPagination path="/attivita" params={{ vista, stato, scadenza, q, responsabile, commessaId, clienteId }} page={pagina} pages={pages} />
+      <ListPagination path="/attivita" params={{ vista, stato, scadenza, q, responsabile, commessaId, clienteId, opportunitaId }} page={pagina} pages={pages} />
       <p className="text-xs text-ink-soft">Le scadenze seguono il giorno italiano. Le assegnazioni effettuate da altri e i promemoria di scadenza compaiono nelle <Link href="/notifiche" className="text-brand-deep underline">notifiche</Link>.</p>
     </div>
   );

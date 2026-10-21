@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma";
 import { prisma } from "./prisma";
-import { puoGestireUtenti } from "./enums";
+import { puoGestireUtenti, puoGestireCommesse } from "./enums";
+import { eventoCommerciale } from "./commerciale";
 
 export class UtenteError extends Error {}
 
@@ -14,7 +15,7 @@ export async function eliminaUtente(
   await db.$transaction(async (tx) => {
     const actor = await tx.user.findUnique({
       where: { id: actorId },
-      select: { attivo: true, ruolo: true },
+      select: { id: true, nome: true, cognome: true, attivo: true, ruolo: true },
     });
     if (!actor?.attivo || !puoGestireUtenti(actor.ruolo)) {
       throw new UtenteError("Non hai i permessi per eliminare gli utenti.");
@@ -27,7 +28,7 @@ export async function eliminaUtente(
       where: { id: userId },
       select: {
         nome: true, cognome: true, email: true, ruolo: true, attivo: true,
-        _count: { select: { commesse: true, attivita: true, segnalazioni: true } },
+        _count: { select: { commesse: true, attivita: true, segnalazioni: true, opportunita: true } },
       },
     });
     if (!target) throw new UtenteError("Utente non trovato.");
@@ -41,11 +42,11 @@ export async function eliminaUtente(
       if (!altriAdmin) throw new UtenteError("Deve restare almeno un Super Admin attivo.");
     }
 
-    const haDati = target._count.commesse + target._count.attivita + target._count.segnalazioni > 0;
+    const haDati = Object.values(target._count).some((n) => n > 0);
     if (haDati) {
       const subentrante = input.subentranteId && input.subentranteId !== userId
         ? await tx.user.findUnique({
-          where: { id: input.subentranteId }, select: { attivo: true, ruolo: true },
+          where: { id: input.subentranteId }, select: { attivo: true, ruolo: true, nome: true, cognome: true },
         })
         : null;
       if (!subentrante?.attivo) {
@@ -53,6 +54,12 @@ export async function eliminaUtente(
       }
       if (target._count.commesse > 0 && subentrante.ruolo !== "PROJECT_MANAGER") {
         throw new UtenteError("Le commesse devono essere trasferite a un Project Manager attivo.");
+      }
+      if (target._count.opportunita > 0 && !puoGestireCommesse(subentrante.ruolo)) throw new UtenteError("Le trattative richiedono un subentrante abilitato alla gestione commerciale.");
+      const opportunita = await tx.opportunita.findMany({ where: { responsabileId: userId }, select: { id: true } });
+      for (const row of opportunita) {
+        await tx.opportunita.update({ where: { id: row.id }, data: { responsabileId: input.subentranteId, versione: { increment: 1 } } });
+        await eventoCommerciale(tx, actor, row.id, "RESPONSABILE", "Responsabilità trasferita per eliminazione account", { responsabile: { nome: target.nome, cognome: target.cognome } }, { responsabile: { nome: subentrante.nome, cognome: subentrante.cognome } });
       }
 
       await tx.commessa.updateMany({ where: { pmId: userId }, data: { pmId: input.subentranteId } });

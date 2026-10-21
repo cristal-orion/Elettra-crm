@@ -24,6 +24,7 @@ export type AnagraficaFormValues = {
   ragioneSociale: string;
   isCliente: boolean;
   isFornitore: boolean;
+  isProspect: boolean;
   partitaIva: string;
   codiceFiscale: string;
   codiceSDI: string;
@@ -105,6 +106,7 @@ export default function AnagraficaForm({
       <fieldset className="rounded-xl border border-line bg-panel p-5">
         <legend className="px-1 text-sm font-semibold">Tipo anagrafica</legend>
         <div className="mt-2 flex flex-wrap gap-6">
+          <label className="flex items-center gap-2.5 text-sm"><input type="checkbox" name="isProspect" defaultChecked={initial?.isProspect ?? false} className="h-4 w-4 accent-[color:var(--color-brand)]" />Potenziale cliente</label>
           <label className="flex items-center gap-2.5 text-sm">
             <input
               type="checkbox"
@@ -126,7 +128,7 @@ export default function AnagraficaForm({
           </label>
         </div>
         <p className="mt-2 text-xs text-ink-soft">
-          Il codice (C####/F####) viene assegnato automaticamente al salvataggio.
+          Il codice C/F viene assegnato ai clienti e fornitori. Il potenziale cliente diventa cliente alla conferma del primo incarico.
         </p>
       </fieldset>
 

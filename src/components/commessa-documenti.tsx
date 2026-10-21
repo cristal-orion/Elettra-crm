@@ -2,18 +2,18 @@ import type { Documento } from "@/generated/prisma";
 import { etichettaCategoria } from "@/lib/enums";
 import { formatBytes, formatDate } from "@/lib/format";
 import { DocumentiUploader, DocDeleteButton } from "@/app/(app)/commesse/documenti-ui";
-import { uploadDocumenti, deleteDocumento } from "@/app/(app)/commesse/documenti-actions";
+import { uploadDocumenti, uploadDocumentiCommerciali, deleteDocumento } from "@/app/(app)/commesse/documenti-actions";
 
 /** Un solo archivio per commessa e progetto, con le medesime azioni e autorizzazioni. */
-export default function CommessaDocumenti({ id, numero, documenti, puoGestire }: {
-  id: string; numero: string; documenti: Pick<Documento, "id" | "categoria" | "nomeFile" | "dimensione" | "createdAt">[]; puoGestire: boolean;
+export default function CommessaDocumenti({ id, numero, documenti, puoGestire, commerciale = false }: {
+  id: string; numero: string; documenti: Pick<Documento, "id" | "categoria" | "nomeFile" | "dimensione" | "createdAt">[]; puoGestire: boolean; commerciale?: boolean;
 }) {
   return <section className="rounded-xl border border-line bg-panel p-4 sm:p-6" aria-labelledby="documenti-title">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <h2 id="documenti-title" className="text-sm font-semibold">Documenti <span className="font-normal text-ink-faint">({documenti.length})</span></h2>
       <p className="text-xs text-ink-soft">Cartella <span className="font-mono text-ink-faint">{numero}/</span></p>
     </div>
-    {puoGestire && <div className="mt-4"><DocumentiUploader action={uploadDocumenti.bind(null, id)} /></div>}
+    {puoGestire && <div className="mt-4"><DocumentiUploader action={(commerciale ? uploadDocumentiCommerciali : uploadDocumenti).bind(null, id)} /></div>}
     {documenti.length === 0 ? <p className="mt-4 text-sm text-ink-faint">Nessun documento allegato.</p> : (
       <ul className="mt-4 flex flex-col divide-y divide-line">
         {documenti.map((d) => <li key={d.id} className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0">

@@ -79,11 +79,12 @@ export default async function DashboardPage() {
           Ciao{user ? `, ${user.nome}` : ""}
         </h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Attività personali e panoramica di anagrafiche, pipeline e conversione.
+          Attività personali e panoramica di anagrafiche e commesse.
         </p>
       </header>
 
       <TodayTasks data={todayTasks} />
+      <p className="text-sm text-ink-soft">I valori qui sotto sono calcolati sulle commesse, incluso lo storico. Per le nuove trattative, pipeline e tasso di successo apri il <Link href="/commerciale" className="inline-flex min-h-11 items-center text-brand-deep underline">Commerciale →</Link>.</p>
 
       {/* KPI */}
       <section aria-label="Riepilogo CRM" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -156,7 +157,7 @@ export default async function DashboardPage() {
 
       {/* Pipeline per stato */}
       <section className="rounded-xl border border-line bg-panel p-6">
-        <h2 className="text-sm font-semibold">Pipeline per stato</h2>
+        <h2 className="text-sm font-semibold">Commesse per stato</h2>
         <p className="mt-0.5 text-xs text-ink-soft">
           {commesseTotali} commesse totali
         </p>

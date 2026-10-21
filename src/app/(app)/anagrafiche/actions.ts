@@ -17,7 +17,7 @@ async function save(id: string | undefined, form: FormData): Promise<AnagraficaS
   const data = Object.fromEntries(fields.map((k) => [k, String(form.get(k) ?? "").trim() || null]));
   let href: string;
   try {
-    const result = await runCommand(user.id, { type: "salvaAnagrafica", id, expectedUpdatedAt: form.get("expectedUpdatedAt") || undefined, data: { ...data, isCliente: form.get("isCliente") === "on", isFornitore: form.get("isFornitore") === "on" }, referenti: referenti.data });
+    const result = await runCommand(user.id, { type: "salvaAnagrafica", id, expectedUpdatedAt: form.get("expectedUpdatedAt") || undefined, data: { ...data, isCliente: form.get("isCliente") === "on", isFornitore: form.get("isFornitore") === "on", isProspect: form.get("isProspect") === "on" }, referenti: referenti.data });
     href = result.href;
   } catch (e) {
     return e instanceof DuplicateAnagraficaError

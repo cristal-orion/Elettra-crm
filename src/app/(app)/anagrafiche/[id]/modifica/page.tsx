@@ -33,6 +33,7 @@ export default async function ModificaAnagraficaPage({
     ragioneSociale: anagrafica.ragioneSociale,
     isCliente: anagrafica.isCliente,
     isFornitore: anagrafica.isFornitore,
+    isProspect: anagrafica.isProspect,
     partitaIva: anagrafica.partitaIva ?? "",
     codiceFiscale: anagrafica.codiceFiscale ?? "",
     codiceSDI: anagrafica.codiceSDI ?? "",

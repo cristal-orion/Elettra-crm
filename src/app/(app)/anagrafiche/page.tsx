@@ -19,14 +19,14 @@ export default async function AnagrafichePage({
   const sp = await searchParams;
   const q = queryText(sp.q);
   const ordine = sp.ordine === "nome_desc" ? sp.ordine : "nome";
-  const tipo = sp.tipo === "cliente" || sp.tipo === "fornitore" ? sp.tipo : null;
+  const tipo = sp.tipo === "cliente" || sp.tipo === "fornitore" || sp.tipo === "prospect" ? sp.tipo : null;
 
   const user = await getCurrentUser();
   const puoCreare = user ? puoGestireAnagrafiche(user.ruolo) : false;
 
   const pagination = await searchListPage(prisma, listSources.anagrafiche, {
     query: q, page: sp.pagina,
-    scope: tipo === "cliente" ? Prisma.sql`s."isCliente" = true` : tipo === "fornitore" ? Prisma.sql`s."isFornitore" = true` : undefined,
+    scope: tipo === "cliente" ? Prisma.sql`s."isCliente" = true` : tipo === "fornitore" ? Prisma.sql`s."isFornitore" = true` : tipo === "prospect" ? Prisma.sql`s."isProspect" = true` : undefined,
     orderBy: ordine === "nome_desc" ? Prisma.sql`s."ragioneSociale" DESC` : Prisma.sql`s."ragioneSociale" ASC`,
   });
   const total = pagination.total;
@@ -47,7 +47,7 @@ export default async function AnagrafichePage({
             Anagrafiche
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">
-            Clienti e fornitori
+            Clienti, potenziali clienti e fornitori
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
             {total} risultati
@@ -72,9 +72,9 @@ export default async function AnagrafichePage({
       </header>
 
       <ListFilters q={q} total={total} similar={pagination.similar} placeholder="Nome, codice, P.IVA, contatto, località…" filters={[
-        { name: "tipo", label: "Tipo", value: tipo ?? "", options: [{ value: "", label: "Clienti e fornitori" }, { value: "cliente", label: "Clienti" }, { value: "fornitore", label: "Fornitori" }] },
+        { name: "tipo", label: "Tipo", value: tipo ?? "", options: [{ value: "", label: "Tutte le anagrafiche" }, { value: "cliente", label: "Clienti" }, { value: "prospect", label: "Potenziali clienti" }, { value: "fornitore", label: "Fornitori" }] },
         { name: "ordine", label: "Ordina per", value: ordine, defaultValue: "nome", options: [{ value: "nome", label: "Nome A–Z" }, { value: "nome_desc", label: "Nome Z–A" }] },
-      ]} suggestions={anagrafiche.slice(0, 5).map((a) => ({ href: `/anagrafiche/${a.id}`, label: a.ragioneSociale, type: a.isCliente && a.isFornitore ? "Cliente / Fornitore" : a.isCliente ? "Cliente" : "Fornitore" }))} />
+      ]} suggestions={anagrafiche.slice(0, 5).map((a) => ({ href: `/anagrafiche/${a.id}`, label: a.ragioneSociale, type: [a.isCliente && "Cliente", a.isProspect && "Potenziale cliente", a.isFornitore && "Fornitore"].filter(Boolean).join(" / ") }))} />
 
       <div className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full text-sm">
@@ -104,6 +104,7 @@ export default async function AnagrafichePage({
                       className="font-medium text-brand-deep underline underline-offset-4 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-brand"
                     >
                       {a.ragioneSociale}
+                      {a.isProspect && <span className="ml-2 text-xs font-normal text-ink-soft">Potenziale cliente</span>}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-ink-soft">

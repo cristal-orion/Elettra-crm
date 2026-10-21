@@ -8,6 +8,7 @@ import type { TaskOptions } from "./data";
 
 export type TaskValues = {
   id?: string; expectedUpdatedAt?: string; titolo: string; note: string;
+  opportunitaId?: string;
   scadenza: string; stato: string; userId: string; commessaId: string; clienteId: string;
 };
 
@@ -23,6 +24,7 @@ export default function TaskForm({ options, initial, canAssign }: {
   return (
     <form action={action} className="space-y-5">
       {initial.id && <><input type="hidden" name="id" value={initial.id} /><input type="hidden" name="expectedUpdatedAt" value={initial.expectedUpdatedAt} /></>}
+      {initial.opportunitaId && <><input type="hidden" name="opportunitaId" value={initial.opportunitaId} /><p className="text-sm text-ink-soft">Attività collegata alla <Link href={`/commerciale/${initial.opportunitaId}`} className="text-brand-deep underline">trattativa commerciale</Link>.</p></>}
       <fieldset disabled={pending} className="grid gap-4 rounded-xl border border-line bg-panel p-5 sm:grid-cols-2">
         <legend className="px-1 text-sm font-semibold">Dati dell’attività</legend>
         <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">Titolo *<input name="titolo" required maxLength={300} defaultValue={initial.titolo} className={cls} /></label>

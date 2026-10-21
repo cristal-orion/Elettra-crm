@@ -53,7 +53,7 @@ async function project(db: Db, id: string) {
 function range(start: Date | null | undefined, end: Date | null | undefined) {
   if (start && end && start > end) throw new CrmError("La data finale non può precedere quella iniziale.");
 }
-async function nextCode(db: Db, prefix: "C" | "F") {
+export async function nextAnagraficaCode(db: Db, prefix: "C" | "F") {
   const field = prefix === "C" ? "codiceCliente" : "codiceFornitore";
   const rows = await db.anagrafica.findMany({ where: { [field]: { not: null } }, select: { codiceCliente: true, codiceFornitore: true } });
   const max = rows.reduce((n, row) => Math.max(n, Number(row[field]?.slice(1)) || 0), 0);
@@ -76,7 +76,9 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (c.id && !existing) throw new CrmError("Anagrafica non trovata.");
       if (existing) checkVersion(existing, c.expectedUpdatedAt);
       const data = { ...existing, ...c.data };
-      if (!data.ragioneSociale || (!data.isCliente && !data.isFornitore)) throw new CrmError("Indica ragione sociale e almeno Cliente o Fornitore.");
+      if (!data.ragioneSociale || (!data.isCliente && !data.isFornitore && !data.isProspect)) throw new CrmError("Indica ragione sociale e almeno Cliente, Fornitore o Potenziale cliente.");
+      if (existing && !data.isCliente && !data.isProspect && await db.opportunita.count({ where: { anagraficaId: existing.id } })) throw new CrmError("L'anagrafica è collegata a trattative: conserva il ruolo Cliente o Potenziale cliente.");
+      if (existing && !data.isCliente && await db.opportunita.count({ where: { anagraficaId: existing.id, commessa: { isNot: null } } })) throw new CrmError("L'anagrafica ha incarichi confermati: conserva il ruolo Cliente.");
       const normalized = (value: string | null | undefined) => value?.trim().toUpperCase() || null;
       // Gli import possono contenere duplicati storici: non devono bloccare la
       // modifica di contatti/referenti. Controlla ogni campo fiscale solo se nuovo
@@ -90,14 +92,14 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
         if (duplicates.length) throw new DuplicateAnagraficaError(duplicates.map(({ partitaIva, codiceFiscale, ...a }) => ({ ...a,
           campi: fiscalFields.filter((field) => normalized({ partitaIva, codiceFiscale }[field]) === normalized(c.data[field])) })));
       }
-      const values = { ...c.data, codiceCliente: existing?.codiceCliente ?? (data.isCliente ? await nextCode(db, "C") : null), codiceFornitore: existing?.codiceFornitore ?? (data.isFornitore ? await nextCode(db, "F") : null) };
+      const values = { ...c.data, isProspect: data.isCliente ? false : data.isProspect, codiceCliente: existing?.codiceCliente ?? (data.isCliente ? await nextAnagraficaCode(db, "C") : null), codiceFornitore: existing?.codiceFornitore ?? (data.isFornitore ? await nextAnagraficaCode(db, "F") : null) };
       const row = existing ? await db.anagrafica.update({ where: { id: existing.id }, data: values }) : await db.anagrafica.create({ data: { ...values, ragioneSociale: data.ragioneSociale } });
       if (c.referenti !== undefined) {
         const ids = c.referenti.flatMap((r) => r.id ? [r.id] : []);
         if (new Set(ids).size !== ids.length) throw new CrmError("Referenti duplicati.");
         const previous = await db.referente.findMany({ where: { anagraficaId: row.id }, select: { id: true } });
         for (const r of c.referenti) await saveReferente(db, row.id, r);
-        await db.referente.deleteMany({ where: { anagraficaId: row.id, id: { in: previous.map((r) => r.id).filter((id) => !ids.includes(id)) }, commesse: { none: {} } } });
+        await db.referente.deleteMany({ where: { anagraficaId: row.id, id: { in: previous.map((r) => r.id).filter((id) => !ids.includes(id)) }, commesse: { none: {} }, opportunita: { none: {} } } });
       }
       return { id: row.id, href: `/anagrafiche/${row.id}`, message: existing ? "Anagrafica aggiornata." : "Anagrafica creata." };
     }
@@ -114,6 +116,7 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (c.id && !existing) throw new CrmError("Commessa non trovata.");
       if (existing) checkVersion(existing, c.expectedUpdatedAt);
       const clienteId = c.data.clienteId ?? existing?.clienteId;
+      if (existing?.opportunitaId && clienteId !== existing.clienteId) throw new CrmError("La commessa deriva da una trattativa: il cliente deve restare quello dell'incarico confermato.");
       if (existing && clienteId !== existing.clienteId && await db.consuntivo.findUnique({ where: { commessaId: existing.id }, select: { id: true } })) {
         throw new CrmError("La commessa ha un consuntivo: il cliente deve restare quello del rendiconto.");
       }
@@ -199,12 +202,16 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       const userId = c.userId ?? actor.id;
       if (userId !== actor.id && !puoGestireCommesse(actor.ruolo)) throw new CrmError("Puoi creare attività solo per te.", "FORBIDDEN");
       if (!await db.user.findFirst({ where: { id: userId, attivo: true } })) throw new CrmError("Responsabile non valido.");
-      const commessa = c.commessaId ? await db.commessa.findUnique({ where: { id: c.commessaId } }) : null;
+      const opportunita = c.opportunitaId ? await db.opportunita.findUnique({ where: { id: c.opportunitaId }, include: { commessa: { select: { id: true } } } }) : null;
+      if (c.opportunitaId && !opportunita) throw new CrmError("Trattativa non trovata.");
+      const commessaId = c.commessaId ?? opportunita?.commessa?.id;
+      const commessa = commessaId ? await db.commessa.findUnique({ where: { id: commessaId } }) : null;
       if (c.commessaId && !commessa) throw new CrmError("Commessa non trovata.");
-      const clienteId = c.clienteId ?? commessa?.clienteId;
+      const clienteId = c.clienteId ?? opportunita?.anagraficaId ?? commessa?.clienteId;
+      if (opportunita && (clienteId !== opportunita.anagraficaId || (commessaId && commessaId !== opportunita.commessa?.id))) throw new CrmError("I collegamenti non corrispondono alla trattativa.");
       if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
       if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
-      const a = await db.attivita.create({ data: { titolo: c.titolo, note: c.note, scadenza: dateValue(c.scadenza), userId, commessaId: c.commessaId, clienteId } });
+      const a = await db.attivita.create({ data: { titolo: c.titolo, note: c.note, scadenza: dateValue(c.scadenza), userId, commessaId, clienteId, opportunitaId: c.opportunitaId } });
       await notificaAttivita(db, actor.id, a, true);
       return { id: a.id, href: attivitaHref(a.id), message: "Attività creata." };
     }
@@ -228,6 +235,10 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       const commessa = commessaId ? await db.commessa.findUnique({ where: { id: commessaId } }) : null;
       if (commessaId && !commessa) throw new CrmError("Commessa non trovata.");
       const clienteId = c.clienteId === undefined ? commessa?.clienteId ?? a.clienteId : c.clienteId;
+      if (a.opportunitaId) {
+        const opp = await db.opportunita.findUniqueOrThrow({ where: { id: a.opportunitaId }, include: { commessa: { select: { id: true } } } });
+        if (clienteId !== opp.anagraficaId || (commessaId ?? null) !== (opp.commessa?.id ?? null)) throw new CrmError("I collegamenti devono restare coerenti con la trattativa.");
+      }
       if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
       if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
       const data = { titolo: c.titolo, note: c.note, stato: c.stato, scadenza: dateValue(c.scadenza), userId, commessaId, clienteId };

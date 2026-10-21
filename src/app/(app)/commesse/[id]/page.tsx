@@ -107,6 +107,7 @@ export default async function CommessaDetailPage({
 
       <AiContextPanel type="commessa" id={id} />
       <TaskContext user={user} commessaId={id} />
+      {commessa.opportunitaId && <Link href={`/commerciale/${commessa.opportunitaId}`} className="min-h-11 rounded-lg border border-line p-4 text-sm text-brand-deep">Apri trattativa di origine, offerta e conferma incarico →</Link>}
 
       <Link href={`/commesse/${id}/consuntivo`} className="rounded-xl border border-line bg-panel p-5 text-sm font-medium text-brand-deep hover:border-brand">Consuntivo ore e materiali → <span className="mt-1 block font-normal text-ink-soft">Tariffario cliente, valori applicati al lavoro e storico delle modifiche.</span></Link>
 

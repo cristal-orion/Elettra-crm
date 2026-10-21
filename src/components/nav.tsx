@@ -38,6 +38,7 @@ const items: NavItem[] = [
       </svg>
     ),
   },
+  { href: "/commerciale", label: "Commerciale", icon: <svg viewBox="0 0 24 24" fill="none" className={iconClass} aria-hidden><path d="M4 19V5M4 19h16M7 14l5-5 4 3 5-7M16 5h5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg> },
   {
     href: "/commesse",
     label: "Commesse",

@@ -16,7 +16,7 @@ export const ReferenteData = z.object({
 });
 export const AnagraficaData = z.object({
   ragioneSociale: z.string().trim().min(1).max(300).optional(),
-  isCliente: z.boolean().optional(), isFornitore: z.boolean().optional(),
+  isCliente: z.boolean().optional(), isFornitore: z.boolean().optional(), isProspect: z.boolean().optional(),
   partitaIva: text, codiceFiscale: text, codiceSDI: text, indirizzo: text,
   cap: text, localita: text, provincia: text, telefono: text, fax: text, email: text,
   web: text, modalitaPagamento: text, prodottiTrattati: text, note: text,
@@ -44,7 +44,7 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("eliminaMilestone"), id, expectedUpdatedAt: version }),
   z.object({ type: z.literal("assegnaOperaio"), commessaId: id, operaioId: id, ruoloCantiere: z.enum(keys(RUOLI_CANTIERE)).nullable().optional(), dal: day, al: day, note: text, aggiornaEsistente: z.boolean().default(false) }),
   z.object({ type: z.literal("rimuoviAssegnazione"), id }),
-  z.object({ type: z.literal("creaAttivita"), titolo: z.string().trim().min(1).max(300), note: text, scadenza: day, userId: id.optional(), commessaId: optionalId, clienteId: optionalId }),
+  z.object({ type: z.literal("creaAttivita"), titolo: z.string().trim().min(1).max(300), note: text, scadenza: day, userId: id.optional(), commessaId: optionalId, clienteId: optionalId, opportunitaId: optionalId }),
   z.object({ type: z.literal("aggiornaAttivita"), id, expectedUpdatedAt: version, stato: z.enum(["DA_FARE", "COMPLETATA"]).optional(), titolo: z.string().trim().min(1).max(300).optional(), note: text, scadenza: day, userId: id.optional(), commessaId: optionalId, clienteId: optionalId }),
   z.object({ type: z.literal("eliminaAttivita"), id, expectedUpdatedAt: version }),
 ]);

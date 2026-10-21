@@ -11,8 +11,9 @@ import { PrismaClient } from "../src/generated/prisma";
 import { testDatabase } from "./test-database";
 import { giornoAttivita } from "../src/lib/attivita";
 import { verifyConsuntiviUi } from "./consuntivi-ui";
+import { verifyCommercialeUi } from "./commerciale-ui";
 
-test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda e consuntivi su dati isolati", { timeout: 300_000 }, async () => {
+test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e commerciale su dati isolati", { timeout: 420_000 }, async () => {
   const database = testDatabase();
   const db = new PrismaClient({ datasourceUrl: database.url });
   const secret = randomBytes(48).toString("hex");
@@ -55,6 +56,13 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda e consuntivi su
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    if (process.env.UI_SUITE === "commerciale") {
+      const reader = await db.user.create({ data: { email: "commercial-reader@example.test", passwordHash: "unused", nome: "Reader", cognome: "UI", ruolo: "AMMINISTRAZIONE", guidaVista: "*" } });
+      const readerToken = await new SignJWT({ userId: reader.id, ruolo: reader.ruolo, nome: reader.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
+      await verifyCommercialeUi({ page, context, browser, db, origin, readerToken });
+      assert.deepEqual(errors, []);
+      return;
+    }
     const list = `${origin}/commesse?stato=INVIATA&pagina=2&ordine=numero_asc&q=impianto%20aloxe`;
     const ready = async (p: Page) => {
       // Aspetta anche i bundle: i campi SSR sono visibili prima degli handler React.
@@ -443,6 +451,8 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda e consuntivi su
     await agenda.getByRole("heading", { name: "Da fare oggi", exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Overflow agenda mobile");
     for (const button of await agenda.getByRole("button").all()) assert.ok((await button.boundingBox())!.height >= 44);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await verifyCommercialeUi({ page, context, browser, db, origin, readerToken });
     assert.deepEqual(errors, []);
     console.log("PASS: ingresso diretto con fallback e filtri mobile senza overflow");
   } catch (error) {

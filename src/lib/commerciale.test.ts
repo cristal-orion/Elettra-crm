@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import { testDatabase } from "../../scripts/test-database";
+import { commercialeList } from "./commerciale-list";
+import { cambiaFase, convertiOpportunita, opportunitaInput, registraInterazione, salvaFase, salvaOpportunita } from "./commerciale";
+import { executeCommand } from "./crm/commands";
+import { eliminaUtente } from "./utenti";
+import { getPrintableTasks } from "./stampa";
+import { giornoAttivita } from "./attivita";
+
+test("Commerciale: flusso, conversione concorrente, audit e perimetro indicatori", async (t) => {
+  const database = testDatabase();
+  process.env.DATABASE_URL = database.url;
+  const db = (await import("./prisma")).prisma;
+  const { serializable: tx } = await import("./transaction");
+  const today = giornoAttivita().toISOString().slice(0, 10);
+  const base = { versione: 0, titolo: "Impianto caffè", anagraficaId: "prospect", referenteId: "ref", responsabileId: "owner", tipologia: "P", origine: "Passaparola", descrizione: "Impianto nuovo", valorePrevisto: "2000", riferimentoOfferta: "", importoOfferta: "", dataInvioOfferta: "" };
+  const confirmation = { versione: 1, dataOrdine: today, importoOrdine: "1500", metodoRicezioneOrdine: "EMAIL", riferimentoConferma: "Email cliente", pmId: "pm", conferma: true };
+  const current = (id: string) => db.opportunita.findUniqueOrThrow({ where: { id } });
+  try {
+    await db.user.createMany({ data: [["admin", "SUPER_ADMIN"], ["owner", "BACKOFFICE"], ["pm", "PROJECT_MANAGER"], ["reader", "AMMINISTRAZIONE"]].map(([id, ruolo]) => ({ id, ruolo, nome: id, cognome: "Test", email: `${id}@example.test`, passwordHash: "unused" })) });
+    await db.anagrafica.createMany({ data: [{ id: "prospect", ragioneSociale: "Àloxe Caffè", isProspect: true }, { id: "client", ragioneSociale: "Cliente", isCliente: true }, { id: "supplier", ragioneSociale: "Fornitore", isFornitore: true }] });
+    await db.referente.create({ data: { id: "ref", anagraficaId: "prospect", nome: "Mario", cognome: "Rossi" } });
+    await t.test("cliente potenziale unico, permessi effettivi, validazione e conflitti", async () => {
+      await assert.rejects(tx((d) => salvaOpportunita(d, "reader", "opp", base)), /permessi/);
+      await assert.rejects(tx((d) => salvaOpportunita(d, "admin", "opp", { ...base, anagraficaId: "supplier" })), /potenziale/);
+      await assert.rejects(tx((d) => salvaOpportunita(d, "admin", "opp", { ...base, anagraficaId: "client" })), /referente/);
+      await assert.rejects(tx((d) => salvaOpportunita(d, "admin", "opp", { ...base, importoOfferta: "-2" })));
+      await assert.rejects(tx((d) => salvaOpportunita(d, "admin", "../unsafe", base)));
+      const row = await tx((d) => salvaOpportunita(d, "owner", "opp", base));
+      assert.equal(row.faseId, "lead"); assert.equal(row.versione, 1);
+      const same = await tx((d) => salvaOpportunita(d, "admin", "opp", opportunitaInput(row)));
+      assert.equal(same.versione, 1); assert.equal(await db.eventoCommerciale.count(), 1);
+      await assert.rejects(tx((d) => salvaOpportunita(d, "admin", "opp", base)), /modificata/);
+      await tx((d) => executeCommand(d, "admin", { type: "salvaAnagrafica", id: "prospect", data: { ragioneSociale: "Àloxe Caffè" }, referenti: [] }));
+      assert.ok(await db.referente.findUnique({ where: { id: "ref" } }), "referente di una trattativa preservato");
+      await assert.rejects(tx((d) => executeCommand(d, "admin", { type: "salvaAnagrafica", id: "prospect", data: { isProspect: false, isFornitore: true } })), /trattative/);
+    });
+    await t.test("fasi: perdita motivata, riapertura tracciata e nessuna vittoria senza conferma", async () => {
+      await assert.rejects(tx((d) => cambiaFase(d, "owner", "opp", { versione: 1, faseId: "persa", motivo: "" })), /motivo/);
+      await assert.rejects(tx((d) => cambiaFase(d, "owner", "opp", { versione: 1, faseId: "vinta", motivo: "" })), /Conferma incarico/);
+      await assert.rejects(tx((d) => cambiaFase(d, "owner", "opp", { versione: 1, faseId: "inviata", motivo: "" })), /offerta/);
+      await tx((d) => cambiaFase(d, "owner", "opp", { versione: 1, faseId: "persa", motivo: "Budget insufficiente" }));
+      await assert.rejects(tx((d) => convertiOpportunita(d, "owner", "opp", { ...confirmation, versione: 2 })), /Riapri/);
+      await tx((d) => cambiaFase(d, "owner", "opp", { versione: 2, faseId: "qualificato", motivo: "" }));
+      assert.equal((await current("opp")).motivazionePersa, null);
+      assert.ok(await db.eventoCommerciale.findFirst({ where: { testo: { contains: "Budget insufficiente" } } }));
+    });
+    await t.test("contatti idempotenti, attività e notifiche atomiche, filtro stampa", async () => {
+      const contact = { versione: 3, richiestaId: randomUUID(), tipo: "EMAIL", data: today, testo: "Cliente interessato", esito: "Preparare offerta", rispostaCliente: true, attivita: { titolo: "Inviare offerta", userId: "pm", scadenza: today } };
+      await assert.rejects(tx((d) => registraInterazione(d, "admin", "opp", { ...contact, attivita: { ...contact.attivita, userId: "missing" } })), /Responsabile/);
+      assert.equal((await current("opp")).versione, 3);
+      const result = await Promise.all([tx((d) => registraInterazione(d, "admin", "opp", contact)), tx((d) => registraInterazione(d, "admin", "opp", contact))]);
+      assert.equal(result[0].id, result[1].id); assert.equal(await db.attivita.count({ where: { opportunitaId: "opp" } }), 1);
+      const task = await db.attivita.findFirstOrThrow({ where: { opportunitaId: "opp" } });
+      assert.equal(task.clienteId, "prospect"); assert.equal(await db.notifica.count({ where: { userId: "pm" } }), 1);
+      await assert.rejects(tx((d) => registraInterazione(d, "admin", "opp", { ...contact, testo: "Cambiato" })), /già stata usata/);
+      assert.equal((await getPrintableTasks({ id: "reader", ruolo: "AMMINISTRAZIONE" }, { vista: "team", opportunitaId: "opp" }, db)).tasks.length, 0);
+      assert.equal((await getPrintableTasks({ id: "admin", ruolo: "SUPER_ADMIN" }, { vista: "team", opportunitaId: "opp" }, db)).tasks.length, 1);
+    });
+    await t.test("conferma simultanea crea una sola commessa, promuove il prospect e conserva documenti/attività", async () => {
+      await assert.rejects(tx((d) => convertiOpportunita(d, "owner", "opp", { ...confirmation, versione: 4 })), /offerta/);
+      const row = await tx(async (d) => salvaOpportunita(d, "owner", "opp", { ...opportunitaInput(await current("opp")), importoOfferta: "1750", riferimentoOfferta: "OFF-26", dataInvioOfferta: today }));
+      assert.equal(row.ultimaRispostaIl, null);
+      await db.documento.create({ data: { id: "doc", opportunitaId: "opp", nomeFile: "offerta.txt", percorso: "commerciale-opp/offerta.txt", dimensione: 10 } });
+      await assert.rejects(tx((d) => convertiOpportunita(d, "owner", "opp", { ...confirmation, versione: row.versione, pmId: "reader" })), /Project Manager/);
+      assert.equal((await db.anagrafica.findUniqueOrThrow({ where: { id: "prospect" } })).isCliente, false, "promozione rollback se PM non valido");
+      const results = await Promise.all(Array.from({ length: 3 }, () => tx((d) => convertiOpportunita(d, "owner", "opp", { ...confirmation, versione: row.versione }))));
+      assert.equal(new Set(results.map((r) => r.id)).size, 1);
+      const job = await db.commessa.findUniqueOrThrow({ where: { id: results[0].id } });
+      assert.equal(job.stato, "ORDINE_CONFERMATO"); assert.equal(job.importoOrdine?.toString(), "1500"); assert.equal(job.importoOfferta?.toString(), "1750"); assert.equal(job.referenteId, "ref");
+      const client = await db.anagrafica.findUniqueOrThrow({ where: { id: "prospect" } });
+      assert.equal(client.isCliente, true); assert.equal(client.isProspect, false); assert.match(client.codiceCliente!, /^C\d+/);
+      const doc = await db.documento.findUniqueOrThrow({ where: { id: "doc" } });
+      assert.equal(doc.commessaId, job.id); assert.equal(doc.opportunitaId, "opp"); assert.equal(doc.percorso, "commerciale-opp/offerta.txt");
+      assert.equal((await db.attivita.findFirstOrThrow({ where: { opportunitaId: "opp" } })).commessaId, job.id);
+      assert.equal(await db.eventoCommerciale.count({ where: { opportunitaId: "opp", tipo: "CONVERSIONE" } }), 1);
+      await assert.rejects(tx((d) => executeCommand(d, "admin", { type: "salvaCommessa", id: job.id, data: { clienteId: "client" } })), /cliente deve restare/);
+      await assert.rejects(tx(async (d) => salvaOpportunita(d, "owner", "opp", opportunitaInput(await current("opp")))), /chiusa/);
+      await assert.rejects(tx((d) => executeCommand(d, "admin", { type: "salvaAnagrafica", id: "prospect", data: { isCliente: false, isProspect: true } })), /incarichi confermati/);
+    });
+    await t.test("consuntivo senza offerta/importo, deduplica cliente e revoca permessi", async () => {
+      await tx((d) => salvaOpportunita(d, "owner", "actual", { ...base, anagraficaId: "client", referenteId: "", tipologia: "C" }));
+      const job = await tx((d) => convertiOpportunita(d, "owner", "actual", { ...confirmation, importoOrdine: "" }));
+      assert.equal((await db.commessa.findUniqueOrThrow({ where: { id: job.id } })).importoOrdine, null);
+      await db.anagrafica.update({ where: { id: "client" }, data: { partitaIva: "12345678901" } });
+      await db.anagrafica.create({ data: { id: "dup", ragioneSociale: "Storico duplicato", isProspect: true, partitaIva: "12345678901" } });
+      await tx((d) => salvaOpportunita(d, "owner", "dup-opp", { ...base, anagraficaId: "dup", referenteId: "", tipologia: "C" }));
+      await assert.rejects(tx((d) => convertiOpportunita(d, "owner", "dup-opp", confirmation)), /già un cliente/);
+      await db.user.update({ where: { id: "owner" }, data: { ruolo: "AMMINISTRAZIONE" } });
+      await assert.rejects(tx((d) => convertiOpportunita(d, "owner", "actual", confirmation)), /permessi/);
+      await db.user.update({ where: { id: "owner" }, data: { ruolo: "BACKOFFICE" } });
+    });
+    await t.test("stati configurabili: semantica stabile, storico e fasi in uso protette", async () => {
+      const input = { versione: 0, nome: "Verifica tecnica", categoria: "APERTA", ordine: 35, attiva: true };
+      await assert.rejects(tx((d) => salvaFase(d, "owner", "technical", input)), /permessi/);
+      const fase = await tx((d) => salvaFase(d, "admin", "technical", input));
+      await assert.rejects(tx((d) => salvaFase(d, "admin", "technical", { ...input, versione: fase.versione, categoria: "INVIATA" })), /fissa/);
+      await assert.rejects(tx((d) => salvaFase(d, "admin", "vinta", { ...input, versione: 1, nome: "Vinta", categoria: "VINTA", attiva: false })), /restare attive/);
+      await assert.rejects(tx((d) => salvaFase(d, "admin", "lead", { ...input, versione: 1, nome: "Lead", attiva: false })), /Sposta le trattative/);
+      assert.ok(await db.eventoCommerciale.findFirst({ where: { tipo: "CONFIGURAZIONE" } }));
+    });
+    await t.test("indicatori integrali oltre pagina/colonna, normalizzazione e scadenze entro il perimetro", async () => {
+      const old = new Date(+giornoAttivita() - 20 * 86400000);
+      await db.opportunita.createMany({ data: Array.from({ length: 36 }, (_, i) => ({ id: `list-${i}`, titolo: `Métriche ${i}`, anagraficaId: "client", responsabileId: "owner", faseId: i === 0 ? "persa" : "lead", valorePrevisto: i === 35 ? null : "10", dataInvioOfferta: old, riferimentoOfferta: "OLD", importoOfferta: 10, createdAt: old, faseAggiornataIl: old })) });
+      await db.attivita.create({ data: { titolo: "Contatto riservato", opportunitaId: "list-1", userId: "pm", scadenza: giornoAttivita() } });
+      const admin = { id: "admin", ruolo: "SUPER_ADMIN" }, reader = { id: "reader", ruolo: "AMMINISTRAZIONE" };
+      const list = await commercialeList(db, admin, { q: "metriche", vista: "elenco", pagina: "2" });
+      assert.equal(list.rows.length, 6); assert.equal(list.totals.total, 36); assert.equal(list.totals.aperte, 35); assert.equal(list.totals.pipeline, "340.00"); assert.equal(list.totals.senzaValore, 1);
+      const board = await commercialeList(db, admin, { q: "metriche" });
+      assert.equal(board.rows.length, 11); assert.equal(board.totals.total, 36);
+      assert.equal((await commercialeList(db, admin, { q: "metriche", situazione: "senzaRisposta" })).totals.total, 35);
+      assert.equal((await commercialeList(db, admin, { q: "metriche", situazione: "ferme" })).totals.total, 35);
+      assert.equal((await commercialeList(db, admin, { q: "metriche", situazione: "richiamare" })).totals.total, 1);
+      const hidden = await commercialeList(db, reader, { q: "metriche", situazione: "richiamare" });
+      assert.equal(hidden.totals.total, 0);
+      assert.equal((await commercialeList(db, admin, { q: "metrciche", cliente: "client" })).similar, true);
+      assert.equal((await commercialeList(db, admin, { q: "' OR 1=1 --" })).totals.total, 0);
+      assert.equal(await db.commessa.count(), 2, "gli indicatori non generano né riclassificano commesse");
+    });
+    await t.test("eliminazione owner trasferisce responsabilità, incrementa versione e preserva autore", async () => {
+      await assert.rejects(eliminaUtente("admin", "owner", { emailConferma: "owner@example.test", subentranteId: "reader" }, db), /gestione commerciale/);
+      const before = await current("opp");
+      await eliminaUtente("admin", "owner", { emailConferma: "owner@example.test", subentranteId: "pm" }, db);
+      const row = await current("opp"); assert.equal(row.responsabileId, "pm"); assert.equal(row.versione, before.versione + 1);
+      const event = await db.eventoCommerciale.findFirstOrThrow({ where: { tipo: "CREAZIONE", opportunitaId: "opp" } });
+      assert.equal(event.autoreId, null); assert.equal(event.autoreNome, "owner Test");
+      assert.ok(await db.eventoCommerciale.findFirst({ where: { tipo: "RESPONSABILE", opportunitaId: "opp" } }));
+    });
+  } finally { await database.cleanup(db); }
+});

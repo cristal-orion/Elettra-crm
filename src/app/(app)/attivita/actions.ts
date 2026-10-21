@@ -19,7 +19,7 @@ export async function saveTask(_prev: TaskState, form: FormData): Promise<TaskSt
     };
     const result = await runCommand(user.id, id
       ? { type: "aggiornaAttivita", id, expectedUpdatedAt: form.get("expectedUpdatedAt"), stato: form.get("stato"), ...fields }
-      : { type: "creaAttivita", ...fields });
+      : { type: "creaAttivita", ...fields, opportunitaId: form.get("opportunitaId") || undefined });
     href = result.href;
   } catch (error) { return { error: publicError(error) }; }
   revalidatePath("/", "layout");

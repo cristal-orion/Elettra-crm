@@ -40,6 +40,8 @@ model User {
   notifiche Notifica[]
   attivita Attivita[]
   modificheEconomiche ModificaEconomica[]
+  opportunita Opportunita[]
+  eventiCommerciali EventoCommerciale[]
 
   @@index([ruolo])
 }
@@ -53,6 +55,7 @@ model Anagrafica {
   codiceFornitore String? @unique
   isCliente       Boolean @default(false)
   isFornitore     Boolean @default(false)
+  isProspect      Boolean @default(false)
 
   // Dati fiscali e di contatto
   partitaIva     String?
@@ -81,6 +84,7 @@ model Anagrafica {
   attivita Attivita[]
   tariffario TariffarioCliente?
   consuntivi Consuntivo[]
+  opportunita Opportunita[]
 
   @@index([ragioneSociale])
 }
@@ -129,6 +133,7 @@ model Referente {
 
   anagrafica Anagrafica @relation(fields: [anagraficaId], references: [id], onDelete: Cascade)
   commesse   Commessa[]
+  opportunita Opportunita[]
 
   @@index([anagraficaId])
 }
@@ -179,6 +184,8 @@ model Commessa {
   assegnazioni    AssegnazioneOperaio[]
   attivita        Attivita[]
   consuntivo      Consuntivo?
+  opportunitaId   String? @unique
+  opportunita     Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
 
   @@index([clienteId])
   @@index([stato])
@@ -400,7 +407,8 @@ model RigaOrdineFornitore {
 /// Documenti allegati alla commessa (PDF, disegni, foto).
 model Documento {
   id         String   @id @default(cuid())
-  commessaId String
+  commessaId String?
+  opportunitaId String?
   nomeFile   String
   categoria  String   @default("ALTRO") // vedi CATEGORIE_DOCUMENTO in enums.ts
   tipoMime   String?
@@ -408,9 +416,81 @@ model Documento {
   dimensione Int?
   createdAt  DateTime @default(now())
 
-  commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Cascade)
+  commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: Cascade)
+  opportunita Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
 
   @@index([commessaId])
+  @@index([opportunitaId])
+}
+
+/// Nomi/ordine configurabili, significato stabile per conversione e indicatori.
+model FaseCommerciale {
+  id        String  @id @default(cuid())
+  nome      String
+  categoria String // APERTA | INVIATA | VINTA | PERSA
+  ordine    Int
+  attiva    Boolean @default(true)
+  versione  Int     @default(1)
+  opportunita Opportunita[]
+}
+
+model Opportunita {
+  id                 String   @id @default(cuid())
+  titolo             String
+  anagraficaId       String
+  referenteId        String?
+  responsabileId     String?
+  faseId             String
+  tipologia          String   @default("P")
+  origine            String?
+  descrizione        String?
+  valorePrevisto     Decimal? @db.Decimal(16, 2)
+  riferimentoOfferta String?
+  importoOfferta     Decimal? @db.Decimal(16, 2)
+  dataInvioOfferta   DateTime? @db.Date
+  motivazionePersa   String?
+  chiusaIl          DateTime?
+  ultimaInterazioneIl DateTime? @db.Date
+  ultimaRispostaIl   DateTime? @db.Date
+  faseAggiornataIl   DateTime @default(now())
+  versione          Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  anagrafica  Anagrafica @relation(fields: [anagraficaId], references: [id], onDelete: Restrict)
+  referente   Referente? @relation(fields: [referenteId], references: [id], onDelete: Restrict)
+  responsabile User? @relation(fields: [responsabileId], references: [id], onDelete: SetNull)
+  fase        FaseCommerciale @relation(fields: [faseId], references: [id], onDelete: Restrict)
+  commessa    Commessa?
+  eventi      EventoCommerciale[]
+  attivita    Attivita[]
+  documenti   Documento[]
+
+  @@index([faseId, createdAt])
+  @@index([responsabileId])
+  @@index([anagraficaId])
+}
+
+/// Timeline append-only: contatti effettivi e modifiche registrate separatamente.
+model EventoCommerciale {
+  id            String   @id @default(cuid())
+  opportunitaId String?
+  autoreId      String?
+  autoreNome    String
+  autoreRuolo   String
+  tipo          String
+  data          DateTime @db.Date
+  testo         String
+  esito         String?
+  prima         Json?
+  dopo          Json?
+  richiestaId   String? @unique
+  richiestaHash String?
+  createdAt     DateTime @default(now())
+
+  opportunita Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
+  autore User? @relation(fields: [autoreId], references: [id], onDelete: SetNull)
+  @@index([opportunitaId, data, createdAt])
 }
 
 /// Segnalazione di chi prova il CRM: problema riscontrato, miglioramento
@@ -579,12 +659,15 @@ model Attivita {
   userId String
   commessaId String?
   clienteId String?
+  opportunitaId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation(fields: [userId], references: [id])
   commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: SetNull)
   cliente Anagrafica? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  opportunita Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
   @@index([userId, stato, scadenza])
+  @@index([opportunitaId, stato, scadenza])
 }
 
 /// Limite login condiviso tra processi; chiavi HMAC, nessuna email in chiaro.

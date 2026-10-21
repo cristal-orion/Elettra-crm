@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { puoGestireDocumenti, CATEGORIE_DOCUMENTO } from "@/lib/enums";
 import { salvaFile, eliminaFile, sanitizeFilename } from "@/lib/storage";
+import { serializable } from "@/lib/transaction";
+import { eventoCommerciale } from "@/lib/commerciale";
 
 export type UploadState = { error?: string; ok?: number } | undefined;
 
@@ -43,16 +45,27 @@ export async function uploadDocumenti(
   _prev: UploadState,
   formData: FormData,
 ): Promise<UploadState> {
+  return upload("commessa", commessaId, formData);
+}
+
+export async function uploadDocumentiCommerciali(opportunitaId: string, _prev: UploadState, formData: FormData): Promise<UploadState> {
+  return upload("opportunita", opportunitaId, formData);
+}
+
+async function upload(tipo: "commessa" | "opportunita", id: string, formData: FormData): Promise<UploadState> {
   const user = await requireUser();
   if (!puoGestireDocumenti(user.ruolo)) {
     return { error: "Non hai i permessi per caricare documenti." };
   }
 
-  const commessa = await prisma.commessa.findUnique({
-    where: { id: commessaId },
-    select: { numero: true },
-  });
-  if (!commessa) return { error: "Commessa non trovata." };
+  const commessa = tipo === "commessa" ? await prisma.commessa.findUnique({ where: { id }, select: { numero: true, opportunitaId: true } }) : null;
+  const opportunitaId = tipo === "opportunita" ? id : commessa?.opportunitaId;
+  if (tipo === "commessa" && !commessa) return { error: "Commessa non trovata." };
+  if (opportunitaId && !await prisma.opportunita.findUnique({ where: { id: opportunitaId }, select: { id: true } })) return { error: "Trattativa non trovata." };
+  const refresh = () => {
+    revalidatePath("/commesse", "layout"); revalidatePath("/progetti", "layout");
+    if (opportunitaId) revalidatePath(`/commerciale/${opportunitaId}`);
+  };
 
   const catRaw = String(formData.get("categoria") ?? "").trim();
   const categoria = CATEGORIE_VALIDE.includes(catRaw) ? catRaw : "ALTRO";
@@ -78,27 +91,33 @@ export async function uploadDocumenti(
     let percorso: string | null = null;
     try {
       // La cartella "<numeroCommessa>/" viene creata al bisogno (auto-cartella).
-      percorso = await salvaFile(commessa.numero, nomeSuDisco, buf);
-      await prisma.documento.create({
+      percorso = await salvaFile(commessa?.numero ?? `commerciale-${id}`, nomeSuDisco, buf);
+      const savedPath = percorso;
+      await serializable(async (tx) => {
+        const actor = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+        if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) throw new Error("Non autorizzato");
+        const opp = opportunitaId ? await tx.opportunita.update({ where: { id: opportunitaId }, data: { versione: { increment: 1 } }, include: { commessa: { select: { id: true } } } }) : null;
+        const doc = await tx.documento.create({
         data: {
-          commessaId,
+          commessaId: tipo === "commessa" ? id : opp?.commessa?.id,
+          opportunitaId,
           nomeFile,
           categoria,
           tipoMime: f.type || null,
-          percorso,
+          percorso: savedPath,
           dimensione: f.size,
         },
+        });
+        if (opportunitaId) await eventoCommerciale(tx, actor, opportunitaId, "DOCUMENTO", `Allegato: ${nomeFile}`, null, doc);
       });
     } catch {
       if (percorso) await eliminaFile(percorso);
-      revalidatePath(`/commesse/${commessaId}`);
-      revalidatePath(`/progetti/${commessaId}`);
+      refresh();
       return { error: "Errore durante il salvataggio dei documenti." };
     }
   }
 
-  revalidatePath(`/commesse/${commessaId}`);
-  revalidatePath(`/progetti/${commessaId}`);
+  refresh();
   return { ok: files.length };
 }
 
@@ -109,14 +128,21 @@ export async function deleteDocumento(
   const user = await requireUser();
   if (!puoGestireDocumenti(user.ruolo)) return;
 
-  const doc = await prisma.documento.findUnique({
-    where: { id: documentoId },
-    select: { percorso: true, commessaId: true },
+  const doc = await serializable(async (tx) => {
+    const actor = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+    if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) return null;
+    const row = await tx.documento.findUnique({ where: { id: documentoId } });
+    if (!row) return null;
+    if (row.opportunitaId) {
+      await tx.opportunita.update({ where: { id: row.opportunitaId }, data: { versione: { increment: 1 } } });
+      await eventoCommerciale(tx, actor, row.opportunitaId, "DOCUMENTO", `Allegato rimosso: ${row.nomeFile}`, row);
+    }
+    await tx.documento.delete({ where: { id: documentoId } });
+    return row;
   });
   if (!doc) return;
 
-  await prisma.documento.delete({ where: { id: documentoId } });
   await eliminaFile(doc.percorso);
-  revalidatePath(`/commesse/${doc.commessaId}`);
-  revalidatePath(`/progetti/${doc.commessaId}`);
+  if (doc.commessaId) { revalidatePath(`/commesse/${doc.commessaId}`); revalidatePath(`/progetti/${doc.commessaId}`); }
+  if (doc.opportunitaId) revalidatePath(`/commerciale/${doc.opportunitaId}`);
 }
