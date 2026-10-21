@@ -39,6 +39,7 @@ model User {
   aiSchedules AiSchedule[]
   notifiche Notifica[]
   attivita Attivita[]
+  modificheEconomiche ModificaEconomica[]
 
   @@index([ruolo])
 }
@@ -78,6 +79,8 @@ model Anagrafica {
   commesse        Commessa[]        @relation("CommessaCliente")
   ordiniFornitore OrdineFornitore[] @relation("OrdineFornitore")
   attivita Attivita[]
+  tariffario TariffarioCliente?
+  consuntivi Consuntivo[]
 
   @@index([ragioneSociale])
 }
@@ -175,11 +178,67 @@ model Commessa {
   milestone       Milestone[]
   assegnazioni    AssegnazioneOperaio[]
   attivita        Attivita[]
+  consuntivo      Consuntivo?
 
   @@index([clienteId])
   @@index([stato])
   @@index([anno])
   @@index([scadenzaLavori])
+}
+
+/// Listino riusabile del cliente. Le righe JSON sono validate dal servizio
+/// economico; ogni revisione è conservata integralmente nello storico.
+model TariffarioCliente {
+  id         String   @id @default(cuid())
+  clienteId  String   @unique
+  versione   Int      @default(1)
+  manodopera Json
+  materiali  Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cliente Anagrafica @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+}
+
+/// Un rendiconto ore/materiali per lavoro, con valori e fonte tariffaria
+/// fotografati sulle righe: cambiare il listino non rivaluta lo storico.
+model Consuntivo {
+  id              String   @id @default(cuid())
+  commessaId      String   @unique
+  clienteId       String
+  versione        Int      @default(1)
+  data            DateTime @db.Date
+  note            String?
+  righe           Json
+  totaleOre       Decimal  @db.Decimal(16, 2)
+  totaleMateriali Decimal  @db.Decimal(16, 2)
+  totale          Decimal  @db.Decimal(16, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  commessa Commessa   @relation(fields: [commessaId], references: [id], onDelete: Restrict)
+  cliente  Anagrafica @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+
+  @@index([clienteId, data])
+}
+
+/// Registro append-only applicativo: nessuna action di modifica/eliminazione.
+/// L'identità rimane leggibile anche dopo l'eliminazione dell'account.
+model ModificaEconomica {
+  id          String   @id @default(cuid())
+  entita      String
+  entitaId    String
+  versione    Int
+  autoreId    String?
+  autoreNome  String
+  autoreRuolo String
+  prima       Json?
+  dopo        Json
+  createdAt   DateTime @default(now())
+
+  autore User? @relation(fields: [autoreId], references: [id], onDelete: SetNull)
+
+  @@unique([entita, entitaId, versione])
 }
 
 /// Milestone di rilascio di un progetto (Fase 7). L'avanzamento del progetto è

@@ -114,6 +114,9 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (c.id && !existing) throw new CrmError("Commessa non trovata.");
       if (existing) checkVersion(existing, c.expectedUpdatedAt);
       const clienteId = c.data.clienteId ?? existing?.clienteId;
+      if (existing && clienteId !== existing.clienteId && await db.consuntivo.findUnique({ where: { commessaId: existing.id }, select: { id: true } })) {
+        throw new CrmError("La commessa ha un consuntivo: il cliente deve restare quello del rendiconto.");
+      }
       if (!clienteId || !await db.anagrafica.findFirst({ where: { id: clienteId, isCliente: true } })) throw new CrmError("Seleziona un cliente valido.");
       const referenteId = c.data.referenteId === undefined ? existing?.referenteId : c.data.referenteId;
       const pmId = c.data.pmId === undefined ? existing?.pmId : c.data.pmId;

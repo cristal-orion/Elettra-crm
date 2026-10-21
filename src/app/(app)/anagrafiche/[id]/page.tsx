@@ -92,6 +92,8 @@ export default async function AnagraficaDetailPage({
       <AiContextPanel type="cliente" id={id} />
       <TaskContext user={user} clienteId={id} />
 
+      {anagrafica.isCliente && <Link href={`/anagrafiche/${id}/tariffario`} className="rounded-xl border border-line bg-panel p-5 text-sm font-medium text-brand-deep hover:border-brand">Tariffario cliente → <span className="mt-1 block font-normal text-ink-soft">Tariffe per mansione, fasce orarie e ricarichi dei materiali per i lavori a consuntivo.</span></Link>}
+
       {anagrafica.isCliente && (
         <ClienteEconomics economics={economics} commesse={anagrafica.commesse.length} />
       )}

@@ -10,8 +10,9 @@ import { chromium, type Page } from "playwright";
 import { PrismaClient } from "../src/generated/prisma";
 import { testDatabase } from "./test-database";
 import { giornoAttivita } from "../src/lib/attivita";
+import { verifyConsuntiviUi } from "./consuntivi-ui";
 
-test("UX CRM: filtri, navigazione, progetti, anagrafiche e agenda su dati isolati", { timeout: 240_000 }, async () => {
+test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda e consuntivi su dati isolati", { timeout: 300_000 }, async () => {
   const database = testDatabase();
   const db = new PrismaClient({ datasourceUrl: database.url });
   const secret = randomBytes(48).toString("hex");
@@ -411,6 +412,8 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche e agenda su dati isolat
     await personalAgenda.getByText("Non hai attività aperte. Crea un’attività per pianificare il prossimo passo.", { exact: true }).waitFor();
     await personalContext.close();
     console.log("PASS: Da fare oggi — perimetro personale, contatori/lista/stampa coerenti, tastiera, ritorno al cruscotto e completamento con aggiornamento immediato");
+
+    await verifyConsuntiviUi({ page, context, browser, db, origin, clienteId: cliente.id, readerToken });
 
     const direct = await context.newPage();
     await direct.goto(`${origin}/commesse/ui-job-0`);

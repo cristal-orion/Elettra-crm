@@ -108,6 +108,8 @@ export default async function CommessaDetailPage({
       <AiContextPanel type="commessa" id={id} />
       <TaskContext user={user} commessaId={id} />
 
+      <Link href={`/commesse/${id}/consuntivo`} className="rounded-xl border border-line bg-panel p-5 text-sm font-medium text-brand-deep hover:border-brand">Consuntivo ore e materiali → <span className="mt-1 block font-normal text-ink-soft">Tariffario cliente, valori applicati al lavoro e storico delle modifiche.</span></Link>
+
       {daFatturare && (
         <div
           role="alert"

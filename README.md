@@ -249,6 +249,48 @@ personale è una prima tranche della home operativa, disponibile per tutti i ruo
 destinazioni, limite anteprima e completamento. Il collaudo Chromium include
 navigazione da tastiera, ritorno al cruscotto, stampa coerente e mobile a 390 px.
 
+## Tariffari cliente e consuntivi ore/materiali
+
+Da **Anagrafiche → cliente → Tariffario cliente** si configurano fino a 50 mansioni
+con tariffe ordinarie, straordinarie feriali e straordinarie festive, e fino a 500
+materiali del catalogo con ricarico specifico per cliente. Le tariffe orarie sono
+valori di addebito al cliente, distinti dai costi interni del personale.
+
+Da **Commesse → dettaglio → Consuntivo ore e materiali** si compila un rendiconto
+per lavoro, con data, note e fino a 200 righe. Il tariffario propone i valori delle
+nuove righe; ore, quantità, tariffe applicate, costo base unitario e ricarichi sono
+modificabili per quel lavoro. Il costo base materiale va inserito esplicitamente;
+il prezzo applicato è `costo base × (1 + ricarico / 100)`. La fonte tariffaria e la
+descrizione sono conservate sulle righe: una revisione del listino vale per nuove
+righe e non rivaluta quelle già salvate. Per cambiare la mansione, fascia o voce
+di una riga salvata si rimuove la riga e se ne aggiunge una nuova.
+
+Calcoli server con decimali: prezzo unitario a 4 cifre decimali, importo riga a
+2 cifre (`ROUND_HALF_UP`), totale come somma delle righe. I totali visualizzati
+sono quelli dell'ultimo salvataggio; la stampa riporta quantità, prezzi e importi
+applicati. Il rendiconto è la base ore/materiali e non emette una fattura né
+calcola IVA, SAL o margini completi di commessa. Le sue somme non vengono
+copiate automaticamente negli importi offerta/ordine o nei KPI esistenti.
+
+**Autorizzazioni:** Super Admin e Backoffice gestiscono il tariffario; gli stessi
+ruoli e i Project Manager compilano i consuntivi. Gli altri ruoli autenticati
+consultano e stampano, coerentemente con la visibilità economica esistente.
+Il servizio riverifica ruolo e account attivo dentro la transazione.
+
+Ogni modifica effettiva produce una revisione con autore, ruolo, data e valori
+prima/dopo, consultabile nello **Storico modifiche** (20 revisioni per pagina).
+Il registro applicativo non espone azioni di modifica/eliminazione; il nome
+storico dell'autore resta leggibile anche dopo la cancellazione dell'account.
+Scrittura e audit sono atomici in transazione Serializable. Le versioni impediscono
+sovrascritture da moduli obsoleti; gli errori conservano i dati del form. A consuntivo
+creato, il cliente della commessa resta vincolato a quello del rendiconto.
+
+La migrazione additiva `20261021140000_tariffari_consuntivi` introduce tre tabelle,
+senza riclassificare i record storici `C`/`CONSUNTIVO` o cambiare la regola P→C.
+Il test `src/lib/consuntivi.test.ts` usa PostgreSQL isolato e copre calcoli, audit,
+rollback, override, versioni e autorizzazioni. `npm run test:ui` verifica anche
+default, fasce, salvataggi successivi, conflitti, lettura/stampa e mobile.
+
 ## Ruoli e permessi (Fase 1)
 
 - **Super Admin** (Fabio): accesso completo, gestione utenti e configurazione.
