@@ -6,6 +6,7 @@ import { CATEGORIE_FASE, TIPI_INTERAZIONE, type FaseValues } from "@/lib/commerc
 import { METODI_RICEZIONE } from "@/lib/enums";
 import { changePhase, addInteraction, convertOpportunity, savePhase } from "./actions";
 import { commercialInput as cls } from "./opportunity-form";
+import MoneyField from "./money-field";
 
 type Person = { id: string; nome: string; cognome: string };
 const button = "min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white disabled:opacity-60";
@@ -46,7 +47,7 @@ export function ConversionForm({ id, versione, today, importo, consuntivo, pm }:
     {importo && <p className="text-xs text-ink-soft">Importo suggerito dall’offerta: verifica e correggi il valore effettivamente confermato.</p>}
     <fieldset disabled={!ready || pending} className="grid min-w-0 gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm">Data conferma *<input type="date" required max={today} value={v.dataOrdine} onChange={(e) => set({ ...v, dataOrdine: e.target.value })} className={cls} /></label>
-      <label className="flex flex-col gap-1 text-sm">Importo confermato (€){!consuntivo && " *"}<input type="number" min="0" step="0.01" required={!consuntivo} value={v.importoOrdine} onChange={(e) => set({ ...v, importoOrdine: e.target.value })} className={cls} /></label>
+      <MoneyField label="Importo confermato (€)" required={!consuntivo} value={v.importoOrdine} onChange={(value) => set({ ...v, importoOrdine: value })} className={cls} />
       {consuntivo && <p className="text-xs text-ink-soft sm:col-span-2">Per il consuntivo puoi lasciare l’importo vuoto: sarà determinato dalle ore e dai materiali effettivi.</p>}
       <label className="flex flex-col gap-1 text-sm">Ricevuta tramite<select value={v.metodoRicezioneOrdine} onChange={(e) => set({ ...v, metodoRicezioneOrdine: e.target.value })} className={cls}>{Object.entries(METODI_RICEZIONE).map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select></label>
       <label className="flex flex-col gap-1 text-sm">Riferimento conferma *<input required maxLength={200} placeholder="Email, ordine cliente, accordo del…" value={v.riferimentoConferma} onChange={(e) => set({ ...v, riferimentoConferma: e.target.value })} className={cls} /></label>

@@ -312,6 +312,12 @@ valore previsto e dati di offerta. Una società può essere potenziale cliente e
 fornitore. Il potenziale cliente non riceve il codice C fino alla promozione;
 ricerca e controllo duplicati delle anagrafiche restano disponibili.
 
+Il pulsante **Nuova trattativa** è nella testata dell'anagrafica cliente/potenziale
+cliente, con il cliente già selezionato. Nei campi valore previsto, importo offerta
+e importo confermato, i comandi **−10 € / +10 €** e le frecce su/giù della tastiera
+variano il valore di dieci euro; l'inserimento manuale conserva i centesimi.
+La testata della commessa mostra subito numero, titolo del lavoro e cliente collegato.
+
 Nella scheda si registrano chiamate, email, incontri, sopralluoghi e note con data
 effettiva, esito e indicazione «Risposta ricevuta». Il prossimo contatto genera
 una sola **Attività**, condivisa con agenda, notifiche, lista e stampa. Le attività

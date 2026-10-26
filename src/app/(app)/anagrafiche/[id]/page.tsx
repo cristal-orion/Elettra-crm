@@ -57,9 +57,9 @@ export default async function AnagraficaDetailPage({
   return (
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <DetailNavigation listPath="/anagrafiche" listLabel="Anagrafiche" currentLabel={anagrafica.ragioneSociale} />
-          <h1 className="mt-2 text-2xl font-bold tracking-tight">
+          <h1 className="mt-2 break-words text-2xl font-bold tracking-tight">
             {anagrafica.ragioneSociale}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -80,19 +80,29 @@ export default async function AnagraficaDetailPage({
             )}
           </div>
         </div>
-        {puoModificare && (
-          <Link
-            href={`/anagrafiche/${anagrafica.id}/modifica`}
-            className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
-          >
-            Modifica
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {(anagrafica.isCliente || anagrafica.isProspect) && puoGestireCommesse(user.ruolo) && (
+            <Link
+              href={`/commerciale/nuova?cliente=${id}`}
+              className="inline-flex min-h-11 items-center rounded-lg bg-elettra px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              Nuova trattativa
+            </Link>
+          )}
+          {puoModificare && (
+            <Link
+              href={`/anagrafiche/${anagrafica.id}/modifica`}
+              className="inline-flex min-h-11 items-center rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
+            >
+              Modifica
+            </Link>
+          )}
+        </div>
       </header>
 
       <AiContextPanel type="cliente" id={id} />
       <TaskContext user={user} clienteId={id} />
-      {(anagrafica.isCliente || anagrafica.isProspect) && <div className="flex flex-wrap gap-3 text-sm"><Link href={`/commerciale?cliente=${id}`} className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Trattative collegate →</Link>{puoGestireCommesse(user.ruolo) && <Link href={`/commerciale/nuova?cliente=${id}`} className="min-h-11 px-4 py-3 text-brand-deep underline">Nuova trattativa</Link>}</div>}
+      {(anagrafica.isCliente || anagrafica.isProspect) && <div className="flex flex-wrap gap-3 text-sm"><Link href={`/commerciale?cliente=${id}`} className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Trattative collegate →</Link></div>}
 
       {anagrafica.isCliente && <Link href={`/anagrafiche/${id}/tariffario`} className="rounded-xl border border-line bg-panel p-5 text-sm font-medium text-brand-deep hover:border-brand">Tariffario cliente → <span className="mt-1 block font-normal text-ink-soft">Tariffe per mansione, fasce orarie e ricarichi dei materiali per i lavori a consuntivo.</span></Link>}
 

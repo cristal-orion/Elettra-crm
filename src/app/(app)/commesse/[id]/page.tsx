@@ -77,20 +77,25 @@ export default async function CommessaDetailPage({
   const daFatturare = richiedeFatturazione(commessa.stato, haAcquisti);
 
   const avanzamentoProgetto = avanzamento(commessa.milestone);
+  const [titoloCommessa, ...dettagliCommessa] = (commessa.descrizione?.trim() || "Senza descrizione").split("\n");
 
   return (
     <div className="flex flex-col gap-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel={commessa.numero} />
-          <h1 className="mt-2 flex items-center gap-3 text-2xl font-bold tracking-tight">
-            <span className="font-mono tabular-nums">{commessa.numero}</span>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight">
+            <span className="block font-mono text-sm font-medium tracking-normal text-ink-soft tabular-nums">Commessa {commessa.numero}</span>
+            <span className="mt-1 block break-words">{titoloCommessa}</span>
+          </h1>
+          <p className="mt-2 break-words text-sm text-ink-soft">
+            Cliente: <Link href={`/anagrafiche/${commessa.clienteId}`} className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 hover:decoration-brand">{commessa.cliente.ragioneSociale}</Link>
+          </p>
+          {dettagliCommessa.length > 0 && <p className="mt-2 whitespace-pre-line break-words text-sm text-ink-soft">{dettagliCommessa.join("\n")}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <StatoBadge stato={commessa.stato} />
             <TipologiaBadge tipologia={commessa.tipologia} />
-          </h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            {commessa.descrizione ?? "Senza descrizione"}
-          </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <PrintLink href={`/stampa/commesse/${commessa.id}`} />

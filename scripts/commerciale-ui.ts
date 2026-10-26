@@ -2,6 +2,35 @@ import assert from "node:assert/strict";
 import type { Browser, BrowserContext, Page } from "playwright";
 import type { PrismaClient } from "../src/generated/prisma";
 
+async function verifyMoneyControls(page: Page, label: string) {
+  const input = page.getByLabel(label, { exact: true });
+  const increase = page.getByRole("button", { name: `Aumenta di 10 euro — ${label}`, exact: true });
+  const decrease = page.getByRole("button", { name: `Diminuisci di 10 euro — ${label}`, exact: true });
+  await input.fill("");
+  await decrease.click();
+  assert.equal(await input.inputValue(), "");
+  await increase.click();
+  assert.equal(await input.inputValue(), "10.00");
+  await input.fill("899.52");
+  await increase.click();
+  assert.equal(await input.inputValue(), "909.52");
+  await input.press("ArrowDown");
+  assert.equal(await input.inputValue(), "899.52");
+  await decrease.click();
+  assert.equal(await input.inputValue(), "889.52");
+  await input.press("ArrowUp");
+  assert.equal(await input.inputValue(), "899.52");
+  assert.equal(await input.evaluate((e) => (e as HTMLInputElement).validity.valid), true, "I centesimi non devono causare stepMismatch");
+  await input.fill("5.52");
+  await decrease.click();
+  assert.equal(await input.inputValue(), "0.00");
+  await input.fill("899.521");
+  await increase.click();
+  assert.equal(await input.inputValue(), "899.521", "Un importo non valido non deve essere arrotondato dai comandi");
+  assert.equal(await input.evaluate((e) => (e as HTMLInputElement).validity.valid), false);
+  await input.fill("899.52");
+}
+
 export async function verifyCommercialeUi({ page, context, browser, db, origin, readerToken }: {
   page: Page; context: BrowserContext; browser: Browser; db: PrismaClient; origin: string; readerToken: string;
 }) {
@@ -13,14 +42,21 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   await page.getByRole("heading", { name: "Nuovo Prospect Commerciale", exact: true }).waitFor();
   const customer = await db.anagrafica.findFirstOrThrow({ where: { ragioneSociale: "Nuovo Prospect Commerciale" } });
   assert.equal(customer.isProspect, true); assert.equal(customer.isCliente, false); assert.equal(customer.codiceCliente, null);
+  await page.screenshot({ path: "/tmp/opencode/anagrafica-commerciale-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/opencode/anagrafica-commerciale-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.getByRole("link", { name: "Nuova trattativa", exact: true }).click();
   await page.getByLabel("Titolo *", { exact: true }).fill("Commerciale UI — impianto");
   await page.getByLabel("Tipologia", { exact: true }).selectOption("C");
+  await verifyMoneyControls(page, "Valore previsto (€)");
   await page.getByLabel("Valore previsto (€)", { exact: true }).fill("1234.56");
   await page.getByRole("button", { name: "Crea trattativa", exact: true }).click();
   await page.getByRole("heading", { name: "Commerciale UI — impianto", exact: true }).waitFor();
   const opp = await db.opportunita.findFirstOrThrow({ where: { titolo: "Commerciale UI — impianto" } });
   assert.equal(opp.anagraficaId, customer.id); assert.equal(opp.tipologia, "C");
+  assert.equal(opp.valorePrevisto?.toString(), "1234.56");
+  assert.equal(opp.importoOfferta, null);
   const path = `/commerciale/${opp.id}`;
 
   const interaction = page.getByRole("form", { name: "Registra interazione", exact: true });
@@ -85,6 +121,8 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   await page.goto(`${origin}${path}`);
   await page.screenshot({ path: "/tmp/opencode/commerciale-mobile.png", fullPage: true });
   const convert = page.getByRole("form", { name: "Conferma incarico", exact: true });
+  await verifyMoneyControls(page, "Importo confermato (€)");
+  await convert.getByLabel("Importo confermato (€)", { exact: true }).fill("");
   await convert.getByLabel("Riferimento conferma *", { exact: true }).fill("Email del cliente di prova");
   await convert.getByRole("checkbox").check();
   const requestPromise = page.waitForRequest((r) => r.method() === "POST" && Boolean(r.headers()["next-action"]));
@@ -94,6 +132,9 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   const job = await db.commessa.findUniqueOrThrow({ where: { opportunitaId: opp.id } });
   assert.equal(job.importoOrdine, null); assert.equal(job.clienteId, customer.id);
   await page.getByRole("link", { name: "accordo-commerciale.txt", exact: true }).waitFor();
+  await page.screenshot({ path: "/tmp/opencode/commessa-commerciale-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.screenshot({ path: "/tmp/opencode/commessa-commerciale-desktop.png", fullPage: true });
   await page.getByRole("link", { name: /^Apri trattativa di origine/ }).click();
   await page.getByRole("link", { name: `Incarico confermato · Apri commessa ${job.numero} →`, exact: true }).waitFor();
   assert.equal(await db.commessa.count({ where: { opportunitaId: opp.id } }), 1);
@@ -107,5 +148,33 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   assert.match(await denied.text(), /Non hai i permessi/);
   await readerContext.close();
   await page.setViewportSize({ width: 1280, height: 800 });
+  // Persistenza reale dei centesimi nell'offerta e nella conferma obbligatoria.
+  await page.goto(`${origin}/commerciale/nuova?cliente=${customer.id}`);
+  await page.getByLabel("Titolo *", { exact: true }).fill("Commerciale UI — importi con centesimi");
+  await page.getByLabel("Tipologia", { exact: true }).selectOption("P");
+  await page.getByLabel("Riferimento offerta", { exact: true }).fill("OFF-CENTESIMI");
+  await page.getByLabel("Data invio offerta", { exact: true }).fill(new Date().toISOString().slice(0, 10));
+  await verifyMoneyControls(page, "Importo offerta (€)");
+  await page.getByRole("button", { name: "Crea trattativa", exact: true }).click();
+  await page.getByRole("heading", { name: "Commerciale UI — importi con centesimi", exact: true }).waitFor();
+  const decimalOpp = await db.opportunita.findFirstOrThrow({ where: { titolo: "Commerciale UI — importi con centesimi" } });
+  assert.equal(decimalOpp.importoOfferta?.toString(), "899.52");
+  const confirmation = page.getByLabel("Importo confermato (€) *", { exact: true });
+  assert.equal(await confirmation.inputValue(), "899.52");
+  await confirmation.fill("");
+  assert.equal(await confirmation.evaluate((e) => (e as HTMLInputElement).validity.valueMissing), true);
+  await confirmation.fill("849.52");
+  await page.getByRole("button", { name: "Aumenta di 10 euro — Importo confermato (€)", exact: true }).click();
+  assert.equal(await confirmation.inputValue(), "859.52");
+  await confirmation.press("ArrowDown");
+  assert.equal(await confirmation.inputValue(), "849.52");
+  await page.getByLabel("Riferimento conferma *", { exact: true }).fill("Conferma importo con centesimi");
+  await page.getByRole("form", { name: "Conferma incarico", exact: true }).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Conferma incarico e crea commessa", exact: true }).click();
+  await page.waitForURL(/\/commesse\/[^/]+$/);
+  const decimalJob = await db.commessa.findUniqueOrThrow({ where: { opportunitaId: decimalOpp.id } });
+  assert.equal(decimalJob.importoOfferta?.toString(), "899.52");
+  assert.equal(decimalJob.importoOrdine?.toString(), "849.52");
+  console.log("PASS: importi ±10 euro da mouse/tastiera/mobile, centesimi salvati, zero e consuntivo senza importo");
   console.log("PASS: Commerciale — prospect, Kanban/elenco, contatti, follow-up, allegati, perdita/riapertura, conflitti, conversione, ruoli e mobile");
 }
