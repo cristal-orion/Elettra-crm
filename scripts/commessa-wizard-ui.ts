@@ -1,0 +1,187 @@
+import assert from "node:assert/strict";
+import type { Browser, BrowserContext, Page } from "playwright";
+import type { PrismaClient } from "../src/generated/prisma";
+import { randomUUID } from "node:crypto";
+import { emptyWizard } from "../src/lib/commessa-wizard-schema";
+import { clickNumberArrow } from "./number-input-ui";
+
+export async function verifyWizardUi({ page, context, browser, db, origin, readerToken }: {
+  page: Page; context: BrowserContext; browser: Browser; db: PrismaClient; origin: string; readerToken: string;
+}) {
+  const pm = await db.user.create({ data: { email: "wizard-pm@example.test", nome: "Pietro", cognome: "Wizard", ruolo: "PROJECT_MANAGER", passwordHash: "unused", guidaVista: "*" } });
+  const customer = await db.anagrafica.create({ data: { ragioneSociale: "Storico Wizard Impianti", isCliente: true, partitaIva: "09876543210", email: "wizard@example.test", indirizzo: "Via Sede 1" } });
+  const worker = await db.operaio.create({ data: { nome: "Operaio", cognome: "Wizard", squadra: "Squadra Wizard" } });
+  const previous = await db.commessa.create({ data: { numero: "268888", anno: 2026, progressivo: 8888, clienteId: customer.id, pmId: pm.id, tipologia: "P", importoOfferta: 9999, importoOrdine: 8888, indirizzoCantiere: "Via Storica 4", referenteCommerciale: "FG" } });
+  const jobsBefore = await db.commessa.count();
+  const select = async (label: string, text: string) => {
+    await page.getByRole("combobox", { name: label, exact: true }).click();
+    await page.getByRole("dialog").getByRole("combobox").fill(text);
+    await page.getByRole("option").filter({ hasText: text }).click();
+  };
+  const step = async (number: number) => { await page.getByRole("heading", { name: new RegExp(`^Passo ${number} —`) }).waitFor(); };
+  const next = async (number: number) => { await page.getByRole("button", { name: "Passo successivo →", exact: true }).click(); await step(number); };
+  const save = async () => {
+    await page.getByRole("button", { name: "Salva bozza", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Bozza salvata" }).waitFor();
+    await page.getByRole("button", { name: "Salva bozza", exact: true }).waitFor({ state: "visible" });
+  };
+  await page.goto(`${origin}/commesse/nuova`);
+  await step(1);
+  await page.getByRole("button", { name: "Passo successivo →", exact: true }).click();
+  await page.getByText("Seleziona il cliente.", { exact: true }).waitFor();
+  await select("Cliente", "Storico Wizard Impianti");
+  await page.getByRole("button", { name: "Usa dati ultima commessa", exact: true }).click();
+  const suggestions = page.getByRole("complementary", { name: "Suggerimenti dallo storico" });
+  await suggestions.getByRole("link", { name: `commessa ${previous.numero}`, exact: true }).waitFor();
+  await suggestions.getByRole("button", { name: "Usa tipologia", exact: true }).click();
+  await suggestions.getByRole("button", { name: "Usa pm", exact: true }).click();
+  const draftRequest = page.waitForRequest((r) => r.method() === "POST" && Boolean(r.headers()["next-action"]));
+  await next(2);
+  const sentSave = await draftRequest;
+  assert.equal(await page.getByLabel(/^Importo offerta/).inputValue(), "", "Mai copiare prezzi dello storico");
+  assert.equal(await page.locator('select[name="tipologia"]').inputValue(), "P");
+  await page.getByLabel("Descrizione lavoro *", { exact: true }).fill("Wizard — cliente storico");
+  await page.getByLabel("Indirizzo cantiere", { exact: true }).fill("Via Inserita 9");
+  assert.equal(await suggestions.getByRole("button", { name: "Usa indirizzo cantiere", exact: true }).count(), 0, "Non proporre sovrascrittura di un campo compilato");
+  const offer = page.getByLabel(/^Importo offerta/);
+  await offer.fill("900.37"); await clickNumberArrow(offer, "up");
+  assert.equal(await offer.inputValue(), "910.37");
+  await offer.press("ArrowDown"); assert.equal(await offer.inputValue(), "900.37");
+  await page.getByLabel(/^Importo ordine confermato/).fill("850.23");
+  await page.getByLabel("Data invio offerta *", { exact: true }).fill("2026-10-26");
+  await save();
+  const draftUrl = page.url();
+  assert.match(draftUrl, /\?bozza=/);
+  await page.reload(); await step(2);
+  await page.getByRole("button", { name: "Salva bozza", exact: true }).click({ trial: true });
+  assert.equal(await offer.inputValue(), "900.37");
+  assert.equal(await page.getByLabel("Indirizzo cantiere", { exact: true }).inputValue(), "Via Inserita 9");
+  assert.equal(await db.commessa.count(), jobsBefore);
+  await page.screenshot({ path: "/tmp/opencode/commessa-wizard-desktop.png", fullPage: true });
+  await next(3);
+  await page.getByLabel("Data richiesta *", { exact: true }).fill("2026-10-27");
+  await page.getByLabel("Data conferma incarico *", { exact: true }).fill("2026-10-27");
+  await page.locator('select[name="metodoRicezioneOrdine"]').selectOption("EMAIL");
+  await page.getByLabel("Riferimento conferma *", { exact: true }).fill("Email prova wizard");
+  await page.getByLabel("Inizio lavori", { exact: true }).fill("2026-11-01");
+  await page.getByLabel("Scadenza lavori", { exact: true }).fill("2026-11-05");
+  assert.match(await page.getByRole("combobox", { name: "Project Manager", exact: true }).innerText(), /Pietro Wizard/);
+  await next(4);
+  await page.getByRole("checkbox", { name: "Operaio Wizard · Squadra Wizard", exact: true }).check();
+  await save();
+  assert.equal(await db.assegnazioneOperaio.count({ where: { operaioId: worker.id } }), 0);
+  await page.getByLabel("File (PDF, immagini, disegni…)", { exact: true }).setInputFiles({ name: "incarico-wizard.txt", mimeType: "text/plain", buffer: Buffer.from("Conferma incarico di prova") });
+  await page.getByRole("button", { name: "Carica documenti", exact: true }).click();
+  await page.getByRole("link", { name: "incarico-wizard.txt", exact: true }).waitFor();
+  const doc = await db.documento.findFirstOrThrow({ where: { nomeFile: "incarico-wizard.txt" } });
+  assert.ok(doc.bozzaId); assert.equal(doc.commessaId, null);
+  assert.equal(await (await context.request.get(`${origin}/documenti/${doc.id}`)).text(), "Conferma incarico di prova");
+  const readerContext = await browser.newContext();
+  await readerContext.addCookies([{ name: "elettra_session", value: readerToken, url: origin }]);
+  assert.equal((await readerContext.request.get(`${origin}/documenti/${doc.id}`)).status(), 404);
+  const denied = await readerContext.request.post(sentSave.url(), { headers: { "next-action": sentSave.headers()["next-action"], "content-type": sentSave.headers()["content-type"], origin }, data: sentSave.postDataBuffer()! });
+  assert.match(await denied.text(), /Non hai i permessi/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await next(5);
+  await page.getByText(/Valori suggeriti e confermati dalla commessa/).waitFor();
+  await page.getByText("incarico-wizard.txt", { exact: true }).waitFor();
+  await page.screenshot({ path: "/tmp/opencode/commessa-wizard-mobile-riepilogo.png", fullPage: true });
+  const confirmButton = page.getByRole("button", { name: "Conferma incarico e crea commessa", exact: true });
+  await confirmButton.click();
+  await page.getByRole("alert").filter({ hasText: "Conferma l’incarico" }).waitFor();
+  await page.getByRole("checkbox", { name: "Confermo l’incarico ricevuto dal cliente e i dati del riepilogo.", exact: true }).check();
+  // Simula una modifica agli allegati da un'altra finestra: il riepilogo è obsoleto.
+  const extraDoc = await db.documento.create({ data: { bozzaId: doc.bozzaId, nomeFile: "aggiunto-altrove.txt", percorso: "test-only/not-downloaded.txt" } });
+  await confirmButton.click();
+  await page.getByRole("alert").filter({ hasText: "Gli allegati sono cambiati" }).waitFor();
+  await step(4);
+  assert.equal(await db.commessa.count(), jobsBefore);
+  await page.getByRole("link", { name: "aggiunto-altrove.txt", exact: true }).waitFor();
+  await next(5);
+  await page.locator("dd").filter({ hasText: "aggiunto-altrove.txt" }).waitFor();
+  assert.equal(await page.getByRole("checkbox", { name: "Confermo l’incarico ricevuto dal cliente e i dati del riepilogo.", exact: true }).isChecked(), false);
+  await page.getByRole("checkbox", { name: "Confermo l’incarico ricevuto dal cliente e i dati del riepilogo.", exact: true }).check();
+  const confirmationRequest = page.waitForRequest((r) => r.method() === "POST" && r.postData()?.includes('"conferma":true') === true);
+  await confirmButton.click();
+  const sentConfirm = await confirmationRequest;
+  await page.waitForURL((u) => /^\/commesse\/[^/]+$/.test(u.pathname) && !u.pathname.endsWith("nuova"));
+  const job = await db.commessa.findFirstOrThrow({ where: { descrizione: "Wizard — cliente storico" } });
+  await page.getByText("Conferma iniziale dell’incarico", { exact: true }).waitFor();
+  assert.equal(job.pmId, pm.id); assert.equal(job.importoOfferta?.toString(), "900.37"); assert.equal(job.importoOrdine?.toString(), "850.23");
+  assert.equal(job.indirizzoCantiere, "Via Inserita 9"); assert.equal(job.opportunitaId, null);
+  assert.equal(await db.assegnazioneOperaio.count({ where: { commessaId: job.id, operaioId: worker.id } }), 1);
+  const transferred = await db.documento.findUniqueOrThrow({ where: { id: doc.id } });
+  assert.equal(transferred.bozzaId, null); assert.equal(transferred.commessaId, job.id);
+  assert.equal((await db.documento.findUniqueOrThrow({ where: { id: extraDoc.id } })).commessaId, job.id);
+  assert.equal((await readerContext.request.get(`${origin}/documenti/${doc.id}`)).status(), 200, "Dopo conferma segue la lettura ordinaria delle commesse");
+  await context.request.post(sentConfirm.url(), { headers: { "next-action": sentConfirm.headers()["next-action"], "content-type": sentConfirm.headers()["content-type"], origin }, data: sentConfirm.postDataBuffer()! });
+  assert.equal(await db.commessa.count(), jobsBefore + 1);
+  await page.getByRole("navigation", { name: "Sezioni della commessa" }).getByRole("link", { name: "Attività collegate →", exact: true }).click();
+  await page.waitForURL((u) => u.searchParams.get("commessaId") === job.id);
+  await page.goto(draftUrl); await page.waitForURL(`${origin}/commesse/${job.id}`);
+
+  // Nuovo cliente: tutti i dati economici e le assegnazioni partono vuoti.
+  await page.goto(`${origin}/commesse/nuova`); await step(1);
+  await page.getByRole("button", { name: "Nuovo cliente", exact: true }).click();
+  for (const label of ["Ragione sociale *", "Partita IVA", "Email", "Indirizzo sede"]) assert.equal(await page.getByLabel(label, { exact: true }).inputValue(), "");
+  await page.getByLabel("Ragione sociale *", { exact: true }).fill("Storico Wizard Impianti");
+  await page.getByRole("button", { name: "Passo successivo →", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Verifica le anagrafiche simili" }).waitFor();
+  await page.getByRole("button", { name: "Usa anagrafica esistente", exact: true }).click();
+  assert.match(await page.getByRole("combobox", { name: "Cliente", exact: true }).innerText(), /Storico Wizard/);
+  await page.getByRole("button", { name: "Nuovo cliente", exact: true }).click();
+  await page.getByLabel("Ragione sociale *", { exact: true }).fill("Azienda Nuovissima Wizard UI");
+  const customersBefore = await db.anagrafica.count();
+  await next(2);
+  assert.equal(await db.anagrafica.count(), customersBefore);
+  assert.equal(await page.locator('select[name="tipologia"]').inputValue(), "");
+  assert.equal(await offer.inputValue(), "");
+  await page.getByLabel("Descrizione lavoro *", { exact: true }).fill("Wizard — nuovo consuntivo");
+  await page.locator('select[name="tipologia"]').selectOption("C");
+  await next(3);
+  assert.equal(await page.getByLabel("Inizio lavori", { exact: true }).inputValue(), "");
+  await page.getByLabel("Data richiesta *", { exact: true }).fill("2026-10-27");
+  await page.getByLabel("Data conferma incarico *", { exact: true }).fill("2026-10-27");
+  await page.locator('select[name="metodoRicezioneOrdine"]').selectOption("TELEFONO");
+  await page.getByLabel("Riferimento conferma *", { exact: true }).fill("Conferma telefonica");
+  await next(4); assert.equal(await page.getByRole("checkbox", { checked: true }).count(), 0);
+  await next(5);
+  await page.getByRole("checkbox", { name: "Confermo l’incarico ricevuto dal cliente e i dati del riepilogo.", exact: true }).check();
+  // Il server conferma, ma il browser perde la risposta: il secondo clic deve
+  // aprire la stessa commessa, anche passando di nuovo da Salva bozza.
+  let lostConfirmation = false;
+  await page.route("**/commesse/nuova?bozza=*", async (route) => {
+    const request = route.request();
+    if (!lostConfirmation && request.method() === "POST" && request.postData()?.includes('"conferma":true')) {
+      lostConfirmation = true;
+      await route.fetch();
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await confirmButton.click();
+  await page.getByRole("alert").filter({ hasText: "Connessione interrotta" }).waitFor();
+  assert.equal(await db.commessa.count({ where: { descrizione: "Wizard — nuovo consuntivo" } }), 1);
+  await confirmButton.click();
+  await page.waitForURL((u) => /^\/commesse\/[^/]+$/.test(u.pathname) && !u.pathname.endsWith("nuova"));
+  assert.equal(await db.anagrafica.count(), customersBefore + 1);
+  const newJob = await db.commessa.findFirstOrThrow({ where: { descrizione: "Wizard — nuovo consuntivo" } });
+  assert.equal(newJob.importoOfferta, null); assert.equal(newJob.importoOrdine, null); assert.equal(newJob.pmId, null);
+  assert.equal(await db.commessa.count({ where: { descrizione: "Wizard — nuovo consuntivo" } }), 1);
+  await page.unroute("**/commesse/nuova?bozza=*");
+
+  // Risorse divenute inattive dopo il salvataggio devono poter essere rimosse.
+  const ownerId = (await db.bozzaCommessa.findUniqueOrThrow({ where: { id: doc.bozzaId! } })).autoreId!;
+  const unavailable = await db.operaio.create({ data: { nome: "Risorsa", cognome: "Disattivata", attivo: false } });
+  const recovery = await db.bozzaCommessa.create({ data: { id: randomUUID(), autoreId: ownerId, passo: 3, dati: { ...emptyWizard,
+    clienteId: customer.id, descrizione: "Bozza recuperabile", tipologia: "C", dataRichiesta: "2026-10-27", dataOrdine: "2026-10-27", metodoRicezioneOrdine: "EMAIL", oda: "Prova", operai: [unavailable.id],
+  } } });
+  await page.goto(`${origin}/commesse/nuova?bozza=${recovery.id}`); await step(4);
+  await page.getByRole("button", { name: `Rimuovi risorsa non disponibile · ${unavailable.id}`, exact: true }).click();
+  await save();
+  const recovered = await db.bozzaCommessa.findUniqueOrThrow({ where: { id: recovery.id } });
+  assert.deepEqual((recovered.dati as { operai: string[] }).operai, []);
+  await next(5);
+  await readerContext.close();
+  console.log("PASS: wizard commessa — cliente esistente/nuovo, suggerimenti espliciti, bozza/ripresa, frecce e centesimi, risorse, allegati privati, conferma idempotente, mobile");
+}

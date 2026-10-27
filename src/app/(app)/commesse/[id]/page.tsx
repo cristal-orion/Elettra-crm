@@ -13,10 +13,11 @@ import {
   etichettaTitolo,
   etichettaStato,
   METODI_RICEZIONE,
+  etichettaRuolo,
 } from "@/lib/enums";
 import { richiedeFatturazione } from "@/lib/regole";
 import { avanzamento, isProgetto, statoAvanzamento } from "@/lib/progetti";
-import { formatEuro, formatDate, toNumber } from "@/lib/format";
+import { formatEuro, formatDate, formatDateTime, toNumber } from "@/lib/format";
 import {
   AvanzamentoBadge,
   StatoBadge,
@@ -57,6 +58,11 @@ export default async function CommessaDetailPage({
   });
 
   if (!commessa) notFound();
+  const confermaIniziale = await prisma.modificaEconomica.findUnique({
+    where: { entita_entitaId_versione: { entita: "COMMESSA_CREAZIONE", entitaId: id, versione: 1 } },
+    select: { autoreNome: true, autoreRuolo: true, createdAt: true, dopo: true },
+  });
+  const valoriIniziali = confermaIniziale?.dopo as { importoOfferta?: string; importoOrdine?: string } | undefined;
 
   const puoModificare = user ? puoGestireCommesse(user.ruolo) : false;
   const puoAddOrdine = user ? puoGestireOrdini(user.ruolo) : false;
@@ -110,6 +116,14 @@ export default async function CommessaDetailPage({
         </div>
       </header>
 
+      <nav aria-label="Sezioni della commessa" className="flex flex-wrap gap-2 text-sm">
+        <a href="#dati-commessa" className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Cliente, PM e importi</a>
+        {isProgetto(commessa.stato) && <a href="#cantiere-commessa" className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Cantiere e risorse</a>}
+        <a href="#acquisti-commessa" className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Acquisti ({commessa.ordiniFornitore.length})</a>
+        <a href="#documenti-commessa" className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Documenti ({commessa.documenti.length})</a>
+        <Link href={`/attivita?commessaId=${id}`} className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Attività collegate →</Link>
+      </nav>
+
       <AiContextPanel type="commessa" id={id} />
       <TaskContext user={user} commessaId={id} />
       {commessa.opportunitaId && <Link href={`/commerciale/${commessa.opportunitaId}`} className="min-h-11 rounded-lg border border-line p-4 text-sm text-brand-deep">Apri trattativa di origine, offerta e conferma incarico →</Link>}
@@ -140,7 +154,7 @@ export default async function CommessaDetailPage({
         </div>
       )}
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div id="dati-commessa" className="scroll-mt-6 grid gap-5 md:grid-cols-2">
         <Card title="Cliente e assegnazione">
           <Row
             label="Cliente"
@@ -155,6 +169,7 @@ export default async function CommessaDetailPage({
             }
           />
           <Row label="Rif. commerciale" value={commessa.referenteCommerciale} />
+          <Row label="Indirizzo cantiere" value={commessa.indirizzoCantiere} />
         </Card>
 
         <Card title="Offerta">
@@ -176,6 +191,7 @@ export default async function CommessaDetailPage({
           />
           <Row label="Data ordine" value={formatDate(commessa.dataOrdine)} />
           <Row label="Ricezione" value={metodo} />
+          <Row label="Riferimento conferma" value={commessa.oda} />
         </Card>
 
         {commessa.stato === "PERSA" && (
@@ -185,9 +201,15 @@ export default async function CommessaDetailPage({
         )}
       </div>
 
+      {confermaIniziale && <details className="rounded-xl border border-line bg-panel p-5">
+        <summary className="min-h-11 cursor-pointer text-sm font-semibold">Conferma iniziale dell’incarico</summary>
+        <p className="mt-3 text-sm text-ink-soft">{formatDateTime(confermaIniziale.createdAt)} · {confermaIniziale.autoreNome} · {etichettaRuolo(confermaIniziale.autoreRuolo)}</p>
+        <p className="mt-2 text-sm text-ink-soft">Valori al momento della creazione guidata: offerta {valoriIniziali?.importoOfferta ? `${valoriIniziali.importoOfferta} €` : "non definita"}; ordine {valoriIniziali?.importoOrdine ? `${valoriIniziali.importoOrdine} €` : "non definito"}. È la fotografia iniziale, non lo storico delle successive modifiche della scheda.</p>
+      </details>}
+
       {/* Progetto di cantiere (Fase 7): compare solo da "Ordine confermato". */}
       {isProgetto(commessa.stato) && (
-        <section className="rounded-xl border border-line bg-panel p-6">
+        <section id="cantiere-commessa" className="scroll-mt-6 rounded-xl border border-line bg-panel p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="flex items-center gap-2.5 text-sm font-semibold">
               Progetto di cantiere
@@ -200,6 +222,8 @@ export default async function CommessaDetailPage({
               Apri progetto →
             </Link>
           </div>
+          <p className="mt-3 text-sm text-ink-soft">Inizio lavori: {formatDate(commessa.dataInizioLavori)} · Scadenza: {formatDate(commessa.scadenzaLavori)}</p>
+          {commessa.noteCantiere && <p className="mt-2 whitespace-pre-line break-words text-sm text-ink-soft">{commessa.noteCantiere}</p>}
 
           <div className="mt-4 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
             <BarraAvanzamento
@@ -239,7 +263,7 @@ export default async function CommessaDetailPage({
       )}
 
       {/* Ordini a fornitore */}
-      <section className="rounded-xl border border-line bg-panel">
+      <section id="acquisti-commessa" className="scroll-mt-6 rounded-xl border border-line bg-panel">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-sm font-semibold">
             Ordini a fornitore{" "}
@@ -305,7 +329,7 @@ export default async function CommessaDetailPage({
       </section>
 
       {/* Documenti */}
-      <CommessaDocumenti id={commessa.id} numero={commessa.numero} documenti={commessa.documenti} puoGestire={puoDocumenti} />
+      <div id="documenti-commessa" className="scroll-mt-6"><CommessaDocumenti id={commessa.id} numero={commessa.numero} documenti={commessa.documenti} puoGestire={puoDocumenti} /></div>
     </div>
   );
 }

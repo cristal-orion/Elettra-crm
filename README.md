@@ -69,6 +69,7 @@ Utenti creati dal seed, tutti con quella password:
 | `npm test` | Test di regressione (validazione dati, sessioni, documenti, economics) |
 | `npm run test:integration` | Migrazione SQLite, rollback, concorrenza, ricerca e paginazione su PostgreSQL temporaneo |
 | `npm run test:ui` | Chromium: ricerca live, filtri, indietro/breadcrumb, scroll e mobile su dati isolati |
+| `npm run test:ui:commessa` | Solo wizard: bozze/ripresa, clienti nuovi/esistenti, suggerimenti, allegati privati, risorse e conferma |
 | `npm run test:ops` | Immagine Docker, backup Restic e restore completo (richiede build e DB locale) |
 | `npm run lint` | Analisi statica del codice applicativo |
 | `npm run ai:scheduled` | Esegue i controlli AI programmati dovuti (da pianificare ogni 5 minuti) |
@@ -292,6 +293,76 @@ Il test `src/lib/consuntivi.test.ts` usa PostgreSQL isolato e copre calcoli, aud
 rollback, override, versioni e autorizzazioni. `npm run test:ui` verifica anche
 default, fasce, salvataggi successivi, conflitti, lettura/stampa e mobile.
 
+## Creazione guidata della commessa
+
+`/commesse/nuova` guida in cinque passi: **Cliente → Dati commessa/offerta →
+Date/PM → Risorse/allegati → Riepilogo**. È il percorso per un incarico ricevuto;
+le trattative non ancora acquisite restano nel Commerciale. La conversione delle
+opportunità già esistente rimane invariata: non creare una seconda commessa dal wizard.
+
+- **Salva bozza** accetta dati incompleti. Avanti/indietro salvano il passo sul
+  server; i passaggi in avanti validano i campi precedenti. Le bozze personali si
+  riprendono da `/commesse/bozze` (ultime 100), anche dopo una nuova sessione.
+  Non hanno numero e non sono commesse: nessun KPI, importo o risorsa prenotata.
+  Il modulo segnala modifiche non salvate e conserva i campi se una richiesta fallisce.
+- Il cliente esistente mostra dati anagrafici e referenti senza riscriverli.
+  Backoffice/Super Admin possono preparare un cliente nuovo o scegliere un
+  prospect/fornitore da abilitare come cliente. La creazione/promozione avviene
+  **solo alla conferma**, nella stessa transazione della commessa; i controlli
+  fiscali e di similarità riusano quelli dell’anagrafica. I PM non acquisiscono
+  permessi di gestione anagrafiche attraverso il wizard.
+- **Usa dati ultima commessa** propone separatamente PM ancora attivo, tipologia,
+  indirizzo cantiere e riferimento commerciale. Ogni valore richiede un clic,
+  riempie solo campi vuoti e resta marcato come suggerito/confermato anche dopo
+  la ripresa. Nessuna copia di prezzi, importi approvati, risorse o acquisti;
+  i suggerimenti di materiali ricorrenti non sono ancora implementati.
+- Le date partono vuote. Offerta e ordine sono separati; Preventivo/Gara
+  richiedono importi e data invio offerta. Consuntivo/Tariffario possono avere
+  importi vuoti. La conferma dell’incarico richiede data, modalità, riferimento
+  e spunta esplicita, non un importo finale obbligatorio per i lavori a consuntivo.
+- Le risorse sono facoltative, con intervallo inizio–scadenza lavori obbligatorio
+  quando selezionate. Alla conferma si ricontrollano PM, referenti, risorse attive
+  e sovrapposizioni secondo le regole operative esistenti, senza nuovi automatismi.
+  Le risorse divenute indisponibili restano visibili e rimovibili dalla bozza.
+- Gli allegati della bozza sono scaricabili e modificabili solo dall’autore
+  ancora abilitato. Non sono disponibili all’analisi AI. Alla conferma sono
+  ricollegati alla commessa senza copiare il file e seguono i permessi ordinari
+  dei documenti di commessa. Il percorso fisico `bozze-<uuid>/` resta valido.
+  La conferma verifica anche l’elenco degli allegati mostrato nel riepilogo:
+  aggiunte/rimozioni in un’altra finestra richiedono di rivederlo.
+- Versioni e transazioni serializzabili proteggono dalle sovrascritture tra
+  finestre. La conferma è idempotente e crea un solo numero, con cliente,
+  pianificazione, documenti e assegnazioni atomici. In caso di errore si annulla
+  tutto, compresa l’eventuale nuova anagrafica, e la bozza resta recuperabile.
+  Se la conferma riesce ma si perde la risposta di rete, il tentativo successivo
+  apre la stessa commessa già creata.
+  La fotografia iniziale è registrata in `ModificaEconomica` come
+  `COMMESSA_CREAZIONE`, con autore, ruolo, data e dati confermati. La scheda
+  mostra autore e importi iniziali, senza presentarli come audit delle successive
+  modifiche al form storico.
+
+La scheda unica conserva i collegamenti Commerciale, consuntivo e progetto e
+aggiunge accessi immediati a dati cliente/PM/importi, cantiere/risorse, acquisti,
+documenti e attività filtrate. L’indirizzo cantiere è distinto dalla sede cliente,
+visibile nella scheda e modificabile dal form esistente; nessuno storico è
+riclassificato o valorizzato automaticamente.
+
+Schema richiesto: `20261027120000_commessa_guidata` (nuova tabella
+`BozzaCommessa`, indirizzo cantiere e riferimento bozza dei documenti). Applicare
+con `npm run db:deploy` **prima** del nuovo runtime; non richiede backfill dello
+storico. La migrazione è esercitata dagli schemi PostgreSQL isolati dei test:
+non è per questo applicata al database applicativo o alla produzione.
+Le bozze non vengono condivise o trasferite automaticamente: se l’account viene
+eliminato restano archiviate senza autore, non accessibili da altri utenti.
+
+`npm test` verifica isolamento, permessi, versioni concorrenti, idempotenza,
+validazioni, nuovi clienti, promozione fornitori, importi e rollback.
+`npm run test:ui:commessa` e la suite UI completa verificano i due percorsi,
+frecce native/centesimi, ripresa dopo reload, allegati privati e trasferimento,
+assegnazioni, collegamenti contestuali e viewport mobile.
+Le regressioni includono risposta di conferma persa, allegati cambiati dopo il
+riepilogo e rimozione delle risorse non più disponibili.
+
 ## Commerciale: dal contatto alla commessa
 
 **Commerciale** gestisce nuove opportunità distinte dalle commesse. Le fasi iniziali
@@ -314,9 +385,14 @@ ricerca e controllo duplicati delle anagrafiche restano disponibili.
 
 Il pulsante **Nuova trattativa** è nella testata dell'anagrafica cliente/potenziale
 cliente, con il cliente già selezionato. Nei campi valore previsto, importo offerta
-e importo confermato, i comandi **−10 € / +10 €** e le frecce su/giù della tastiera
-variano il valore di dieci euro; l'inserimento manuale conserva i centesimi.
+e importo confermato, le freccette native del campo e le frecce su/giù della tastiera
+variano il valore di dieci euro, senza pulsanti aggiuntivi; l'inserimento manuale
+conserva i centesimi. Le frecce di **Ore effettive** nel consuntivo variano di
+**0,5 ore (30 minuti)**; i valori manuali e già salvati conservano la precisione esistente.
 La testata della commessa mostra subito numero, titolo del lavoro e cliente collegato.
+Nella scheda anagrafica, le **Commesse collegate** sono subito sotto la testata,
+prima di AI e attività: i numeri aprono direttamente la commessa. Gli elenchi lunghi
+scorrono nel riquadro, senza nascondere le altre sezioni della scheda.
 
 Nella scheda si registrano chiamate, email, incontri, sopralluoghi e note con data
 effettiva, esito e indicazione «Risposta ricevuta». Il prossimo contatto genera

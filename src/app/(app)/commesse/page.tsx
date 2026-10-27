@@ -67,6 +67,7 @@ export default async function CommessePage({
         )}
       </header>
       <p className="text-sm text-ink-soft">Per seguire nuove trattative, contatti e offerte apri il <Link href="/commerciale" className="text-brand-deep underline">Commerciale</Link>.</p>
+      {puoCreare && <Link href="/commesse/bozze" className="text-sm font-medium text-brand-deep underline">Le mie bozze commessa →</Link>}
 
       <ListFilters q={q} total={total} similar={pagination.similar} placeholder="Numero, descrizione, cliente…" filters={[
         { name: "stato", label: "Stato", value: stato ?? "", options: [{ value: "", label: "Tutti gli stati" }, ...Object.entries(STATI_COMMESSA).map(([value, label]) => ({ value, label }))] },

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Browser, BrowserContext, Page } from "playwright";
 import type { PrismaClient } from "../src/generated/prisma";
 import { tariffarioValues } from "../src/lib/consuntivi";
+import { clickNumberArrow } from "./number-input-ui";
 
 export async function verifyConsuntiviUi({ page, context, browser, db, origin, clienteId, readerToken }: {
   page: Page; context: BrowserContext; browser: Browser; db: PrismaClient; origin: string; clienteId: string; readerToken: string;
@@ -28,6 +29,21 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
   await page.goto(`${origin}/commesse/ui-project`);
   await page.getByRole("link", { name: /^Consuntivo ore e materiali →/ }).click();
   await page.getByRole("button", { name: "+ Aggiungi ore", exact: true }).click();
+  const hours = page.getByLabel("Ore effettive", { exact: true });
+  await clickNumberArrow(hours, "up");
+  assert.equal(await hours.inputValue(), "1.5000");
+  await clickNumberArrow(hours, "down");
+  assert.equal(await hours.inputValue(), "1.0000");
+  await hours.press("ArrowDown");
+  assert.equal(await hours.inputValue(), "0.5000");
+  await hours.press("ArrowUp");
+  assert.equal(await hours.inputValue(), "1.0000");
+  await hours.fill("1.0012");
+  await clickNumberArrow(hours, "up");
+  assert.equal(await hours.inputValue(), "1.5012", "Il passo non deve eliminare la precisione delle ore manuali/storiche");
+  await hours.fill("0.2");
+  await clickNumberArrow(hours, "down");
+  assert.equal(await hours.inputValue(), "0.0000");
   assert.equal(await page.getByLabel("Tariffa applicata (€/h)", { exact: true }).inputValue(), "35.0000");
   await page.getByLabel("Fascia oraria", { exact: true }).selectOption("straordinariaFestiva");
   assert.equal(await page.getByLabel("Tariffa applicata (€/h)", { exact: true }).inputValue(), "60.0000");
@@ -45,6 +61,12 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
   const sentSheet = await sheetPost;
   await page.getByRole("heading", { name: "Totali salvati · versione 1", exact: true }).waitFor();
   const original = await db.consuntivo.findUniqueOrThrow({ where: { commessaId: "ui-project" } });
+  await page.reload();
+  await page.getByRole("button", { name: "Salva consuntivo", exact: true }).click({ trial: true });
+  await hours.press("ArrowUp");
+  assert.equal(await hours.inputValue(), "3.0000", "Passo di mezz'ora anche sulle righe già salvate");
+  await hours.press("ArrowDown");
+  assert.equal(await hours.inputValue(), "2.5000");
   assert.equal(original.totale.toFixed(2), "137.50");
   await page.getByRole("region", { name: "Totali salvati", exact: true }).getByText("137,50 €", { exact: true }).waitFor();
 
@@ -91,6 +113,13 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [tariffarioPath, consuntivoPath]) {
     await page.goto(`${origin}${path}`);
+    if (path === consuntivoPath) {
+      await page.getByRole("button", { name: "Salva consuntivo", exact: true }).click({ trial: true });
+      await hours.press("ArrowUp");
+      assert.equal(await hours.inputValue(), "3.0000");
+      await hours.press("ArrowDown");
+      assert.equal(await hours.inputValue(), "2.5000");
+    }
     await page.getByText(/^Versione 1 ·/).click();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow ${path}`);
     for (const button of await page.locator("form").getByRole("button").all()) assert.ok((await button.boundingBox())!.height >= 44);

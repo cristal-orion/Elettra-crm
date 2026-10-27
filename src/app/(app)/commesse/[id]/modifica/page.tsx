@@ -47,6 +47,7 @@ export default async function ModificaCommessaPage({
     stato: commessa.stato,
     tipologia: commessa.tipologia ?? "",
     descrizione: commessa.descrizione ?? "",
+    indirizzoCantiere: commessa.indirizzoCantiere ?? "",
     dataRichiesta: toDateInput(commessa.dataRichiesta),
     dataInvio: toDateInput(commessa.dataInvio),
     importoOfferta: commessa.importoOfferta?.toString() ?? "",

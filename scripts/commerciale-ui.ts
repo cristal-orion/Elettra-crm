@@ -1,31 +1,31 @@
 import assert from "node:assert/strict";
 import type { Browser, BrowserContext, Page } from "playwright";
 import type { PrismaClient } from "../src/generated/prisma";
+import { clickNumberArrow } from "./number-input-ui";
 
 async function verifyMoneyControls(page: Page, label: string) {
   const input = page.getByLabel(label, { exact: true });
-  const increase = page.getByRole("button", { name: `Aumenta di 10 euro — ${label}`, exact: true });
-  const decrease = page.getByRole("button", { name: `Diminuisci di 10 euro — ${label}`, exact: true });
+  assert.equal(await page.getByRole("button", { name: /(?:Aumenta|Diminuisci) di 10 euro/ }).count(), 0);
   await input.fill("");
-  await decrease.click();
+  await clickNumberArrow(input, "down");
   assert.equal(await input.inputValue(), "");
-  await increase.click();
+  await clickNumberArrow(input, "up");
   assert.equal(await input.inputValue(), "10.00");
   await input.fill("899.52");
-  await increase.click();
+  await clickNumberArrow(input, "up");
   assert.equal(await input.inputValue(), "909.52");
   await input.press("ArrowDown");
   assert.equal(await input.inputValue(), "899.52");
-  await decrease.click();
+  await clickNumberArrow(input, "down");
   assert.equal(await input.inputValue(), "889.52");
   await input.press("ArrowUp");
   assert.equal(await input.inputValue(), "899.52");
   assert.equal(await input.evaluate((e) => (e as HTMLInputElement).validity.valid), true, "I centesimi non devono causare stepMismatch");
   await input.fill("5.52");
-  await decrease.click();
+  await clickNumberArrow(input, "down");
   assert.equal(await input.inputValue(), "0.00");
   await input.fill("899.521");
-  await increase.click();
+  await clickNumberArrow(input, "up");
   assert.equal(await input.inputValue(), "899.521", "Un importo non valido non deve essere arrotondato dai comandi");
   assert.equal(await input.evaluate((e) => (e as HTMLInputElement).validity.valid), false);
   await input.fill("899.52");
@@ -139,6 +139,21 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   await page.getByRole("link", { name: `Incarico confermato · Apri commessa ${job.numero} →`, exact: true }).waitFor();
   assert.equal(await db.commessa.count({ where: { opportunitaId: opp.id } }), 1);
 
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${origin}/anagrafiche/${customer.id}`);
+    const linkedJobs = page.getByRole("region", { name: "Commesse collegate", exact: true });
+    const jobLink = linkedJobs.getByRole("link", { name: `Apri commessa ${job.numero}`, exact: true });
+    await jobLink.waitFor();
+    const bounds = await jobLink.boundingBox();
+    assert.ok(bounds && bounds.y + bounds.height < 844, "Numero commessa visibile senza scorrere la scheda cliente");
+    assert.equal(await linkedJobs.evaluate((e) => e.previousElementSibling?.tagName), "HEADER", "Commesse subito dopo la testata");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "La tabella non deve allargare la pagina");
+    await page.screenshot({ path: `/tmp/opencode/anagrafica-commesse-${width}.png`, fullPage: true });
+    await jobLink.click();
+    await page.waitForURL(`${origin}/commesse/${job.id}`);
+  }
+
   const readerContext = await browser.newContext();
   await readerContext.addCookies([{ name: "elettra_session", value: readerToken, url: origin }]);
   const reader = await readerContext.newPage();
@@ -164,7 +179,7 @@ export async function verifyCommercialeUi({ page, context, browser, db, origin, 
   await confirmation.fill("");
   assert.equal(await confirmation.evaluate((e) => (e as HTMLInputElement).validity.valueMissing), true);
   await confirmation.fill("849.52");
-  await page.getByRole("button", { name: "Aumenta di 10 euro — Importo confermato (€)", exact: true }).click();
+  await clickNumberArrow(confirmation, "up");
   assert.equal(await confirmation.inputValue(), "859.52");
   await confirmation.press("ArrowDown");
   assert.equal(await confirmation.inputValue(), "849.52");

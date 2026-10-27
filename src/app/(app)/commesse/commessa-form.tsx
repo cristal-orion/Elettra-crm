@@ -35,6 +35,7 @@ export type CommessaFormValues = {
   stato: string;
   tipologia: string;
   descrizione: string;
+  indirizzoCantiere?: string;
   dataRichiesta: string;
   dataInvio: string;
   importoOfferta: string;
@@ -157,6 +158,7 @@ export default function CommessaForm({
       <fieldset className="rounded-xl border border-line bg-panel p-5">
         <legend className="px-1 text-sm font-semibold">Dettagli offerta</legend>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 sm:col-span-2"><span className={labelCls}>Indirizzo cantiere</span><input name="indirizzoCantiere" defaultValue={v("indirizzoCantiere")} className={inputCls} /></label>
           <label className="flex flex-col gap-1.5 sm:col-span-2">
             <span className={labelCls}>Descrizione</span>
             <textarea

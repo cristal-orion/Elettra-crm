@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { percorsoAssoluto } from "@/lib/storage";
 import { downloadHeaders } from "@/lib/download";
+import { ownedDraft } from "@/lib/commessa-wizard";
 
 export async function GET(
   _req: NextRequest,
@@ -15,6 +16,10 @@ export async function GET(
   const { id } = await ctx.params;
   const doc = await prisma.documento.findUnique({ where: { id } });
   if (!doc) return new Response("Documento non trovato", { status: 404 });
+  if (doc.bozzaId) {
+    try { await ownedDraft(prisma, user.id, doc.bozzaId); }
+    catch { return new Response("Documento non trovato", { status: 404 }); }
+  }
 
   let data: Buffer;
   try {

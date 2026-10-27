@@ -34,7 +34,8 @@ export async function generateContextAnalysis(model: LanguageModel, data: unknow
 }
 
 export async function analyzeDocument(documentoId: string, domanda: string, signal?: AbortSignal) {
-  const doc = await prisma.documento.findUnique({ where: { id: documentoId }, select: { nomeFile: true, percorso: true, tipoMime: true, commessaId: true } });
+  // Le bozze sono private e non fanno parte del contesto CRM dell'assistente.
+  const doc = await prisma.documento.findUnique({ where: { id: documentoId, bozzaId: null }, select: { nomeFile: true, percorso: true, tipoMime: true, commessaId: true } });
   if (!doc) throw new CrmError("Documento non trovato.");
   const result = await analyzeFile(doc, domanda, signal);
   return { documentoId, nome: doc.nomeFile, commessaId: doc.commessaId, href: `/documenti/${documentoId}`, ...result };

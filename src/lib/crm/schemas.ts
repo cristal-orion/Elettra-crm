@@ -23,7 +23,7 @@ export const AnagraficaData = z.object({
 });
 export const CommessaData = z.object({
   clienteId: id.optional(), pmId: optionalId, referenteId: optionalId,
-  referenteCommerciale: text, descrizione: text,
+  referenteCommerciale: text, descrizione: text, indirizzoCantiere: text,
   stato: z.enum(keys(STATI_COMMESSA)).optional(), tipologia: z.enum(keys(TIPOLOGIE)).nullable().optional(),
   dataRichiesta: day, dataInvio: day, dataOrdine: day,
   importoOfferta: money, importoOrdine: money,

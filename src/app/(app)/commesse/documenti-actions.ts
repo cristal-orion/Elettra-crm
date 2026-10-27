@@ -8,6 +8,7 @@ import { puoGestireDocumenti, CATEGORIE_DOCUMENTO } from "@/lib/enums";
 import { salvaFile, eliminaFile, sanitizeFilename } from "@/lib/storage";
 import { serializable } from "@/lib/transaction";
 import { eventoCommerciale } from "@/lib/commerciale";
+import { ownedDraft } from "@/lib/commessa-wizard";
 
 export type UploadState = { error?: string; ok?: number } | undefined;
 
@@ -52,10 +53,20 @@ export async function uploadDocumentiCommerciali(opportunitaId: string, _prev: U
   return upload("opportunita", opportunitaId, formData);
 }
 
-async function upload(tipo: "commessa" | "opportunita", id: string, formData: FormData): Promise<UploadState> {
+export async function uploadDocumentiBozza(bozzaId: string, _prev: UploadState, formData: FormData): Promise<UploadState> {
+  return upload("bozza", bozzaId, formData);
+}
+
+async function upload(tipo: "commessa" | "opportunita" | "bozza", id: string, formData: FormData): Promise<UploadState> {
   const user = await requireUser();
   if (!puoGestireDocumenti(user.ruolo)) {
     return { error: "Non hai i permessi per caricare documenti." };
+  }
+  if (tipo === "bozza") {
+    try {
+      const draft = await ownedDraft(prisma, user.id, id);
+      if (draft.commessaId) return { error: "Bozza già confermata. Carica il documento nella commessa." };
+    } catch { return { error: "Bozza non disponibile per questo utente." }; }
   }
 
   const commessa = tipo === "commessa" ? await prisma.commessa.findUnique({ where: { id }, select: { numero: true, opportunitaId: true } }) : null;
@@ -65,6 +76,7 @@ async function upload(tipo: "commessa" | "opportunita", id: string, formData: Fo
   const refresh = () => {
     revalidatePath("/commesse", "layout"); revalidatePath("/progetti", "layout");
     if (opportunitaId) revalidatePath(`/commerciale/${opportunitaId}`);
+    if (tipo === "bozza") revalidatePath("/commesse/nuova");
   };
 
   const catRaw = String(formData.get("categoria") ?? "").trim();
@@ -91,16 +103,23 @@ async function upload(tipo: "commessa" | "opportunita", id: string, formData: Fo
     let percorso: string | null = null;
     try {
       // La cartella "<numeroCommessa>/" viene creata al bisogno (auto-cartella).
-      percorso = await salvaFile(commessa?.numero ?? `commerciale-${id}`, nomeSuDisco, buf);
+      percorso = await salvaFile(commessa?.numero ?? `${tipo === "bozza" ? "bozze" : "commerciale"}-${id}`, nomeSuDisco, buf);
       const savedPath = percorso;
       await serializable(async (tx) => {
         const actor = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
         if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) throw new Error("Non autorizzato");
+        if (tipo === "bozza") {
+          const draft = await ownedDraft(tx, actor.id, id);
+          if (draft.commessaId) throw new Error("Bozza già confermata");
+          // Serializza upload/conferma senza invalidare i campi salvati del wizard.
+          await tx.bozzaCommessa.update({ where: { id }, data: { updatedAt: new Date() } });
+        }
         const opp = opportunitaId ? await tx.opportunita.update({ where: { id: opportunitaId }, data: { versione: { increment: 1 } }, include: { commessa: { select: { id: true } } } }) : null;
         const doc = await tx.documento.create({
         data: {
           commessaId: tipo === "commessa" ? id : opp?.commessa?.id,
           opportunitaId,
+          bozzaId: tipo === "bozza" ? id : null,
           nomeFile,
           categoria,
           tipoMime: f.type || null,
@@ -133,6 +152,11 @@ export async function deleteDocumento(
     if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) return null;
     const row = await tx.documento.findUnique({ where: { id: documentoId } });
     if (!row) return null;
+    if (row.bozzaId) {
+      const draft = await ownedDraft(tx, actor.id, row.bozzaId);
+      if (draft.commessaId) return null;
+      await tx.bozzaCommessa.update({ where: { id: row.bozzaId }, data: { updatedAt: new Date() } });
+    }
     if (row.opportunitaId) {
       await tx.opportunita.update({ where: { id: row.opportunitaId }, data: { versione: { increment: 1 } } });
       await eventoCommerciale(tx, actor, row.opportunitaId, "DOCUMENTO", `Allegato rimosso: ${row.nomeFile}`, row);
@@ -145,4 +169,5 @@ export async function deleteDocumento(
   await eliminaFile(doc.percorso);
   if (doc.commessaId) { revalidatePath(`/commesse/${doc.commessaId}`); revalidatePath(`/progetti/${doc.commessaId}`); }
   if (doc.opportunitaId) revalidatePath(`/commerciale/${doc.opportunitaId}`);
+  if (doc.bozzaId) revalidatePath("/commesse/nuova");
 }

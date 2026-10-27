@@ -100,6 +100,92 @@ export default async function AnagraficaDetailPage({
         </div>
       </header>
 
+      {/* Commesse */}
+      <section id="commesse-cliente" aria-label="Commesse collegate" className="scroll-mt-6 rounded-xl border border-line bg-panel">
+        <div className="border-b border-line px-6 py-4">
+          <h2 className="text-sm font-semibold">
+            Commesse{" "}
+            <span className="font-normal text-ink-faint">
+              ({anagrafica.commesse.length})
+            </span>
+          </h2>
+        </div>
+        <div className="max-h-96 overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left font-mono text-[11px] uppercase tracking-wider text-ink-faint">
+                <th className="px-6 py-3 font-medium">Numero</th>
+                <th className="px-4 py-3 font-medium">Descrizione</th>
+                <th className="px-4 py-3 font-medium">Stato</th>
+                <th className="px-4 py-3 font-medium">Tip.</th>
+                <th className="px-6 py-3 text-right font-medium">Offerta</th>
+                {anagrafica.isCliente && (
+                  <>
+                    <th className="px-4 py-3 text-right font-medium">Ordine acquisito</th>
+                    <th className="px-4 py-3 text-right font-medium">Acquisti</th>
+                    <th className="px-6 py-3 text-right font-medium">Margine</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {anagrafica.commesse.map((c) => {
+                const valori = economicsPerCommessa.get(c.id)!;
+                return (
+                  <tr key={c.id} className="border-t border-line">
+                    <td className="px-6 py-3 font-mono tabular-nums">
+                      <Link
+                        href={`/commesse/${c.id}`}
+                        aria-label={`Apri commessa ${c.numero}`}
+                        className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 hover:decoration-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+                      >
+                        {c.numero}
+                      </Link>
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3">
+                      {c.descrizione ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatoBadge stato={c.stato} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <TipologiaBadge tipologia={c.tipologia} />
+                    </td>
+                    <td className="px-6 py-3 text-right tabular-nums">
+                      {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
+                    </td>
+                    {anagrafica.isCliente && (
+                      <>
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                          {valori.entrate === null ? (
+                            <span className="text-xs text-ink-soft">Da inserire</span>
+                          ) : formatEuro(valori.entrate)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                          {formatEuro(valori.uscite)}
+                        </td>
+                        <td className={`whitespace-nowrap px-6 py-3 text-right font-medium tabular-nums ${valori.margine !== null && Number(valori.margine) < 0 ? "text-danger" : "text-ink"}`}>
+                          {valori.margine === null ? (
+                            <span className="text-xs font-normal text-ink-soft">Da completare</span>
+                          ) : formatEuro(valori.margine)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+              {anagrafica.commesse.length === 0 && (
+                <tr>
+                  <td colSpan={anagrafica.isCliente ? 8 : 5} className="px-6 py-6 text-center text-ink-faint">
+                    Nessuna commessa per questa anagrafica.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <AiContextPanel type="cliente" id={id} />
       <TaskContext user={user} clienteId={id} />
       {(anagrafica.isCliente || anagrafica.isProspect) && <div className="flex flex-wrap gap-3 text-sm"><Link href={`/commerciale?cliente=${id}`} className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Trattative collegate →</Link></div>}
@@ -181,92 +267,6 @@ export default async function AnagraficaDetailPage({
       {anagrafica.isCliente && anagrafica.commesse.length > 0 && (
         <ClienteStats commesse={anagrafica.commesse} adesso={new Date()} />
       )}
-
-      {/* Commesse */}
-      <section id="commesse-cliente" className="scroll-mt-6 rounded-xl border border-line bg-panel">
-        <div className="border-b border-line px-6 py-4">
-          <h2 className="text-sm font-semibold">
-            Commesse{" "}
-            <span className="font-normal text-ink-faint">
-              ({anagrafica.commesse.length})
-            </span>
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left font-mono text-[11px] uppercase tracking-wider text-ink-faint">
-                <th className="px-6 py-3 font-medium">Numero</th>
-                <th className="px-4 py-3 font-medium">Descrizione</th>
-                <th className="px-4 py-3 font-medium">Stato</th>
-                <th className="px-4 py-3 font-medium">Tip.</th>
-                <th className="px-6 py-3 text-right font-medium">Offerta</th>
-                {anagrafica.isCliente && (
-                  <>
-                    <th className="px-4 py-3 text-right font-medium">Ordine acquisito</th>
-                    <th className="px-4 py-3 text-right font-medium">Acquisti</th>
-                    <th className="px-6 py-3 text-right font-medium">Margine</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {anagrafica.commesse.map((c) => {
-                const valori = economicsPerCommessa.get(c.id)!;
-                return (
-                  <tr key={c.id} className="border-t border-line">
-                    <td className="px-6 py-3 font-mono tabular-nums">
-                      <Link
-                        href={`/commesse/${c.id}`}
-                        aria-label={`Apri commessa ${c.numero}`}
-                        className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 hover:decoration-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
-                      >
-                        {c.numero}
-                      </Link>
-                    </td>
-                    <td className="max-w-xs truncate px-4 py-3">
-                      {c.descrizione ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatoBadge stato={c.stato} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <TipologiaBadge tipologia={c.tipologia} />
-                    </td>
-                    <td className="px-6 py-3 text-right tabular-nums">
-                      {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
-                    </td>
-                    {anagrafica.isCliente && (
-                      <>
-                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
-                          {valori.entrate === null ? (
-                            <span className="text-xs text-ink-soft">Da inserire</span>
-                          ) : formatEuro(valori.entrate)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
-                          {formatEuro(valori.uscite)}
-                        </td>
-                        <td className={`whitespace-nowrap px-6 py-3 text-right font-medium tabular-nums ${valori.margine !== null && Number(valori.margine) < 0 ? "text-danger" : "text-ink"}`}>
-                          {valori.margine === null ? (
-                            <span className="text-xs font-normal text-ink-soft">Da completare</span>
-                          ) : formatEuro(valori.margine)}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-              {anagrafica.commesse.length === 0 && (
-                <tr>
-                  <td colSpan={anagrafica.isCliente ? 8 : 5} className="px-6 py-6 text-center text-ink-faint">
-                    Nessuna commessa per questa anagrafica.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       {/* Ordini a fornitore (solo se fornitore) */}
       {anagrafica.isFornitore && (

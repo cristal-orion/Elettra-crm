@@ -42,6 +42,7 @@ model User {
   modificheEconomiche ModificaEconomica[]
   opportunita Opportunita[]
   eventiCommerciali EventoCommerciale[]
+  bozzeCommesse BozzaCommessa[]
 
   @@index([ruolo])
 }
@@ -171,6 +172,7 @@ model Commessa {
   scadenzaLavori    DateTime? // consegna concordata col cliente
   dataFineLavori    DateTime? // chiusura effettiva del cantiere
   noteCantiere      String?
+  indirizzoCantiere String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -186,11 +188,30 @@ model Commessa {
   consuntivo      Consuntivo?
   opportunitaId   String? @unique
   opportunita     Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
+  bozzaOrigine    BozzaCommessa?
 
   @@index([clienteId])
   @@index([stato])
   @@index([anno])
   @@index([scadenzaLavori])
+}
+
+/// Preparazione privata: non è una commessa e non entra nei KPI o nelle risorse.
+/// L'ID scelto dal client rende recuperabile anche il primo salvataggio ritentato.
+model BozzaCommessa {
+  id          String   @id
+  autoreId    String?
+  autore      User?    @relation(fields: [autoreId], references: [id], onDelete: SetNull)
+  versione    Int      @default(1)
+  passo       Int      @default(0)
+  dati        Json
+  commessaId  String?  @unique
+  commessa    Commessa? @relation(fields: [commessaId], references: [id], onDelete: Restrict)
+  documenti   Documento[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([autoreId, updatedAt])
 }
 
 /// Listino riusabile del cliente. Le righe JSON sono validate dal servizio
@@ -409,6 +430,7 @@ model Documento {
   id         String   @id @default(cuid())
   commessaId String?
   opportunitaId String?
+  bozzaId    String?
   nomeFile   String
   categoria  String   @default("ALTRO") // vedi CATEGORIE_DOCUMENTO in enums.ts
   tipoMime   String?
@@ -418,9 +440,11 @@ model Documento {
 
   commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: Cascade)
   opportunita Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
+  bozza BozzaCommessa? @relation(fields: [bozzaId], references: [id], onDelete: Restrict)
 
   @@index([commessaId])
   @@index([opportunitaId])
+  @@index([bozzaId])
 }
 
 /// Nomi/ordine configurabili, significato stabile per conversione e indicatori.

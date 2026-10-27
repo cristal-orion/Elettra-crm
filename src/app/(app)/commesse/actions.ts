@@ -10,6 +10,7 @@ export type CommessaState = { error?: string } | undefined;
 async function save(id: string | undefined, form: FormData): Promise<CommessaState> {
   const user = await requireUser();
   const fields = ["clienteId", "referenteId", "pmId", "stato", "tipologia", "descrizione", "referenteCommerciale", "dataRichiesta", "dataInvio", "dataOrdine", "metodoRicezioneOrdine", "motivazionePersa"];
+  if (form.has("indirizzoCantiere")) fields.push("indirizzoCantiere");
   const data: Record<string, unknown> = Object.fromEntries(fields.map((k) => [k, String(form.get(k) ?? "").trim() || null]));
   for (const field of ["importoOfferta", "importoOrdine"]) {
     const raw = String(form.get(field) ?? "").trim();

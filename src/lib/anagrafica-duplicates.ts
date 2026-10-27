@@ -4,7 +4,7 @@ import { normalizedSearchText } from "./list-search";
 import { duplicateSignals, MATCH_REASONS, type AnagraficaMatch, type AnagraficaMatchInput, type AnagraficaMatches } from "./anagrafica-match";
 
 /** Ricerca su clienti E fornitori, senza trasferire l'intera anagrafica al browser. */
-export async function findSimilarAnagrafiche(db: PrismaClient, input: AnagraficaMatchInput & { excludeId?: string }): Promise<AnagraficaMatches> {
+export async function findSimilarAnagrafiche(db: Pick<PrismaClient, "$queryRaw">, input: AnagraficaMatchInput & { excludeId?: string }): Promise<AnagraficaMatches> {
   const s = duplicateSignals(input);
   if (!s.terms.length && !s.partitaIva && !s.codiceFiscale && !s.email && !s.telefono) return { candidati: [], altri: false };
   const name = normalizedSearchText(Prisma.sql`a."ragioneSociale"`);
