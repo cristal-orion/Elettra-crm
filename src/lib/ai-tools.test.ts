@@ -146,7 +146,7 @@ test("AI cantieri: sospesi filtrabili, SAL assente distinto da zero e conteggi d
     milestone: { create: { titolo: "Esempio completato", ordine: 0, stato: "COMPLETATA", dimostrativa: true } },
     documenti: { create: [{ nomeFile: "quadro.jpg", percorso: "test/quadro.jpg", categoria: "FOTO" }, { nomeFile: "offerta.pdf", percorso: "test/offerta.pdf", categoria: "OFFERTA" }] } } });
   const t = tools("worker", "PROJECT_MANAGER");
-  type Projects = { totale: number; progetti: { id: string; avanzamento: { percentuale: number } | null }[] };
+   type Projects = { totale: number; progetti: { id: string; avanzamento: { percentuale: number | null } | null }[] };
   const result = await call<Projects>(t, "cercaProgetti", { situazione: "SOSPESO" });
   assert.equal(result.totale, 1); assert.equal(result.progetti[0].id, "operativo"); assert.equal(result.progetti[0].avanzamento, null);
   const detail = await call<{ _count: { documenti: number; ordiniFornitore?: number }; documenti: { nomeFile: string }[]; dettaglioParziale: boolean; importoOrdine?: string; avanzamento: unknown }>(t, "dettaglioCommessa", { numero: "261002" });
@@ -155,7 +155,9 @@ test("AI cantieri: sospesi filtrabili, SAL assente distinto da zero e conteggi d
   assert.equal(detail.dettaglioParziale, false); assert.equal(detail.importoOrdine, undefined); assert.equal(detail.avanzamento, null);
   await db.milestone.create({ data: { commessaId: "operativo", titolo: "Posa reale", ordine: 1 } });
   const real = await call<Projects>(t, "cercaProgetti", { situazione: "SOSPESO" });
-  assert.equal(real.progetti[0].avanzamento?.percentuale, 0);
+  assert.equal(real.progetti[0].avanzamento?.percentuale, null);
+  await db.milestone.updateMany({ where: { commessaId: "operativo", dimostrativa: false }, data: { durataGiorni: 60 } });
+  assert.equal((await call<Projects>(t, "cercaProgetti", { situazione: "SOSPESO" })).progetti[0].avanzamento?.percentuale, 0);
   assert.equal((await call<typeof detail>(tools(), "dettaglioCommessa", { numero: "261002" }))._count.documenti, 2);
 });
 

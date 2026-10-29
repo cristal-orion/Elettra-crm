@@ -30,7 +30,7 @@ export function projectListSource(now = new Date()) {
   today.setHours(0, 0, 0, 0);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return Prisma.sql`
-    SELECT c.*, concat_ws(' ', c.numero, c.descrizione, a."ragioneSociale") AS text,
+    SELECT c.*, concat_ws(' ', c.numero, c.descrizione, a."ragioneSociale", c."indirizzoCantiere") AS text,
       date_trunc('day', (c."scadenzaLavori" AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}) AS "dueDay",
       CASE
         WHEN c."dataFineLavori" IS NOT NULL OR c.stato = 'FATTURATA' OR (m.total > 0 AND m.total = m.done) THEN 3

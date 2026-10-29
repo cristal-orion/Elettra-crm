@@ -51,7 +51,7 @@ export default async function CommessaDetailPage({
       },
       documenti: { orderBy: { createdAt: "desc" } },
       milestone: {
-        select: { stato: true, ordine: true, titolo: true, dataPianificata: true, dimostrativa: true },
+        select: { stato: true, ordine: true, titolo: true, dataPianificata: true, dimostrativa: true, durataGiorni: true },
         orderBy: { ordine: "asc" },
       },
       _count: { select: { assegnazioni: true } },

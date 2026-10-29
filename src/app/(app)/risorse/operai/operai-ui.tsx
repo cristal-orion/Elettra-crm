@@ -9,9 +9,9 @@ type Azione = (
 ) => Promise<OperaioState>;
 
 const inputCls =
-  "rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "min-h-11 min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
 const labelCls =
-  "font-mono text-[11px] uppercase tracking-wider text-ink-faint";
+  "text-sm font-medium text-ink-soft";
 
 function Campo({
   label,
@@ -21,7 +21,7 @@ function Campo({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <label className="flex min-w-0 flex-col gap-1.5">
       <span className={labelCls}>{label}</span>
       {children}
     </label>
@@ -37,12 +37,13 @@ function Esito({ state }: { state: OperaioState }) {
     );
   }
   if (state?.ok) {
-    return <span className="text-xs font-medium text-ok">{state.ok}</span>;
+    return <span role="status" className="text-xs font-medium text-ok">{state.ok}</span>;
   }
   return null;
 }
 
 type Operaio = {
+  expectedUpdatedAt: string;
   nome: string;
   cognome: string;
   qualifica: string | null;
@@ -56,12 +57,15 @@ type Operaio = {
 function CampiOperaio({
   operaio,
   conAttivo,
+  squadre,
 }: {
   operaio?: Operaio;
   conAttivo?: boolean;
+  squadre: { nome: string; attiva: boolean }[];
 }) {
   return (
     <>
+      <input type="hidden" name="expectedUpdatedAt" value={operaio?.expectedUpdatedAt ?? ""} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Campo label="Nome">
           <input
@@ -88,12 +92,10 @@ function CampiOperaio({
           />
         </Campo>
         <Campo label="Squadra">
-          <input
-            name="squadra"
-            placeholder="es. Squadra A"
-            defaultValue={operaio?.squadra ?? ""}
-            className={inputCls}
-          />
+          <select name="squadra" defaultValue={operaio?.squadra ?? ""} className={inputCls}>
+            <option value="">Nessuna squadra</option>
+            {squadre.filter((s) => s.attiva || s.nome === operaio?.squadra).map((s) => <option key={s.nome} value={s.nome}>{s.nome}{s.attiva ? "" : " (archiviata)"}</option>)}
+          </select>
         </Campo>
         <Campo label="Telefono">
           <input
@@ -126,7 +128,7 @@ function CampiOperaio({
   );
 }
 
-export function OperaioAddForm({ action }: { action: Azione }) {
+export function OperaioAddForm({ action, squadre }: { action: Azione; squadre: { nome: string; attiva: boolean }[] }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -140,12 +142,12 @@ export function OperaioAddForm({ action }: { action: Azione }) {
       action={formAction}
       className="flex flex-col gap-3 rounded-lg border border-dashed border-line bg-paper/40 p-4"
     >
-      <CampiOperaio />
+      <CampiOperaio squadre={squadre} />
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
           {pending ? "Salvataggio…" : "+ Aggiungi operaio"}
         </button>
@@ -159,22 +161,24 @@ export function OperaioEditForm({
   action,
   eliminaAction,
   operaio,
+  squadre,
 }: {
   action: Azione;
   eliminaAction: Azione;
   operaio: Operaio;
+  squadre: { nome: string; attiva: boolean }[];
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
     <div className="flex flex-col gap-3 pt-3">
       <form action={formAction} className="flex flex-col gap-3">
-        <CampiOperaio operaio={operaio} conAttivo />
+        <CampiOperaio operaio={operaio} conAttivo squadre={squadre} />
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
             disabled={pending}
-            className="rounded-lg border border-brand/40 px-3 py-1.5 text-xs font-medium text-brand-deep transition hover:bg-brand-soft disabled:opacity-60"
+            className="min-h-11 rounded-lg border border-brand/40 px-3 py-2 text-sm font-medium text-brand-deep transition hover:bg-brand-soft disabled:opacity-60"
           >
             {pending ? "Salvataggio…" : "Salva"}
           </button>
@@ -184,12 +188,13 @@ export function OperaioEditForm({
       <EliminaOperaio
         action={eliminaAction}
         nome={`${operaio.nome} ${operaio.cognome}`}
+        expectedUpdatedAt={operaio.expectedUpdatedAt}
       />
     </div>
   );
 }
 
-function EliminaOperaio({ action, nome }: { action: Azione; nome: string }) {
+function EliminaOperaio({ action, nome, expectedUpdatedAt }: { action: Azione; nome: string; expectedUpdatedAt: string }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
@@ -202,10 +207,11 @@ function EliminaOperaio({ action, nome }: { action: Azione; nome: string }) {
       }}
       className="flex flex-wrap items-center gap-3 border-t border-line pt-3"
     >
+      <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt} />
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-60"
+        className="min-h-11 rounded-lg border border-danger/30 px-3 py-2 text-sm font-medium text-danger transition hover:bg-danger-soft disabled:opacity-60"
       >
         {pending ? "Eliminazione…" : "Elimina"}
       </button>

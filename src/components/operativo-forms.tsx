@@ -5,6 +5,7 @@ import { useRef, useState, useTransition, type FormEvent, type ReactNode } from 
 import { useRouter } from "next/navigation";
 import { registraSal, cambiaSospensione, apriProblema, modificaProblema, type OperativoResult } from "@/app/(app)/progetti/operativo-actions";
 import { STATI_MILESTONE } from "@/lib/enums";
+import { avanzamento } from "@/lib/progetti";
 import { PRIORITA_PROBLEMA, STATI_PROBLEMA } from "@/lib/cantiere-schema";
 
 export const operativoInput = "min-h-12 w-full min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-base text-ink outline-none focus:border-brand sm:text-sm";
@@ -38,22 +39,23 @@ function Attachments() {
   return <div className="space-y-2"><Field label="Foto o documenti (facoltativi)"><input type="file" name="files" multiple accept="image/jpeg,image/png,image/webp,image/heic,application/pdf" aria-describedby="file-help" className={`${operativoInput} file:mr-3 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-2 file:text-brand-deep`} onChange={(e) => setNames(Array.from(e.target.files ?? [], (f) => f.name))} /></Field><p id="file-help" className="text-xs text-ink-soft">Fino a 5 foto o PDF, massimo 20 MB complessivi. Verranno salvati insieme all’aggiornamento.</p>{names.length > 0 && <ul className="space-y-1 text-sm text-ink-soft">{names.map((name, i) => <li className="break-words" key={`${i}-${name}`}>{name}</li>)}</ul>}</div>;
 }
 
-export function SalForm({ commessaId, richiestaId, versione, oggi, milestone }: { commessaId: string; richiestaId: string; versione: number; oggi: string; milestone: { id: string; titolo: string; stato: string; versione: string }[] }) {
+export function SalForm({ commessaId, richiestaId, versione, oggi, milestone }: { commessaId: string; richiestaId: string; versione: number; oggi: string; milestone: { id: string; titolo: string; stato: string; versione: string; durataGiorni: number | null }[] }) {
   const [states, setStates] = useState(Object.fromEntries(milestone.map((m) => [m.id, m.stato])));
   const { pending, save, feedback } = useSave(registraSal.bind(null, commessaId));
   const complete = Object.values(states).filter((s) => s === "COMPLETATA").length;
-  const percent = Math.round(complete / milestone.length * 100);
-  const previous = Math.round(milestone.filter((m) => m.stato === "COMPLETATA").length / milestone.length * 100);
+  const percent = avanzamento(milestone.map((m) => ({ ...m, stato: states[m.id] }))).percentuale;
+  const previous = avanzamento(milestone).percentuale;
+  const total = avanzamento(milestone).giorniPrevisti;
   return <form className="space-y-6" onSubmit={(event) => { const f = new FormData(event.currentTarget); save(event, { richiestaId, versione, data: f.get("data"), nota: f.get("nota"), milestone: milestone.map((m) => ({ id: m.id, stato: states[m.id], versione: m.versione })) }); }}>
     <fieldset disabled={pending} className="space-y-6">
-      <div className="rounded-lg bg-brand-soft p-4"><p className="text-sm text-brand-deep">Avanzamento dopo il salvataggio</p><div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-brand-deep"><p className="text-3xl font-semibold tabular-nums">{percent}%</p><p className="text-sm">{complete} di {milestone.length} milestone completate</p></div><p className="mt-2 text-xs text-ink-soft">Attualmente {previous}%. Il calcolo usa le milestone reali, tutte con lo stesso peso.</p></div>
-      <div className="space-y-4">{milestone.map((m) => <Field key={m.id} label={m.titolo}><select aria-label={`Stato ${m.titolo}`} value={states[m.id]} onChange={(e) => setStates({ ...states, [m.id]: e.target.value })} className={operativoInput}>{Object.entries(STATI_MILESTONE).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>)}</div>
+      <div className="rounded-lg bg-brand-soft p-4"><p className="text-sm text-brand-deep">Avanzamento dopo il salvataggio</p><div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-brand-deep"><p className="text-3xl font-semibold tabular-nums">{percent === null ? "—" : `${percent}%`}</p><p className="text-sm">{complete} di {milestone.length} milestone completate</p></div><p className="mt-2 text-xs text-ink-soft">Attualmente {previous}%. Peso proporzionale ai giorni lavorativi previsti. Solo le fasi completate contribuiscono al SAL; il tempo trascorso non aumenta la percentuale.</p></div>
+      <div className="space-y-4">{milestone.map((m) => <div key={m.id} className="space-y-1"><Field label={m.titolo}><select aria-label={`Stato ${m.titolo}`} value={states[m.id]} onChange={(e) => setStates({ ...states, [m.id]: e.target.value })} className={operativoInput}>{Object.entries(STATI_MILESTONE).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><p className="text-xs text-ink-soft">{m.durataGiorni} giorni previsti · peso {((m.durataGiorni ?? 0) / total * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</p></div>)}</div>
       <Field label="Data dell’aggiornamento"><input name="data" type="date" required defaultValue={oggi} max={oggi} className={operativoInput} /></Field>
       <Field label="Nota di cantiere"><textarea name="nota" maxLength={5000} rows={3} placeholder="Lavoro eseguito, verifiche o elementi da riprendere…" className={operativoInput} /></Field>
       <Attachments />
     </fieldset>
     {feedback}
-    <div className="flex flex-wrap gap-3 border-t border-line pt-4"><button className={primary} disabled={pending}>{pending ? "Salvataggio di SAL e allegati…" : "Salva aggiornamento SAL"}</button><Link className={secondary} href={`/progetti/${commessaId}?tab=avanzamento`}>Annulla</Link></div>
+    <div className="flex flex-wrap gap-3 border-t border-line pt-4"><button className={primary} disabled={pending || percent === null}>{pending ? "Salvataggio di SAL e allegati…" : "Salva aggiornamento SAL"}</button><Link className={secondary} href={`/progetti/${commessaId}?tab=avanzamento`}>Annulla</Link></div>
   </form>;
 }
 

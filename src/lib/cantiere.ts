@@ -48,6 +48,7 @@ export async function saveSal(db: Db, userId: string, commessaId: string, raw: u
   if (commessa.versioneOperativa !== input.versione) throw new InputError("Il cantiere è stato aggiornato da un collega. Ricarica per confrontare le modifiche.");
   const before = await db.milestone.findMany({ where: { commessaId, dimostrativa: false }, orderBy: { ordine: "asc" } });
   if (!before.length) throw new InputError("Aggiungi almeno una milestone reale prima di registrare il SAL.");
+  if (avanzamento(before).durateMancanti) throw new InputError("Definisci la durata prevista di tutte le milestone reali prima di registrare il SAL.");
   if (new Set(input.milestone.map((m) => m.id)).size !== input.milestone.length || input.milestone.length !== before.length) throw new InputError("La pianificazione è cambiata. Ricarica le milestone.");
   const changes = before.map((m) => {
     const next = input.milestone.find((v) => v.id === m.id);
@@ -62,7 +63,7 @@ export async function saveSal(db: Db, userId: string, commessaId: string, raw: u
       stato: next.stato, dataEffettiva: next.stato === "COMPLETATA" ? data : null,
     } });
   }
-  const snapshot = (rows: typeof before) => ({ percentuale: avanzamento(rows).percentuale, milestone: rows.map(({ id, titolo, stato }) => ({ id, titolo, stato })) });
+  const snapshot = (rows: typeof before) => ({ metodo: "DURATA_GIORNI_V1", percentuale: avanzamento(rows).percentuale, milestone: rows.map(({ id, titolo, stato, durataGiorni }) => ({ id, titolo, stato, durataGiorni })) });
   const update = await db.aggiornamentoCantiere.create({ data: {
     richiestaId: input.richiestaId, richiestaHash: hash(fingerprint), commessaId, autoreId: actor.id, autoreNome: nome(actor),
     data, nota: input.nota || null, prima: snapshot(before), dopo: snapshot(changes),

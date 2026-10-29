@@ -18,7 +18,7 @@ type Azione = (
 const inputCls =
   "min-h-11 min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
 const labelCls =
-  "font-mono text-[11px] uppercase tracking-wider text-ink-faint";
+  "text-sm font-medium text-ink-soft";
 
 function Campo({
   label,
@@ -68,6 +68,7 @@ export function PianificazioneForm({
   scadenzaLavori,
   dataFineLavori,
   noteCantiere,
+  indirizzoCantiere,
   expectedUpdatedAt,
 }: {
   action: Azione;
@@ -75,6 +76,7 @@ export function PianificazioneForm({
   scadenzaLavori: Date | null;
   dataFineLavori: Date | null;
   noteCantiere: string | null;
+  indirizzoCantiere: string | null;
   expectedUpdatedAt?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -108,6 +110,9 @@ export function PianificazioneForm({
           />
         </Campo>
       </div>
+      <Campo label="Luogo / città del cantiere">
+        <input name="indirizzoCantiere" defaultValue={indirizzoCantiere ?? ""} maxLength={10000} placeholder="Località, comune o indirizzo effettivo dei lavori" className={inputCls} />
+      </Campo>
       <Campo label="Note di cantiere">
         <textarea
           name="noteCantiere"
@@ -157,6 +162,9 @@ export function MilestoneAddForm({ action }: { action: Azione }) {
         </Campo>
         <Campo label="Data prevista">
           <input type="date" name="dataPianificata" className={inputCls} />
+        </Campo>
+        <Campo label="Durata prevista (giorni lavorativi)">
+          <input name="durataGiorni" type="number" min="0.125" max="36500" step="any" placeholder="Es. 0,5 oppure 60" className={inputCls} />
         </Campo>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -270,6 +278,7 @@ export function MilestoneEditForm({
   stato,
   dataPianificata,
   dataEffettiva,
+  durataGiorni,
   note,
   expectedUpdatedAt,
 }: {
@@ -278,6 +287,7 @@ export function MilestoneEditForm({
   stato: string;
   dataPianificata: Date | null;
   dataEffettiva: Date | null;
+  durataGiorni: number | null;
   note: string | null;
   expectedUpdatedAt?: string;
 }) {
@@ -321,6 +331,10 @@ export function MilestoneEditForm({
           />
         </Campo>
       </div>
+      <Campo label="Durata prevista (giorni lavorativi)">
+        <input name="durataGiorni" type="number" min="0.125" max="36500" step="any" defaultValue={durataGiorni ?? ""} className={inputCls} />
+      </Campo>
+      <p className="text-xs text-ink-soft">La durata determina il peso nel SAL. Lascia vuoto se ancora da definire: il SAL resterà non disponibile. In corso non assegna avanzamenti automatici.</p>
       <Campo label="Note">
         <textarea
           name="note"
@@ -352,17 +366,19 @@ export function MilestoneEditForm({
 export function AssegnaOperaioForm({
   action,
   operai,
+  initial,
 }: {
   action: Azione;
   operai: { id: string; nome: string; cognome: string; qualifica: string | null }[];
+  initial?: { operaioId: string; ruoloCantiere: string | null; dal: Date | null; al: Date | null; note: string | null };
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const operaioFieldId = useId();
 
   useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
-  }, [state]);
+    if (state?.ok && !initial) formRef.current?.reset();
+  }, [state, initial]);
 
   if (operai.length === 0) {
     return (
@@ -379,12 +395,14 @@ export function AssegnaOperaioForm({
       action={formAction}
       className="flex flex-col gap-3 rounded-lg border border-dashed border-line bg-paper/40 p-4"
     >
+      <input type="hidden" name="aggiornaEsistente" value={initial ? "true" : "false"} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <label htmlFor={operaioFieldId} className={labelCls}>Operaio *</label>
           <SearchableSelect
             id={operaioFieldId}
             name="operaioId"
+            defaultValue={initial?.operaioId}
             label="Operaio"
             required
             placeholder="Scegli…"
@@ -397,7 +415,7 @@ export function AssegnaOperaioForm({
           />
         </div>
         <Campo label="Ruolo in cantiere">
-          <select name="ruoloCantiere" defaultValue="" className={inputCls}>
+          <select name="ruoloCantiere" defaultValue={initial?.ruoloCantiere ?? ""} className={inputCls}>
             <option value="">—</option>
             {Object.entries(RUOLI_CANTIERE).map(([k, label]) => (
               <option key={k} value={k}>
@@ -407,19 +425,20 @@ export function AssegnaOperaioForm({
           </select>
         </Campo>
         <Campo label="Dal">
-          <input type="date" name="dal" className={inputCls} />
+          <input type="date" name="dal" defaultValue={isoDate(initial?.dal)} className={inputCls} />
         </Campo>
         <Campo label="Al">
-          <input type="date" name="al" className={inputCls} />
+          <input type="date" name="al" defaultValue={isoDate(initial?.al)} className={inputCls} />
         </Campo>
       </div>
+      <Campo label="Note assegnazione"><input name="note" defaultValue={initial?.note ?? ""} className={inputCls} /></Campo>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={pending}
           className="min-h-11 rounded-lg bg-elettra px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
         >
-          {pending ? "Assegnazione…" : "+ Assegna al cantiere"}
+          {pending ? "Salvataggio…" : initial ? "Salva assegnazione" : "+ Assegna al cantiere"}
         </button>
         <Esito state={state} />
       </div>

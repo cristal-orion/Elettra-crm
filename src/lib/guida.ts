@@ -126,7 +126,7 @@ const TOUR: Record<string, TourGuida> = {
       {
         titolo: "Gestione operai",
         testo: "Anagrafica del personale di cantiere da assegnare alle squadre.",
-        sel: "main a[href='/progetti/operai']",
+        sel: "main a[href='/risorse/operai']",
       },
     ],
   },

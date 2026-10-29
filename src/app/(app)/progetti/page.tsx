@@ -78,6 +78,7 @@ export default async function ProgettiPage({
           ordine: true,
           dataPianificata: true,
           dimostrativa: true,
+          durataGiorni: true,
         },
         orderBy: { ordine: "asc" },
       },
@@ -124,7 +125,7 @@ export default async function ProgettiPage({
         </div>
         {puoOperai && (
           <Link
-            href="/progetti/operai"
+            href="/risorse/operai"
             className="rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-medium text-ink transition hover:border-brand/40"
           >
             Gestisci operai
@@ -132,7 +133,7 @@ export default async function ProgettiPage({
         )}
       </header>
 
-      <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Numero, descrizione, cliente…" filters={[
+      <ListFilters q={q} total={pagination.total} similar={pagination.similar} placeholder="Numero, cliente, luogo…" filters={[
         { name: "vista", label: "Situazione", value: vista, defaultValue: "attivi", options: Object.entries(VISTE).map(([value, label]) => ({ value, label })) },
         { name: "avanzamento", label: "Avanzamento", value: filters.avanzamento, options: [{ value: "", label: "Tutti gli avanzamenti" }, ...Object.entries(ETICHETTE_AVANZAMENTO).map(([value, label]) => ({ value, label }))] },
         { name: "pm", label: "Project Manager", value: pm, options: [{ value: "", label: "Tutti i PM" }, { value: "non_assegnato", label: "PM non assegnato" }, ...pmOptions] },
@@ -182,6 +183,7 @@ export default async function ProgettiPage({
                   <p className="mt-0.5 truncate text-sm text-ink-soft">
                     {c.cliente.ragioneSociale}
                   </p>
+                  <p className="mt-1 break-words text-sm text-ink-soft">{c.indirizzoCantiere || "Luogo del cantiere da indicare"}</p>
                 </div>
 
                 <div className="w-full max-w-xs shrink-0">

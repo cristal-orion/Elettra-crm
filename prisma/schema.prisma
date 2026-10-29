@@ -334,7 +334,7 @@ model ModificaEconomica {
 }
 
 /// Milestone di rilascio di un progetto (Fase 7). L'avanzamento del progetto è
-/// **derivato** da queste righe (completate / totali, peso uguale): non esiste
+/// **derivato** da queste righe (peso proporzionale ai giorni previsti): non esiste
 /// una percentuale scritta a mano, così non può divergere dallo stato reale.
 model Milestone {
   id         String @id @default(cuid())
@@ -345,6 +345,7 @@ model Milestone {
   stato  String @default("DA_FARE") // vedi STATI_MILESTONE in enums.ts
 
   dataPianificata DateTime?
+  durataGiorni    Float? // giorni lavorativi previsti; null = pianificazione incompleta
   dataEffettiva   DateTime? // valorizzata quando passa a COMPLETATA
   note            String?
 
@@ -370,7 +371,8 @@ model Operaio {
   nome      String
   cognome   String
   qualifica String? // es. "Elettricista", "Capo squadra"
-  squadra   String? // raggruppamento libero, es. "Squadra A"
+  squadra   String? // nome della squadra centrale; rinomina in cascata
+  gruppo    Squadra? @relation(fields: [squadra], references: [nome], onDelete: Restrict, onUpdate: Cascade)
   telefono  String?
   attivo    Boolean @default(true)
   note      String?
@@ -386,6 +388,16 @@ model Operaio {
 
 /// Assegnazione di un operaio a un progetto/cantiere (Fase 7).
 /// Un operaio può stare su più progetti, ma una sola volta per progetto.
+model Squadra {
+  id        String @id @default(cuid())
+  nome      String @unique
+  note      String?
+  attiva    Boolean @default(true)
+  membri    Operaio[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model AssegnazioneOperaio {
   id         String @id @default(cuid())
   commessaId String

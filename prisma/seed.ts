@@ -417,6 +417,8 @@ async function main() {
 
   /* ------------------------- Operai e squadre (Fase 7) ---------------------- */
 
+  await prisma.squadra.createMany({ data: [{ nome: "Squadra A" }, { nome: "Squadra B" }], skipDuplicates: true });
+
   const operai = await Promise.all(
     [
       { nome: "Salvatore", cognome: "Improta", qualifica: "Capo squadra", squadra: "Squadra A", telefono: "334 1122334" },

@@ -28,7 +28,7 @@ test("cantiere: SAL, problemi, allegati, permessi e concorrenza su Postgres isol
     await db.anagrafica.create({ data: { id: "cliente", ragioneSociale: "Impianti Nord", isCliente: true } });
     for (const [i, id] of ["job", "privato", "demo"].entries()) await db.commessa.create({ data: { id, numero: `TEST${i}`, anno: 2026, progressivo: i + 1, clienteId: "cliente", pmId: id === "privato" ? null : "pm", stato: "IN_ESECUZIONE" } });
     await db.milestone.createMany({ data: [
-      { id: "reale-1", commessaId: "job", titolo: "Rilievo", ordine: 0 }, { id: "reale-2", commessaId: "job", titolo: "Posa", ordine: 1 },
+      { id: "reale-1", commessaId: "job", titolo: "Rilievo", ordine: 0, durataGiorni: 1 }, { id: "reale-2", commessaId: "job", titolo: "Posa", ordine: 1, durataGiorni: 60 },
       { id: "demo-1", commessaId: "job", titolo: "Esempio", ordine: 2, dimostrativa: true, dataPianificata: new Date("2020-01-01") },
       { id: "demo-2", commessaId: "demo", titolo: "Solo esempio", ordine: 0, dimostrativa: true, stato: "COMPLETATA" },
     ] });

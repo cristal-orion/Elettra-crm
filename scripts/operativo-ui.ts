@@ -12,7 +12,7 @@ export async function verifyOperativoUi({ page: adminPage, browser, db, origin, 
   const colleague = await db.user.create({ data: { id: "operativo-collega", email: "operativo-collega@test.invalid", nome: "Elena", cognome: "Bianchi", ruolo: "PROJECT_MANAGER", passwordHash: "unused", guidaVista: "*" } });
   const cliente = await db.anagrafica.create({ data: { ragioneSociale: "Officina Nord · collaudo operativo", isCliente: true } });
   const job = await db.commessa.create({ data: { id: "operativo-job", numero: "OP9001", anno: 2026, progressivo: 29001, clienteId: cliente.id, pmId: pm.id, stato: "IN_ESECUZIONE", importoOrdine: 98765,
-    milestone: { create: [{ titolo: "Rilievo quadro", ordine: 0 }, { titolo: "Posa canaline", ordine: 1 }, { titolo: "Fase dimostrativa", ordine: 2, dimostrativa: true }] } } });
+    milestone: { create: [{ titolo: "Rilievo quadro", ordine: 0, durataGiorni: 1 }, { titolo: "Posa canaline", ordine: 1, durataGiorni: 9 }, { titolo: "Fase dimostrativa", ordine: 2, dimostrativa: true }] } } });
   const hidden = await db.commessa.create({ data: { numero: "OP9002", anno: 2026, progressivo: 29002, clienteId: cliente.id, stato: "IN_ESECUZIONE", descrizione: "Cantiere riservato di un altro PM" } });
   const economic = await db.documento.create({ data: { commessaId: job.id, nomeFile: "offerta-riservata.pdf", categoria: "OFFERTA", percorso: "not-stored/economico.pdf" } });
   const contextFor = async (user: typeof pm) => {
@@ -47,7 +47,7 @@ export async function verifyOperativoUi({ page: adminPage, browser, db, origin, 
     await page.getByRole("button", { name: "Salva aggiornamento SAL", exact: true }).click();
     await page.waitForURL((u) => u.searchParams.get("esito") === "sal");
     await page.getByRole("status").filter({ hasText: "Aggiornamento SAL e allegati salvati" }).waitFor();
-    await page.getByText(/SAL 0% → 50%/).waitFor();
+    await page.getByText(/SAL 0% → 10%/).waitFor();
     const doc = await db.documento.findFirstOrThrow({ where: { commessaId: job.id, aggiornamentoId: { not: null } } });
     assert.equal((await context.request.get(`${origin}/documenti/${doc.id}`)).status(), 200);
     assert.equal((await context.request.get(`${origin}/documenti/${economic.id}`)).status(), 404);

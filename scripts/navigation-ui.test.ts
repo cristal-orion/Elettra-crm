@@ -14,6 +14,7 @@ import { verifyConsuntiviUi } from "./consuntivi-ui";
 import { verifyCommercialeUi } from "./commerciale-ui";
 import { verifyWizardUi } from "./commessa-wizard-ui";
 import { verifyOperativoUi } from "./operativo-ui";
+import { verifyRisorseUi } from "./risorse-ui";
 
 test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e commerciale su dati isolati", { timeout: 420_000 }, async () => {
   const database = testDatabase();
@@ -51,7 +52,7 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     const supplier = await db.anagrafica.create({ data: { id: "ui-supplier", ragioneSociale: "Fornitore Cavi", isFornitore: true } });
     await db.ordineFornitore.create({ data: { id: "ui-order", numero: "OD-123", fornitoreId: supplier.id, commessaId: "ui-job-0", righe: { create: { prodottoId: "ui-material", codiceProdotto: "CB-123", descrizione: "Càvo elettrico", quantita: 2, prezzoUnitario: 10, imponibile: 20 } } } });
     await db.segnalazione.create({ data: { id: "ui-feedback", titolo: "Pulsante attività", descrizione: "Verificare filtro", autoreId: user.id } });
-    await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", squadra: "Èquipe" } });
+    await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", gruppo: { create: { nome: "Èquipe" } } } });
     const token = await new SignJWT({ userId: user.id, ruolo: user.ruolo, nome: user.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -59,6 +60,11 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    if (process.env.UI_SUITE === "risorse") {
+      await verifyRisorseUi({ page, browser, db, origin, secret });
+      assert.deepEqual(errors, []);
+      return;
+    }
     if (process.env.UI_SUITE === "operativo") {
       await verifyOperativoUi({ page, browser, db, origin, secret, uploads });
       assert.deepEqual(errors, []);
@@ -249,10 +255,11 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     await sections.getByRole("link", { name: "Avanzamento", exact: true }).click();
     await page.waitForURL((u) => u.searchParams.get("tab") === "avanzamento");
     await page.getByLabel("Nuova milestone", { exact: true }).fill("Sopralluogo operativo");
+    await page.getByLabel("Durata prevista (giorni lavorativi)", { exact: true }).fill("0.5");
     await page.getByRole("button", { name: "+ Aggiungi milestone", exact: true }).click();
     await page.getByText("Sopralluogo operativo", { exact: true }).waitFor();
     await page.getByLabel("Stato milestone", { exact: true }).selectOption("COMPLETATA");
-    await page.getByText(/1 milestone completate su 1 \(100%\)/).waitFor();
+    await page.getByText(/100% · 1 di 1 milestone completate/).waitFor();
     assert.equal(new URL(page.url()).searchParams.get("tab"), "avanzamento");
     assert.equal(await db.milestone.count({ where: { commessaId: "ui-project", stato: "COMPLETATA" } }), 1);
     await sections.getByRole("link", { name: /^Squadra/ }).click();

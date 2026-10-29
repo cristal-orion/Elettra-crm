@@ -116,10 +116,11 @@ export function BarraAvanzamento({
   tono = "brand",
   className = "",
 }: {
-  percentuale: number;
+  percentuale: number | null;
   tono?: "brand" | "ok" | "danger" | "neutro";
   className?: string;
 }) {
+  if (percentuale === null) return <p className={`text-sm text-ink-soft ${className}`}>SAL non disponibile · pianificazione da completare</p>;
   const pct = Math.min(100, Math.max(0, Math.round(percentuale)));
   const colore = {
     brand: "bg-brand",
@@ -133,6 +134,7 @@ export function BarraAvanzamento({
       <div
         className="h-2 min-w-16 flex-1 overflow-hidden rounded-full bg-paper"
         role="progressbar"
+        aria-label="SAL ponderato sulla durata"
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}

@@ -10,7 +10,7 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
 }) {
   const pm = await db.user.create({ data: { email: "wizard-pm@example.test", nome: "Pietro", cognome: "Wizard", ruolo: "PROJECT_MANAGER", passwordHash: "unused", guidaVista: "*" } });
   const customer = await db.anagrafica.create({ data: { ragioneSociale: "Storico Wizard Impianti", isCliente: true, partitaIva: "09876543210", email: "wizard@example.test", indirizzo: "Via Sede 1" } });
-  const worker = await db.operaio.create({ data: { nome: "Operaio", cognome: "Wizard", squadra: "Squadra Wizard" } });
+  const worker = await db.operaio.create({ data: { nome: "Operaio", cognome: "Wizard", gruppo: { create: { nome: "Squadra Wizard" } } } });
   const previous = await db.commessa.create({ data: { numero: "268888", anno: 2026, progressivo: 8888, clienteId: customer.id, pmId: pm.id, tipologia: "P", importoOfferta: 9999, importoOrdine: 8888, indirizzoCantiere: "Via Storica 4", referenteCommerciale: "FG" } });
   const jobsBefore = await db.commessa.count();
   const select = async (label: string, text: string) => {

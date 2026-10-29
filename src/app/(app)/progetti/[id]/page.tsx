@@ -7,6 +7,7 @@ import { SospensioneForm } from "@/components/operativo-forms";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import PrintLink from "@/components/print-link";
+import { AssegnaSquadraForm } from "../../risorse/squadre/squadre-ui";
 import CommessaDocumenti from "@/components/commessa-documenti";
 import TaskContext from "@/components/task-context";
 import { notFound } from "next/navigation";
@@ -21,6 +22,7 @@ import {
 import { formatDate, formatEuro } from "@/lib/format";
 import {
   avanzamento,
+  descrizioneSal,
   giorniAllaScadenza,
   haPianificazioneDimostrativa,
   isProgetto,
@@ -125,6 +127,7 @@ export default async function ProgettoDetailPage({
     where: { commessaId: id, ...documentoScope(user) }, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     select: { id: true, nomeFile: true, categoria: true, dimensione: true, createdAt: true, aggiornamentoId: true, problemaId: true },
   }) : [];
+  const squadre = puoModificare && tab === "squadra" ? await prisma.squadra.findMany({ where: { attiva: true }, orderBy: { nome: "asc" }, include: { membri: { where: { attivo: true }, select: { nome: true, cognome: true }, orderBy: { cognome: "asc" } } } }) : [];
 
   const ultimoOrdine = commessa.milestone.length - 1;
   const aggiornamenti = tab === "avanzamento" ? await prisma.aggiornamentoCantiere.findMany({ where: { commessaId: id }, orderBy: { createdAt: "desc" }, take: 50, include: { documenti: { select: { id: true, nomeFile: true } } } }) : [];
@@ -199,7 +202,7 @@ export default async function ProgettoDetailPage({
       <div className="grid min-w-0 gap-5 xl:grid-cols-3">
         <Card title="Avanzamento">
           <div className="flex flex-col gap-3">
-             {av.totali > 0 && <BarraAvanzamento
+             <BarraAvanzamento
               percentuale={av.percentuale}
               tono={
                 stato === "COMPLETATO"
@@ -210,7 +213,7 @@ export default async function ProgettoDetailPage({
                       ? "neutro"
                       : "brand"
               }
-             />}
+             />
             {av.totali === 0 ? (
               <p className="text-sm text-ink-faint">
                 SAL non disponibile: aggiungi milestone reali nella pianificazione.
@@ -229,6 +232,7 @@ export default async function ProgettoDetailPage({
 
         <Card title="Cantiere">
           <dl className="flex flex-col gap-2">
+            <Row label="Luogo / città" value={commessa.indirizzoCantiere || "Luogo da indicare"} />
             <Row label="Inizio lavori" value={formatDate(commessa.dataInizioLavori)} />
             <Row label="Scadenza" value={formatDate(commessa.scadenzaLavori)} />
             <Row label="Fine effettiva" value={formatDate(commessa.dataFineLavori)} />
@@ -282,7 +286,7 @@ export default async function ProgettoDetailPage({
       <StoricoCantiere aggiornamenti={aggiornamenti} />
       <div className="rounded-xl border border-line bg-panel p-4 sm:p-6">
         <h2 className="text-sm font-semibold">Avanzamento del progetto</h2>
-        <p className="mt-2 text-sm text-ink-soft">{av.totali ? `${av.completate} milestone completate su ${av.totali} (${av.percentuale}%).` : "Nessuna milestone definita: aggiungi le fasi di lavoro per seguirne l’avanzamento."} Il valore è calcolato dalle milestone registrate.</p>
+        <p className="mt-2 text-sm text-ink-soft">{descrizioneSal(av)}</p>
       </div>
       {puoModificare && (
         <section className="rounded-xl border border-line bg-panel p-4 sm:p-6">
@@ -298,6 +302,7 @@ export default async function ProgettoDetailPage({
               scadenzaLavori={commessa.scadenzaLavori}
               dataFineLavori={commessa.dataFineLavori}
               noteCantiere={commessa.noteCantiere}
+              indirizzoCantiere={commessa.indirizzoCantiere}
             />
           </div>
         </section>
@@ -314,7 +319,7 @@ export default async function ProgettoDetailPage({
             {dimostrativo && <DimostrativoBadge />}
           </h2>
           <p className="text-xs text-ink-soft">
-            L&apos;avanzamento è la quota di milestone completate.
+            Il peso di ogni fase è proporzionale ai giorni lavorativi previsti.
           </p>
         </div>
 
@@ -345,6 +350,8 @@ export default async function ProgettoDetailPage({
                         </span>
                       )}
                     </span>
+
+                    <span className="text-xs text-ink-soft">{m.durataGiorni === null ? "Durata da definire" : `${m.durataGiorni.toLocaleString("it-IT")} gg previsti`}</span>
 
                     <span className="font-mono text-xs text-ink-faint">
                       {m.stato === "COMPLETATA" && m.dataEffettiva
@@ -424,6 +431,7 @@ export default async function ProgettoDetailPage({
                         stato={m.stato}
                         dataPianificata={m.dataPianificata}
                         dataEffettiva={m.dataEffettiva}
+                        durataGiorni={m.durataGiorni}
                         note={m.note}
                       />
                     </details>
@@ -453,7 +461,7 @@ export default async function ProgettoDetailPage({
             </span>
           </h2>
           <Link
-            href="/progetti/operai"
+            href="/risorse/operai"
             className="inline-flex min-h-11 items-center text-sm font-medium text-brand-deep hover:underline"
           >
             Anagrafica operai →
@@ -503,13 +511,17 @@ export default async function ProgettoDetailPage({
                     </svg>
                   </AzioneIcona>
                 )}
+                {a.note && <p className="w-full break-words text-sm text-ink-soft">{a.note}</p>}
+                {puoModificare && a.operaio.attivo && <details className="w-full"><summary className="min-h-11 cursor-pointer py-3 text-sm text-brand-deep">Modifica assegnazione</summary><AssegnaOperaioForm action={assegnaOperaio.bind(null, id)} operai={[a.operaio]} initial={a} /></details>}
               </li>
             ))}
           </ul>
         )}
 
         {puoModificare && (
-          <div className="mt-5">
+          <div className="mt-5 space-y-5">
+            <AssegnaSquadraForm commessaId={id} squadre={squadre.map((s) => ({ id: s.id, nome: s.nome, versione: s.updatedAt.toISOString(), membri: s.membri.map((m) => `${m.nome} ${m.cognome}`) }))} />
+            <Link href="/risorse/squadre" className="inline-flex min-h-11 items-center text-sm text-brand-deep underline">Gestisci le squadre centrali →</Link>
             <AssegnaOperaioForm
               action={assegnaOperaio.bind(null, commessa.id)}
               operai={operaiAttivi}
@@ -536,6 +548,8 @@ function Intestazione({
     stato: string;
     tipologia: string | null;
     descrizione: string | null;
+    indirizzoCantiere: string | null;
+    cliente: { ragioneSociale: string };
   };
   stato?: ReturnType<typeof statoAvanzamento>;
   puoModificare?: boolean;
@@ -553,6 +567,7 @@ function Intestazione({
         <p className="mt-1 text-sm text-ink-soft">
           {commessa.descrizione ?? "Senza descrizione"}
         </p>
+        <p className="mt-1 break-words text-sm text-ink-soft">{commessa.cliente.ragioneSociale} · {commessa.indirizzoCantiere || "Luogo del cantiere da indicare"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {puoModificare && <><Link href={`/progetti/${commessa.id}/sal`} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white hover:bg-brand-deep">Aggiorna SAL</Link><Link href={`/progetti/${commessa.id}/problemi/nuovo`} className="inline-flex min-h-12 items-center justify-center rounded-lg border border-line bg-panel px-4 py-3 text-sm font-medium text-brand-deep">Segnala problema</Link></>}

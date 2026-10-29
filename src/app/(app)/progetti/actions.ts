@@ -21,13 +21,13 @@ async function quick(command: unknown) {
   if (result?.error) throw new Error(result.error);
 }
 export async function updatePianificazione(id: string, _prev: ProgettoState, f: FormData) {
-  return save({ type: "pianificaProgetto", id, expectedUpdatedAt: version(f), data: Object.fromEntries(["dataInizioLavori", "scadenzaLavori", "dataFineLavori", "noteCantiere"].map((k) => [k, value(f, k)])) });
+  return save({ type: "pianificaProgetto", id, expectedUpdatedAt: version(f), data: Object.fromEntries(["dataInizioLavori", "scadenzaLavori", "dataFineLavori", "noteCantiere", "indirizzoCantiere"].map((k) => [k, value(f, k)])) });
 }
 export async function createMilestone(commessaId: string, _prev: ProgettoState, f: FormData) {
-  return save({ type: "creaMilestone", commessaId, milestone: [{ titolo: value(f, "titolo"), dataPianificata: value(f, "dataPianificata"), note: value(f, "note") }] });
+  return save({ type: "creaMilestone", commessaId, milestone: [{ titolo: value(f, "titolo"), dataPianificata: value(f, "dataPianificata"), durataGiorni: value(f, "durataGiorni") ? Number(value(f, "durataGiorni")) : null, note: value(f, "note") }] });
 }
 export async function updateMilestone(id: string, _prev: ProgettoState, f: FormData) {
-  return save({ type: "aggiornaMilestone", id, expectedUpdatedAt: version(f), data: Object.fromEntries(["titolo", "stato", "dataPianificata", "dataEffettiva", "note"].map((k) => [k, value(f, k)])) });
+  return save({ type: "aggiornaMilestone", id, expectedUpdatedAt: version(f), data: { ...Object.fromEntries(["titolo", "stato", "dataPianificata", "dataEffettiva", "note"].map((k) => [k, value(f, k)])), durataGiorni: value(f, "durataGiorni") ? Number(value(f, "durataGiorni")) : null } });
 }
 export async function setStatoMilestone(id: string, f: FormData): Promise<void> {
   return quick({ type: "aggiornaMilestone", id, expectedUpdatedAt: version(f), data: { stato: value(f, "stato") } });
@@ -39,7 +39,7 @@ export async function spostaMilestone(id: string, direzione: "su" | "giu", f: Fo
   return quick({ type: "spostaMilestone", id, direzione, expectedUpdatedAt: version(f) });
 }
 export async function assegnaOperaio(commessaId: string, _prev: ProgettoState, f: FormData) {
-  return save({ type: "assegnaOperaio", commessaId, ...Object.fromEntries(["operaioId", "ruoloCantiere", "dal", "al", "note"].map((k) => [k, value(f, k)])) });
+  return save({ type: "assegnaOperaio", commessaId, aggiornaEsistente: f.get("aggiornaEsistente") === "true", ...Object.fromEntries(["operaioId", "ruoloCantiere", "dal", "al", "note"].map((k) => [k, value(f, k)])) });
 }
 export async function rimuoviAssegnazione(id: string, _f: FormData): Promise<void> {
   return quick({ type: "rimuoviAssegnazione", id });

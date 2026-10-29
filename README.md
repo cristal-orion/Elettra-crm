@@ -126,16 +126,49 @@ squadra con la ricerca. Il filtro squadra usa il gruppo dell'operaio collegato
 alle assegnazioni registrate, anche passate/future: non misura la disponibilità
 odierna. I filtri sono applicati nel database prima di conteggio e paginazione.
 
-Il dettaglio ha quattro sezioni condivisibili tramite `?tab=`: Riepilogo con
-attività collegate, Avanzamento con pianificazione/milestone, Squadra e Documenti.
+Il dettaglio ha cinque sezioni condivisibili tramite `?tab=`: Riepilogo con
+attività collegate, Avanzamento con pianificazione/milestone, Problemi, Squadra e Documenti.
 I documenti usano lo stesso archivio e le stesse autorizzazioni della commessa;
 upload ed eliminazione aggiornano entrambe le viste. Il progetto resta una vista
-della commessa e l'avanzamento conserva il calcolo derivato esistente.
+della commessa. Il luogo effettivo usa `Commessa.indirizzoCantiere`, modificabile
+dalla pianificazione e visibile anche in elenco e nelle assegnazioni; la ricerca
+Progetti include il luogo.
+
+Il SAL è ponderato sui giorni lavorativi previsti (`Milestone.durataGiorni`,
+anche frazionari, da 0,125 a 36.500): somma delle durate delle fasi completate
+divisa per la somma di tutte le durate reali. `IN_CORSO` e tempo trascorso non
+generano avanzamento. La percentuale è arrotondata all'intero, al massimo 99%
+finché resta una fase incompleta. Senza milestone reali o con durate mancanti,
+il SAL è non disponibile e il salvataggio richiede di completare la pianificazione.
+Gli snapshot nuovi includono durate e metodo `DURATA_GIORNI_V1`; quelli storici
+conservano i valori originari e sono identificati come metodo precedente.
 
 Il test Chromium verifica filtri combinati, sezione dopo refresh/indietro,
 aggiornamento milestone, upload/download condiviso con la commessa, rifiuto
 server dell'upload da utente di sola lettura e sezioni a 390px senza overflow.
 Database e allegati del collaudo vengono creati in spazi temporanei isolati.
+
+### Risorse e squadre
+
+`/risorse` raccoglie Assegnazioni, Personale (`/risorse/operai`) e Squadre
+(`/risorse/squadre`). Il vecchio `/progetti/operai` reindirizza conservando i
+parametri della lista. Ogni persona appartiene al massimo a una squadra centrale.
+Super Admin, Backoffice e PM gestiscono personale e composizione; anche Ufficio
+Tecnico può assegnare una squadra ai cantieri autorizzati.
+
+L'assegnazione completa è atomica e include solo i membri attivi: una
+sovrapposizione annulla tutta l'operazione. Chi è già nel cantiere mantiene date,
+ruolo e note; le assegnazioni sono poi modificabili singolarmente. Rinomine,
+cambi di composizione e archiviazione della squadra centrale non cambiano le
+assegnazioni esistenti. La rimozione di personale già assegnato lo disattiva,
+conservando lo storico. I cantieri non accessibili restano anonimizzati in Risorse.
+
+La migrazione `20261029140000_sal_durata_squadre` converte i raggruppamenti
+preesistenti in squadre, senza inventare durate o riscrivere i SAL storici.
+Il collaudo dedicato si esegue con
+`UI_PRODUCTION=1 UI_SUITE=risorse npm run test:ui` dopo la build; copre anche
+coerenza SAL, privacy, navigazione, scroll dei consuntivi e viste responsive.
+Dettagli e stato del rilascio in [Operatività cantiere](docs/operativita-cantiere.md).
 
 ## Assistente operativo
 

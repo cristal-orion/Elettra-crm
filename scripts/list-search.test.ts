@@ -44,7 +44,7 @@ test("liste PostgreSQL: ricerca progressiva, filtri e paginazione prima dell'idr
       const p = await db.prodotto.create({ data: { codice: "CB-123", descrizione: "Càvo elettrico", marca: "Marca" } });
       const o = await db.ordineFornitore.create({ data: { numero: "OD-123", fornitoreId: b.id, commessaId: c.id } });
       const s = await db.segnalazione.create({ data: { titolo: "Pulsante attività", descrizione: "Controllare filtro", autoreId: user.id } });
-      const r = await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", squadra: "Èquipe" } });
+      const r = await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", gruppo: { create: { nome: "Èquipe" } } } });
       assert.deepEqual((await search("materiali", "elettrico cavo")).ids, [p.id]);
       assert.deepEqual((await search("ordini", "260001 OD-123")).ids, [o.id]);
       assert.deepEqual((await search("segnalazioni", "attivita pulsante")).ids, [s.id]);
@@ -76,6 +76,7 @@ test("liste PostgreSQL: ricerca progressiva, filtri e paginazione prima dell'idr
     });
     await t.test("progetti: filtri PM/cliente/squadra/avanzamento composti, senza duplicati e prima della pagina", async () => {
       const manager = await db.user.findUniqueOrThrow({ where: { email: "rossi@example.test" } });
+      await db.squadra.create({ data: { nome: "Èquipe A" } });
       const workers = await Promise.all(["Uno", "Due"].map((nome) => db.operaio.create({ data: { nome, cognome: "Squadra", squadra: "Èquipe A" } })));
       const assignedIds = Array.from({ length: 35 }, (_, i) => `project-${i}`);
       await db.commessa.updateMany({ where: { id: { in: assignedIds } }, data: { pmId: manager.id } });

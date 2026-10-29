@@ -32,12 +32,13 @@ export const CommessaData = z.object({
 });
 export const MilestoneData = z.object({
   titolo: z.string().trim().min(1).max(300), dataPianificata: day, note: text,
+  durataGiorni: z.number().finite().min(0.125).max(36500).nullable().optional(),
 });
 export const CommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("salvaAnagrafica"), id: id.optional(), expectedUpdatedAt: version, data: AnagraficaData, referenti: z.array(ReferenteData).max(100).optional() }),
   z.object({ type: z.literal("salvaReferente"), anagraficaId: id, expectedUpdatedAt: version, data: ReferenteData }),
   z.object({ type: z.literal("salvaCommessa"), id: id.optional(), expectedUpdatedAt: version, data: CommessaData }),
-  z.object({ type: z.literal("pianificaProgetto"), id, expectedUpdatedAt: version, data: z.object({ dataInizioLavori: day, scadenzaLavori: day, dataFineLavori: day, noteCantiere: text }) }),
+  z.object({ type: z.literal("pianificaProgetto"), id, expectedUpdatedAt: version, data: z.object({ dataInizioLavori: day, scadenzaLavori: day, dataFineLavori: day, noteCantiere: text, indirizzoCantiere: text }) }),
   z.object({ type: z.literal("creaMilestone"), commessaId: id, milestone: z.array(MilestoneData).min(1).max(30) }),
   z.object({ type: z.literal("aggiornaMilestone"), id, expectedUpdatedAt: version, data: MilestoneData.partial().extend({ stato: z.enum(keys(STATI_MILESTONE)).optional(), dataEffettiva: day }) }),
   z.object({ type: z.literal("spostaMilestone"), id, expectedUpdatedAt: version, direzione: z.enum(["su", "giu"]) }),

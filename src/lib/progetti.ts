@@ -4,7 +4,7 @@
 // già acquisita che sta in esecuzione: duplicare cliente, PM, importi e numero in
 // una seconda tabella avrebbe creato due verità da tenere allineate.
 //
-// L'avanzamento è **sempre derivato** dalle milestone (peso uguale), mai scritto
+// L'avanzamento è **sempre derivato** dalle milestone (giorni previsti), mai scritto
 // a mano: una percentuale salvata a parte divergerebbe dallo stato reale delle
 // milestone alla prima modifica.
 
@@ -42,6 +42,7 @@ export type MilestoneCalcolo = {
   stato: string;
   dataPianificata?: Date | null;
   dimostrativa?: boolean;
+  durataGiorni?: number | null;
 };
 
 /**
@@ -59,8 +60,10 @@ export type Avanzamento = {
   totali: number;
   completate: number;
   inCorso: number;
-  /** 0..100, arrotondato. 0 se non ci sono milestone. */
-  percentuale: number;
+  /** 0..100; null senza milestone reali o con durate mancanti. */
+  percentuale: number | null;
+  durateMancanti: number;
+  giorniPrevisti: number;
   /** true solo se c'è almeno una milestone e sono tutte completate. */
   tutteCompletate: boolean;
 };
@@ -70,13 +73,24 @@ export function avanzamento(milestone: MilestoneCalcolo[]): Avanzamento {
   const totali = milestone.length;
   const completate = milestone.filter((m) => m.stato === "COMPLETATA").length;
   const inCorso = milestone.filter((m) => m.stato === "IN_CORSO").length;
+  const durateMancanti = milestone.filter((m) => !Number.isFinite(m.durataGiorni) || (m.durataGiorni ?? 0) <= 0).length;
+  const giorniPrevisti = milestone.reduce((sum, m) => sum + (Number.isFinite(m.durataGiorni) && m.durataGiorni! > 0 ? m.durataGiorni! : 0), 0);
+  const giorniCompletati = milestone.reduce((sum, m) => sum + (m.stato === "COMPLETATA" ? m.durataGiorni ?? 0 : 0), 0);
   return {
     totali,
     completate,
     inCorso,
-    percentuale: totali === 0 ? 0 : Math.round((completate / totali) * 100),
+    percentuale: !totali || durateMancanti ? null : Math.min(completate === totali ? 100 : 99, Math.round(giorniCompletati / giorniPrevisti * 100)),
+    durateMancanti,
+    giorniPrevisti,
     tutteCompletate: totali > 0 && completate === totali,
   };
+}
+
+export function descrizioneSal(av: Avanzamento): string {
+  if (!av.totali) return "SAL non disponibile: aggiungi milestone reali.";
+  if (av.durateMancanti) return `SAL non disponibile: durata da definire per ${av.durateMancanti} milestone.`;
+  return `${av.percentuale}% · ${av.completate} di ${av.totali} milestone completate, ponderate sui giorni previsti.`;
 }
 
 /* --------------------------------- Ritardo -------------------------------- */

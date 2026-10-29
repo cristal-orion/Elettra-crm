@@ -8,7 +8,7 @@ import { safeListHref } from "@/lib/list-state";
 type Entry = { id: string; url: string; previous?: string; y: number };
 type Navigation = { back: (fallback: string) => void; list: (path: string, event: ReactMouseEvent<HTMLAnchorElement>) => void };
 const Context = createContext<Navigation | null>(null);
-const lists = new Set(["/anagrafiche", "/commerciale", "/commesse", "/progetti", "/progetti/operai", "/attivita", "/notifiche", "/ordini", "/materiali", "/materiali/prezzi", "/segnalazioni", "/utenti"]);
+const lists = new Set(["/anagrafiche", "/commerciale", "/commesse", "/progetti", "/risorse", "/risorse/operai", "/risorse/squadre", "/attivita", "/notifiche", "/ordini", "/materiali", "/materiali/prezzi", "/segnalazioni", "/utenti"]);
 
 /** Stato per scheda browser e utente; non modifica le chiavi interne del router Next. */
 export function NavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
