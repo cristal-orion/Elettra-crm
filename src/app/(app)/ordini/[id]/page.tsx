@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/dal";
+import { requireEconomia as getCurrentUser } from "@/lib/dal";
 import { puoGestireOrdini, etichettaStatoOrdine } from "@/lib/enums";
 import { formatEuro, formatDate, toNumber } from "@/lib/format";
 import { StatoOrdineBadge } from "@/components/badges";

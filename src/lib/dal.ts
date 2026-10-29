@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "./session";
 import { prisma } from "./prisma";
+import { puoLeggereEconomia } from "./access";
 
 /** Utente corrente (dal DB), memoizzato per render. null se non autenticato. */
 export const getCurrentUser = cache(async () => {
@@ -35,6 +36,12 @@ export type CurrentUser = NonNullable<
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+export async function requireEconomia(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!puoLeggereEconomia(user)) redirect("/progetti");
   return user;
 }
 

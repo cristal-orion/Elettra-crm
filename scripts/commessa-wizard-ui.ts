@@ -27,6 +27,17 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
   };
   await page.goto(`${origin}/commesse/nuova`);
   await step(1);
+  const draftsLink = page.getByRole("link", { name: "Le mie bozze", exact: true });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await draftsLink.count(), 1, "Un solo accesso riconoscibile alle bozze");
+    assert.equal(await draftsLink.evaluate((e) => Boolean(e.closest("header"))), true, "Le bozze devono essere nella testata");
+    const bounds = await draftsLink.boundingBox();
+    assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 844 && bounds.height >= 44, "Pulsante bozze visibile senza scroll e con area di clic adeguata");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Nessun overflow della testata");
+    await page.screenshot({ path: `/tmp/opencode/commessa-bozze-testata-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1280, height: 844 });
   await page.getByRole("button", { name: "Passo successivo →", exact: true }).click();
   await page.getByText("Seleziona il cliente.", { exact: true }).waitFor();
   await select("Cliente", "Storico Wizard Impianti");
@@ -52,6 +63,10 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
   await save();
   const draftUrl = page.url();
   assert.match(draftUrl, /\?bozza=/);
+  await draftsLink.click();
+  await page.waitForURL(`${origin}/commesse/bozze`);
+  await page.getByRole("link", { name: "Wizard — cliente storico", exact: true }).click();
+  await page.waitForURL(draftUrl);
   await page.reload(); await step(2);
   await page.getByRole("button", { name: "Salva bozza", exact: true }).click({ trial: true });
   assert.equal(await offer.inputValue(), "900.37");

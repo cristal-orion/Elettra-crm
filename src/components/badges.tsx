@@ -87,6 +87,7 @@ export function MilestoneBadge({ stato }: { stato: string }) {
 }
 
 const avanzamentoStyle: Record<StatoAvanzamento, string> = {
+  SOSPESO: "bg-warn-soft text-warn",
   COMPLETATO: "bg-ok-soft text-ok",
   IN_RITARDO: "bg-danger-soft text-danger",
   IN_CORSO: "bg-brand-soft text-brand-deep",

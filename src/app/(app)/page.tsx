@@ -1,283 +1,31 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
-import { formatEuro, toNumber } from "@/lib/format";
-import { etichettaStato, STATI_COMMESSA_LIST } from "@/lib/enums";
-import { StatoBadge, TipologiaBadge } from "@/components/badges";
+import { formatEuro, formatDateTime } from "@/lib/format";
 import TodayTasks from "@/components/today-tasks";
+import ProblemiList from "@/components/problemi-list";
 import { getTodayTasks } from "@/lib/today-tasks";
+import { getDashboard } from "@/lib/dashboard";
 
-export default async function DashboardPage() {
-  const user = await requireUser();
-
-  // Regola P→C: commesse con materiale acquistato ma non ancora fatturato.
-  const daFatturareWhere = {
-    stato: { not: "FATTURATA" },
-    ordiniFornitore: { some: {} },
-  } as const;
-
-  const [
-    todayTasks,
-    clienti,
-    fornitori,
-    commesseTotali,
-    pending,
-    sums,
-    perStato,
-    recenti,
-    daFatturareCount,
-    daFatturare,
-  ] = await Promise.all([
-    getTodayTasks(prisma, user),
-    prisma.anagrafica.count({ where: { isCliente: true } }),
-    prisma.anagrafica.count({ where: { isFornitore: true } }),
-    prisma.commessa.count(),
-    prisma.commessa.count({
-      where: { stato: { in: ["PREVENTIVO", "INVIATA", "IN_FOLLOWUP"] } },
-    }),
-    prisma.commessa.aggregate({
-      _sum: { importoOfferta: true, importoOrdine: true },
-    }),
-    prisma.commessa.groupBy({ by: ["stato"], _count: { _all: true } }),
-    prisma.commessa.findMany({
-      take: 6,
-      orderBy: { createdAt: "desc" },
-      include: { cliente: true, pm: true },
-    }),
-    prisma.commessa.count({ where: daFatturareWhere }),
-    prisma.commessa.findMany({
-      where: daFatturareWhere,
-      take: 8,
-      orderBy: { updatedAt: "desc" },
-      include: {
-        cliente: true,
-        _count: { select: { ordiniFornitore: true } },
-      },
-    }),
-  ]);
-
-  const offerto = toNumber(sums._sum.importoOfferta);
-  const ordinato = toNumber(sums._sum.importoOrdine);
-  const conversione = offerto > 0 ? Math.round((ordinato / offerto) * 100) : 0;
-
-  const conteggioStato = new Map(
-    perStato.map((r) => [r.stato, r._count._all]),
-  );
-  const statiConValori = STATI_COMMESSA_LIST.map((s) => ({
-    stato: s,
-    n: conteggioStato.get(s) ?? 0,
-  })).filter((x) => x.n > 0);
-  const maxStato = Math.max(1, ...statiConValori.map((x) => x.n));
-
-  return (
-    <div className="flex flex-col gap-8">
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-deep">
-          Cruscotto
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">
-          Ciao{user ? `, ${user.nome}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Attività personali e panoramica di anagrafiche e commesse.
-        </p>
-      </header>
-
-      <TodayTasks data={todayTasks} />
-      <p className="text-sm text-ink-soft">I valori qui sotto sono calcolati sulle commesse, incluso lo storico. Per le nuove trattative, pipeline e tasso di successo apri il <Link href="/commerciale" className="inline-flex min-h-11 items-center text-brand-deep underline">Commerciale →</Link>.</p>
-
-      {/* KPI */}
-      <section aria-label="Riepilogo CRM" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Clienti" value={clienti} href="/anagrafiche?tipo=cliente" />
-        <Stat
-          label="Fornitori"
-          value={fornitori}
-          href="/anagrafiche?tipo=fornitore"
-        />
-        <Stat label="Offerte in pending" value={pending} accent />
-        <div className="rounded-xl border border-line bg-panel p-5">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">
-            Valore offerto
-          </p>
-          <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight">
-            {formatEuro(offerto)}
-          </p>
-          <p className="mt-1 text-xs text-ink-soft">
-            Ordinato {formatEuro(ordinato)} ·{" "}
-            <span className="font-medium text-brand-deep">
-              {conversione}% conversione
-            </span>
-          </p>
-        </div>
-      </section>
-
-      {/* Alert regola P→C: materiale acquistato ma non ancora fatturato */}
-      {daFatturareCount > 0 && (
-        <section className="rounded-xl border border-warn/40 bg-warn-soft/50">
-          <div className="flex items-center gap-2.5 border-b border-warn/30 px-6 py-4">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-warn" aria-hidden>
-              <path
-                fill="currentColor"
-                d="M12 2 1 21h22L12 2Zm0 6a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 9.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z"
-              />
-            </svg>
-            <div>
-              <h2 className="text-sm font-semibold text-warn">
-                Da fatturare — materiale già acquistato
-              </h2>
-              <p className="text-xs text-ink-soft">
-                {daFatturareCount} commesse con ordini a fornitore collegati (regola P→C)
-              </p>
-            </div>
-          </div>
-          <ul className="divide-y divide-warn/20">
-            {daFatturare.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/commesse/${c.id}`}
-                  className="flex items-center gap-3 px-6 py-3 text-sm transition hover:bg-warn-soft/60"
-                >
-                  <span className="font-mono tabular-nums font-medium">
-                    {c.numero}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-ink-soft">
-                    {c.cliente.ragioneSociale}
-                  </span>
-                  <span className="shrink-0 font-mono text-xs text-ink-faint">
-                    {c._count.ordiniFornitore} ordini
-                  </span>
-                  <StatoBadge stato={c.stato} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <Link href="/commesse?daFatturare=1" className="block border-t border-warn/20 px-6 py-3 text-sm font-medium text-brand-deep underline">{daFatturare.length} di {daFatturareCount} · Vedi tutte →</Link>
-        </section>
-      )}
-
-      {/* Pipeline per stato */}
-      <section className="rounded-xl border border-line bg-panel p-6">
-        <h2 className="text-sm font-semibold">Commesse per stato</h2>
-        <p className="mt-0.5 text-xs text-ink-soft">
-          {commesseTotali} commesse totali
-        </p>
-        <div className="mt-4 flex flex-col gap-2.5">
-          {statiConValori.length === 0 && (
-            <p className="text-sm text-ink-faint">Nessuna commessa.</p>
-          )}
-          {statiConValori.map(({ stato, n }) => (
-            <div key={stato} className="flex items-center gap-3">
-              <span className="w-36 shrink-0 text-sm text-ink-soft">
-                {etichettaStato(stato)}
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-paper">
-                <div
-                  className="h-full rounded-full bg-brand"
-                  style={{ width: `${(n / maxStato) * 100}%` }}
-                />
-              </div>
-              <span className="w-8 text-right font-mono text-sm tabular-nums">
-                {n}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Commesse recenti */}
-      <section className="rounded-xl border border-line bg-panel">
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-sm font-semibold">Commesse recenti</h2>
-          <Link
-            href="/commesse"
-            className="text-sm text-brand-deep underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
-          >
-            Tutte le commesse →
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left font-mono text-[11px] uppercase tracking-wider text-ink-faint">
-                <th className="px-6 py-3 font-medium">Numero</th>
-                <th className="px-4 py-3 font-medium">Cliente</th>
-                <th className="px-4 py-3 font-medium">PM</th>
-                <th className="px-4 py-3 font-medium">Stato</th>
-                <th className="px-4 py-3 font-medium">Tip.</th>
-                <th className="px-6 py-3 text-right font-medium">Offerta</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recenti.map((c) => (
-                <tr
-                  key={c.id}
-                  className="relative border-t border-line transition hover:bg-paper/70 focus-within:bg-brand-soft/50"
-                >
-                  <td className="px-6 py-3 font-mono tabular-nums">
-                    <Link
-                      href={`/commesse/${c.id}`}
-                      aria-label={`Apri commessa ${c.numero} — ${c.cliente.ragioneSociale}`}
-                      className="font-medium text-brand-deep underline decoration-brand/30 underline-offset-4 after:absolute after:inset-0 hover:decoration-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
-                    >
-                      {c.numero}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{c.cliente.ragioneSociale}</td>
-                  <td className="px-4 py-3 text-ink-soft">
-                    {c.pm ? `${c.pm.nome} ${c.pm.cognome}` : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatoBadge stato={c.stato} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <TipologiaBadge tipologia={c.tipologia} />
-                  </td>
-                  <td className="px-6 py-3 text-right tabular-nums">
-                    {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
-                  </td>
-                </tr>
-              ))}
-              {recenti.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-6 text-center text-ink-faint">
-                    Nessuna commessa registrata.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  href,
-  accent,
-}: {
-  label: string;
-  value: number;
-  href?: string;
-  accent?: boolean;
-}) {
-  const inner = (
-    <div
-      className={`rounded-xl border p-5 transition ${
-        accent
-          ? "border-brand/30 bg-brand-soft/40"
-          : "border-line bg-panel hover:border-brand/40"
-      }`}
-    >
-      <p className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">
-        {value}
-      </p>
-    </div>
-  );
-  return href ? <Link href={href}>{inner}</Link> : inner;
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+  const user = await requireUser(); const sp = await searchParams;
+  const [data, tasks] = await Promise.all([getDashboard(prisma, user, sp.periodo), getTodayTasks(prisma, user)]);
+  const max = Math.max(1, ...data.commerciale.map((f) => f.totale));
+  const vinte = data.commerciale.filter((f) => f.categoria === "VINTA").reduce((n, f) => n + f.totale, 0);
+  const perse = data.commerciale.filter((f) => f.categoria === "PERSA").reduce((n, f) => n + f.totale, 0);
+  return <div className="space-y-7"><header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-semibold">Cruscotto operativo</h1><p className="mt-2 text-sm text-ink-soft">{user.nome}, ecco le priorità {user.ruolo === "PROJECT_MANAGER" ? "dei cantieri assegnati a te" : "di oggi"}.</p></div><p className="text-xs text-ink-soft">Dati al {formatDateTime(data.aggiornatoIl)}</p></header>
+    <section aria-label="Situazione cantieri" className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[
+      { label: "Cantieri aperti", value: data.aperti, href: "/progetti?vista=attivi" },
+      { label: "In ritardo", value: data.ritardo, href: "/progetti?vista=attivi&avanzamento=IN_RITARDO" },
+      { label: "Sospesi", value: data.sospesi, href: "/progetti?vista=attivi&avanzamento=SOSPESO" },
+      { label: "Problemi aperti", value: data.problemi, href: "/problemi" },
+    ].map((c) => <Link key={c.label} href={c.href} className="min-w-0 rounded-xl border border-line bg-panel p-4 hover:border-brand sm:p-5"><p className="text-sm text-ink-soft">{c.label}</p><p className={`mt-2 text-3xl font-semibold tabular-nums ${c.label === "In ritardo" && c.value ? "text-danger" : "text-ink"}`}>{c.value}</p><p className="mt-3 text-xs text-brand-deep">Apri elenco →</p></Link>)}</section>
+    <TodayTasks data={tasks} />
+    <section className="overflow-hidden rounded-xl border border-line bg-panel"><header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-6"><h2 className="text-sm font-semibold">Problemi da seguire</h2><Link href="/problemi" className="inline-flex min-h-11 items-center text-sm text-brand-deep underline">Tutti ({data.problemi}) →</Link></header><ProblemiList problemi={data.recenti} /></section>
+    {data.rendiconti && <section className="rounded-xl border border-line bg-panel p-4 sm:p-6"><header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Consuntivi ore e materiali</h2><p className="mt-1 text-xs text-ink-soft">Rendiconti registrati, secondo la data del lavoro.</p></div><nav aria-label="Periodo consuntivi" className="flex flex-wrap gap-2">{[["30", "30 giorni"], ["90", "90 giorni"], ["tutti", "Tutto lo storico"]].map(([value, label]) => <Link key={value} href={`/?periodo=${value}`} aria-current={data.periodo === value ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-lg px-3 text-sm ${data.periodo === value ? "bg-brand-soft font-medium text-brand-deep" : "border border-line text-ink-soft"}`}>{label}</Link>)}</nav></header>
+      <dl className="mt-5 grid gap-5 sm:grid-cols-3">{[["Totale rendicontato", data.rendiconti._sum.totale], ["Manodopera valorizzata", data.rendiconti._sum.totaleOre], ["Materiali valorizzati", data.rendiconti._sum.totaleMateriali]].map(([label, value]) => <div key={String(label)}><dt className="text-sm text-ink-soft">{String(label)}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{data.rendiconti!._count._all ? formatEuro(value) : "—"}</dd></div>)}</dl>
+      <p className="mt-5 text-xs text-ink-soft">{data.rendiconti._count._all ? `${data.rendiconti._count._all} rendiconti. Valori alle tariffe applicate al cliente; non sono costi interni, ordini acquisiti o incassi.` : "Nessun rendiconto nel periodo. Un dato mancante non equivale a un importo pari a zero."}</p><Link href={`/consuntivi?periodo=${data.periodo}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-brand-deep underline">Apri rendiconti del periodo →</Link>
+    </section>}
+    {data.rendiconti && <section className="rounded-xl border border-line bg-panel p-4 sm:p-6"><header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Pipeline commerciale</h2><p className="mt-1 text-xs text-ink-soft">Tutte le trattative · conversione sulle chiuse: {vinte + perse ? `${Math.round(vinte / (vinte + perse) * 100)}%` : "non disponibile"}</p></div><Link href="/commerciale" className="inline-flex min-h-11 items-center text-sm text-brand-deep underline">Apri Commerciale →</Link></header><div className="mt-4 space-y-1">{data.commerciale.map((f) => <Link key={f.id} href={`/commerciale?fase=${f.id}&vista=elenco`} className="grid min-h-12 grid-cols-[minmax(0,10rem)_minmax(0,1fr)_2rem] items-center gap-3 text-sm"><span className="break-words text-ink-soft">{f.nome}</span><span className="h-2 overflow-hidden rounded-full bg-paper"><span className="block h-full rounded-full bg-brand" style={{ width: `${f.totale / max * 100}%` }} /></span><span className="text-right font-semibold tabular-nums">{f.totale}</span></Link>)}{!data.commerciale.length && <p className="text-sm text-ink-soft">Nessuna trattativa registrata.</p>}</div></section>}
+  </div>;
 }

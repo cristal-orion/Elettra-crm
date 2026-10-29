@@ -1,4 +1,9 @@
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
+import { commessaScope, documentoScope, puoLeggereEconomia } from "@/lib/access";
+import ProblemiList from "@/components/problemi-list";
+import StoricoCantiere from "@/components/storico-cantiere";
+import { SospensioneForm } from "@/components/operativo-forms";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import PrintLink from "@/components/print-link";
@@ -49,27 +54,27 @@ import {
   updatePianificazione,
 } from "../actions";
 
-const SEZIONI = { riepilogo: "Riepilogo", avanzamento: "Avanzamento", squadra: "Squadra", documenti: "Documenti" } as const;
+const SEZIONI = { riepilogo: "Riepilogo", avanzamento: "Avanzamento", problemi: "Problemi", squadra: "Squadra", documenti: "Documenti" } as const;
 
 export default async function ProgettoDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; esito?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
   const tab = typeof sp.tab === "string" && Object.hasOwn(SEZIONI, sp.tab) ? sp.tab as keyof typeof SEZIONI : "riepilogo";
   const user = await requireUser();
 
-  const commessa = await prisma.commessa.findUnique({
-    where: { id },
+  const commessa = await prisma.commessa.findFirst({
+    where: { id, ...commessaScope(user) },
     include: {
       cliente: { select: { id: true, ragioneSociale: true } },
       pm: { select: { nome: true, cognome: true } },
       milestone: { orderBy: { ordine: "asc" } },
-      _count: { select: { documenti: true } },
+      _count: { select: { documenti: { where: documentoScope(user) }, problemi: { where: { stato: { not: "RISOLTA" } } } } },
       assegnazioni: {
         include: { operaio: true },
         orderBy: { createdAt: "asc" },
@@ -117,21 +122,25 @@ export default async function ProgettoDetailPage({
     select: { id: true, nome: true, cognome: true, qualifica: true },
   }) : [];
   const documenti = tab === "documenti" ? await prisma.documento.findMany({
-    where: { commessaId: id }, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-    select: { id: true, nomeFile: true, categoria: true, dimensione: true, createdAt: true },
+    where: { commessaId: id, ...documentoScope(user) }, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    select: { id: true, nomeFile: true, categoria: true, dimensione: true, createdAt: true, aggiornamentoId: true, problemaId: true },
   }) : [];
 
   const ultimoOrdine = commessa.milestone.length - 1;
+  const aggiornamenti = tab === "avanzamento" ? await prisma.aggiornamentoCantiere.findMany({ where: { commessaId: id }, orderBy: { createdAt: "desc" }, take: 50, include: { documenti: { select: { id: true, nomeFile: true } } } }) : [];
+  const problemi = tab === "problemi" ? await prisma.problemaCantiere.findMany({ where: { commessaId: id }, orderBy: [{ updatedAt: "desc" }], take: 100 }) : [];
 
   return (
     <div className="flex flex-col gap-7">
-      <Intestazione commessa={commessa} stato={stato} />
+      <Intestazione commessa={commessa} stato={stato} puoModificare={puoModificare} />
+      {sp.esito && <p role="status" className="rounded-lg bg-ok-soft p-4 text-sm text-ok">{sp.esito === "sal" ? "Aggiornamento SAL e allegati salvati." : "Stato operativo aggiornato."}</p>}
+      {commessa.sospeso && <p role="status" className="rounded-lg bg-warn-soft p-4 text-sm text-warn"><strong>Cantiere sospeso.</strong> {commessa.motivoSospensione}</p>}
 
-      <nav aria-label="Sezioni progetto" className="grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel p-2 sm:flex sm:flex-wrap">
+      <nav aria-label="Sezioni progetto" className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-panel p-2">
         {Object.entries(SEZIONI).map(([value, label]) => <Link key={value}
           href={`/progetti/${id}?tab=${value}`} scroll={false} aria-current={tab === value ? "page" : undefined}
-          className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand ${tab === value ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-paper"}`}>
-          {label}{value === "squadra" ? ` (${commessa.assegnazioni.length})` : value === "documenti" ? ` (${commessa._count.documenti})` : ""}
+           className={`flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand ${tab === value ? "bg-brand-soft text-brand-deep" : "text-ink-soft hover:bg-paper"}`}>
+           {label}{value === "problemi" ? ` (${commessa._count.problemi})` : value === "squadra" ? ` (${commessa.assegnazioni.length})` : value === "documenti" ? ` (${commessa._count.documenti})` : ""}
         </Link>)}
       </nav>
 
@@ -187,10 +196,10 @@ export default async function ProgettoDetailPage({
       )}
 
       {tab === "riepilogo" && <>
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-3">
         <Card title="Avanzamento">
           <div className="flex flex-col gap-3">
-            <BarraAvanzamento
+             {av.totali > 0 && <BarraAvanzamento
               percentuale={av.percentuale}
               tono={
                 stato === "COMPLETATO"
@@ -201,10 +210,10 @@ export default async function ProgettoDetailPage({
                       ? "neutro"
                       : "brand"
               }
-            />
+             />}
             {av.totali === 0 ? (
               <p className="text-sm text-ink-faint">
-                Nessuna milestone: l&apos;avanzamento si calcola da queste.
+                SAL non disponibile: aggiungi milestone reali nella pianificazione.
               </p>
             ) : (
               <dl className="flex flex-col gap-2">
@@ -242,11 +251,11 @@ export default async function ProgettoDetailPage({
               value={commessa.pm ? `${commessa.pm.nome} ${commessa.pm.cognome}` : null}
             />
             <Row label="Stato commessa" value={etichettaStato(commessa.stato)} />
-            <Row
-              label="Importo ordine"
-              value={commessa.importoOrdine ? formatEuro(commessa.importoOrdine) : null}
-              mono
-            />
+            {puoLeggereEconomia(user) && <Row
+               label="Importo ordine"
+               value={commessa.importoOrdine ? formatEuro(commessa.importoOrdine) : null}
+               mono
+            />}
           </dl>
         </Card>
       </div>
@@ -265,10 +274,12 @@ export default async function ProgettoDetailPage({
         <Link href={`/progetti/${id}?tab=squadra`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium text-brand-deep">{puoModificare ? "Gestisci squadra" : "Vedi squadra"}</Link>
       </div>
       <TaskContext user={user} commessaId={id} />
+      {puoModificare && <SospensioneForm key={commessa.versioneOperativa} commessaId={id} versione={commessa.versioneOperativa} richiestaId={randomUUID()} sospeso={commessa.sospeso} />}
       <AiContextPanel type="progetto" id={id} />
       </>}
 
       {tab === "avanzamento" && <>
+      <StoricoCantiere aggiornamenti={aggiornamenti} />
       <div className="rounded-xl border border-line bg-panel p-4 sm:p-6">
         <h2 className="text-sm font-semibold">Avanzamento del progetto</h2>
         <p className="mt-2 text-sm text-ink-soft">{av.totali ? `${av.completate} milestone completate su ${av.totali} (${av.percentuale}%).` : "Nessuna milestone definita: aggiungi le fasi di lavoro per seguirne l’avanzamento."} Il valore è calcolato dalle milestone registrate.</p>
@@ -431,6 +442,7 @@ export default async function ProgettoDetailPage({
       </section>
       </>}
 
+      {tab === "problemi" && <section className="overflow-hidden rounded-xl border border-line bg-panel"><header className="border-b border-line p-4 sm:px-6"><h2 className="text-sm font-semibold">Problemi del cantiere</h2><p className="mt-1 text-xs text-ink-soft">{commessa._count.problemi} aperti · ultimi 100 problemi, incluse le risoluzioni.</p></header><ProblemiList problemi={problemi} /></section>}
       {/* Squadra assegnata */}
       {tab === "squadra" && <section className="rounded-xl border border-line bg-panel p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -507,7 +519,7 @@ export default async function ProgettoDetailPage({
       </section>}
       {tab === "documenti" && <>
         <p className="text-sm text-ink-soft">Documenti condivisi con la commessa {commessa.numero}. I file caricati qui sono disponibili anche nella scheda commessa.</p>
-        <CommessaDocumenti id={id} numero={commessa.numero} documenti={documenti} puoGestire={puoGestireDocumenti(user.ruolo)} />
+        <CommessaDocumenti id={id} numero={commessa.numero} documenti={documenti} operativo={!puoLeggereEconomia(user)} puoGestire={puoGestireDocumenti(user.ruolo)} />
       </>}
     </div>
   );
@@ -516,6 +528,7 @@ export default async function ProgettoDetailPage({
 function Intestazione({
   commessa,
   stato,
+  puoModificare = false,
 }: {
   commessa: {
     id: string;
@@ -525,6 +538,7 @@ function Intestazione({
     descrizione: string | null;
   };
   stato?: ReturnType<typeof statoAvanzamento>;
+  puoModificare?: boolean;
 }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -541,6 +555,7 @@ function Intestazione({
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {puoModificare && <><Link href={`/progetti/${commessa.id}/sal`} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white hover:bg-brand-deep">Aggiorna SAL</Link><Link href={`/progetti/${commessa.id}/problemi/nuovo`} className="inline-flex min-h-12 items-center justify-center rounded-lg border border-line bg-panel px-4 py-3 text-sm font-medium text-brand-deep">Segnala problema</Link></>}
         {stato && <PrintLink href={`/stampa/progetti/${commessa.id}`} />}
         <Link
           href={`/commesse/${commessa.id}`}
@@ -555,7 +570,7 @@ function Intestazione({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-panel p-5">
+    <div className="min-w-0 rounded-xl border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold">{title}</h2>
       <div className="mt-3">{children}</div>
     </div>
@@ -575,10 +590,10 @@ function Row({
 }) {
   const shown = value && value !== "—";
   return (
-    <div className="flex justify-between gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
       <dt className="text-sm text-ink-faint">{label}</dt>
       <dd
-        className={`text-right text-sm ${mono ? "font-mono" : ""} ${shown ? "text-ink" : "text-ink-faint"}`}
+        className={`min-w-0 break-words text-right text-sm ${mono ? "font-mono" : ""} ${shown ? "text-ink" : "text-ink-faint"}`}
       >
         {shown ? (
           href ? (

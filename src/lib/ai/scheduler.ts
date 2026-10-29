@@ -40,7 +40,7 @@ export async function runSchedule(id: string, slot: string, now = new Date()) {
       if (!owner) throw new CrmError("Il responsabile non ha più i permessi.");
       const saved = await db.aiRun.updateMany({ where: { id: run.id, leaseUntil, status: "RUNNING" }, data: { status: "COMPLETED", summary, findings: jsonValue(report), usage: jsonValue(usage), error: warning, finishedAt: new Date() } });
       if (!saved.count) return;
-      const recipients = await db.user.findMany({ where: { id: { in: recipientIds }, attivo: true }, select: { id: true } });
+      const recipients = await db.user.findMany({ where: { id: { in: recipientIds }, attivo: true, ruolo: { in: ["SUPER_ADMIN", "BACKOFFICE", "AMMINISTRAZIONE"] } }, select: { id: true } });
       for (const recipient of recipients) await db.notifica.upsert({ where: { userId_runId: { userId: recipient.id, runId: run.id } }, create: { userId: recipient.id, runId: run.id, titolo: schedule.name, testo: `${report.findings.length} elementi · ${report.commesseAnalizzate} commesse analizzate`, href: `/assistente/automazioni/${run.id}` }, update: {} });
     });
     return { id: run.id, skipped: false };

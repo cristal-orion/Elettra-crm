@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { commessaScope, puoLeggereEconomia } from "@/lib/access";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import TaskContext from "@/components/task-context";
@@ -35,8 +36,8 @@ export default async function CommessaDetailPage({
   const { id } = await params;
   const user = await requireUser();
 
-  const commessa = await prisma.commessa.findUnique({
-    where: { id },
+  const commessa = await prisma.commessa.findFirst({
+    where: { id, ...commessaScope(user) },
     include: {
       cliente: true,
       pm: true,
@@ -50,7 +51,7 @@ export default async function CommessaDetailPage({
       },
       documenti: { orderBy: { createdAt: "desc" } },
       milestone: {
-        select: { stato: true, ordine: true, titolo: true, dataPianificata: true },
+        select: { stato: true, ordine: true, titolo: true, dataPianificata: true, dimostrativa: true },
         orderBy: { ordine: "asc" },
       },
       _count: { select: { assegnazioni: true } },
@@ -58,6 +59,7 @@ export default async function CommessaDetailPage({
   });
 
   if (!commessa) notFound();
+  if (!puoLeggereEconomia(user)) return <div className="space-y-6"><header><DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel={commessa.numero} /><h1 className="mt-3 text-2xl font-semibold">Commessa {commessa.numero}</h1><p className="mt-2 text-sm text-ink-soft">{commessa.cliente.ragioneSociale} · {commessa.descrizione}</p></header><StatoBadge stato={commessa.stato} /><section className="rounded-xl border border-line bg-panel p-5"><h2 className="font-semibold">Informazioni operative</h2><p className="mt-3 text-sm">PM: {commessa.pm ? `${commessa.pm.nome} ${commessa.pm.cognome}` : "Da assegnare"}</p><p className="mt-2 text-sm">{commessa.indirizzoCantiere || "Indirizzo cantiere da completare"}</p>{isProgetto(commessa.stato) ? <Link href={`/progetti/${id}`} className="mt-4 inline-flex min-h-12 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white">Apri cantiere, SAL e problemi →</Link> : <p className="mt-4 text-sm text-ink-soft">Il cantiere si apre alla conferma dell’incarico.</p>}</section><TaskContext user={user} commessaId={id} /></div>;
   const confermaIniziale = await prisma.modificaEconomica.findUnique({
     where: { entita_entitaId_versione: { entita: "COMMESSA_CREAZIONE", entitaId: id, versione: 1 } },
     select: { autoreNome: true, autoreRuolo: true, createdAt: true, dopo: true },

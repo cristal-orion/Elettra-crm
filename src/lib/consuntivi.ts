@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { Prisma, type Consuntivo, type TariffarioCliente } from "@/generated/prisma";
 import { puoGestireAnagrafiche, puoGestireCommesse } from "./enums";
 import { InputError } from "./form-validation";
+import { assertCommessaAccess } from "./access";
 import { ConsuntivoSchema, TariffarioSchema, type ConsuntivoValues, type RigaConsuntivo, type TariffarioValues } from "./consuntivo-schema";
 
 type Db = Prisma.TransactionClient;
@@ -55,7 +56,7 @@ export async function saveTariffario(db: Db, actorId: string, clienteId: string,
 export async function saveConsuntivo(db: Db, actorId: string, commessaId: string, raw: unknown) {
   const actor = await actorFor(db, actorId, false);
   const input = ConsuntivoSchema.parse(raw);
-  const job = await db.commessa.findUnique({ where: { id: commessaId } });
+  const job = await assertCommessaAccess(db, actor, commessaId);
   if (!job) throw new InputError("Commessa non trovata.");
   const existing = await db.consuntivo.findUnique({ where: { commessaId } });
   checkVersion(existing?.versione ?? 0, input.versione);

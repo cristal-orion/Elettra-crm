@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { puoGestireCommesse } from "@/lib/enums";
 import { consuntivoValues, tariffarioValues } from "@/lib/consuntivi";

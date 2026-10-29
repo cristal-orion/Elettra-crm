@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/format";
 import TaskForm from "../task-form";
 import TaskActions from "../task-actions";
 import { getTaskOptions } from "../data";
+import { attivitaScope } from "@/lib/attivita";
 
 export const metadata = { title: "Dettaglio attività — CRM Elettra" };
 
@@ -18,7 +19,7 @@ export default async function TaskPage({ params, searchParams }: {
   const { id } = await params;
   const canAssign = puoGestireCommesse(user.ruolo);
   const task = await prisma.attivita.findFirst({
-    where: { id, ...(canAssign ? {} : { userId: user.id }) },
+    where: { id, ...attivitaScope(user, "team") },
     include: { user: { select: { nome: true, cognome: true } }, commessa: { select: { numero: true } }, cliente: { select: { ragioneSociale: true } } },
   });
   if (!task) notFound();
@@ -36,8 +37,8 @@ export default async function TaskPage({ params, searchParams }: {
         </div>
       </header>
       {(await searchParams).esito === "salvata" && <p role="status" className="rounded-lg bg-ok-soft p-4 text-sm text-ok">Attività salvata.</p>}
-      <TaskForm key={task.updatedAt.toISOString()} options={options} canAssign={canAssign} initial={{ id: task.id, expectedUpdatedAt: task.updatedAt.toISOString(), titolo: task.titolo, note: task.note ?? "", scadenza: task.scadenza?.toISOString().slice(0, 10) ?? "", stato: task.stato, userId: task.userId, commessaId: task.commessaId ?? "", clienteId: task.clienteId ?? "" }} />
-      <section className="rounded-xl border border-line bg-panel p-5"><h2 className="mb-3 text-sm font-semibold">Azioni rapide</h2><TaskActions task={{ id: task.id, titolo: task.titolo, stato: task.stato, updatedAt: task.updatedAt.toISOString() }} /></section>
+      {task.problemaId ? <p className="rounded-lg bg-brand-soft p-4 text-sm text-brand-deep">Questa attività segue il problema di cantiere: stato, scadenza e responsabile si aggiornano dalla sua scheda.</p> : <TaskForm key={task.updatedAt.toISOString()} options={options} canAssign={canAssign} initial={{ id: task.id, expectedUpdatedAt: task.updatedAt.toISOString(), titolo: task.titolo, note: task.note ?? "", scadenza: task.scadenza?.toISOString().slice(0, 10) ?? "", stato: task.stato, userId: task.userId, commessaId: task.commessaId ?? "", clienteId: task.clienteId ?? "" }} />}
+      <section className="rounded-xl border border-line bg-panel p-5"><h2 className="mb-3 text-sm font-semibold">Azioni rapide</h2><TaskActions task={{ id: task.id, problemaId: task.problemaId, titolo: task.titolo, stato: task.stato, updatedAt: task.updatedAt.toISOString() }} /></section>
     </div>
   );
 }

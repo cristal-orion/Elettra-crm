@@ -62,7 +62,7 @@ test("liste PostgreSQL: ricerca progressiva, filtri e paginazione prima dell'idr
         { commessaId: "project-3", titolo: "Demo scaduta (regola corrente conservata)", ordine: 0, dataPianificata: past, dimostrativa: true },
       ] });
       const rows = await db.commessa.findMany({ where: { stato: { in: STATI_PROGETTO } }, include: { milestone: true } });
-      const rank = { IN_RITARDO: 0, IN_CORSO: 1, DA_PIANIFICARE: 2, COMPLETATO: 3 };
+      const rank = { IN_RITARDO: 0, IN_CORSO: 1, DA_PIANIFICARE: 2, COMPLETATO: 3, SOSPESO: 4 };
       const expected = rows.sort((x, y) => rank[statoAvanzamento(x)] - rank[statoAvanzamento(y)] || ((giorniAllaScadenza(x.scadenzaLavori) ?? Infinity) - (giorniAllaScadenza(y.scadenzaLavori) ?? Infinity)) || y.anno - x.anno || y.progressivo - x.progressivo || x.id.localeCompare(y.id));
       const projectOptions = { query: "", scope: Prisma.sql`s.stato IN (${Prisma.join(STATI_PROGETTO)})`, orderBy: Prisma.sql`s.urgency, s."dueDay" ASC NULLS LAST, s.anno DESC, s.progressivo DESC`, extraCount: Prisma.sql`count(*) FILTER (WHERE urgency = 0)` };
       for (let page = 1; page <= 3; page++) {

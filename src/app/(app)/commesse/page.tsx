@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { commessaScope, commessaScopeSql, puoLeggereEconomia } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import {
@@ -34,12 +35,12 @@ export default async function CommessePage({
 
   const pagination = await searchListPage(prisma, listSources.commesse, {
     query: q, page: sp.pagina,
-    scope: Prisma.sql`${stato ? Prisma.sql`s.stato = ${stato}` : Prisma.sql`true`} AND ${sp.daFatturare === "1" ? Prisma.sql`s.stato <> 'FATTURATA' AND EXISTS (SELECT 1 FROM "OrdineFornitore" o WHERE o."commessaId" = s.id)` : Prisma.sql`true`}`,
+    scope: Prisma.sql`${commessaScopeSql(user)} AND ${stato ? Prisma.sql`s.stato = ${stato}` : Prisma.sql`true`} AND ${sp.daFatturare === "1" ? Prisma.sql`s.stato <> 'FATTURATA' AND EXISTS (SELECT 1 FROM "OrdineFornitore" o WHERE o."commessaId" = s.id)` : Prisma.sql`true`}`,
     orderBy: ordine === "cliente" ? Prisma.sql`s."clienteNome" ASC` : ordine === "numero_asc" ? Prisma.sql`s.anno ASC, s.progressivo ASC` : Prisma.sql`s.anno DESC, s.progressivo DESC`,
   });
   const total = pagination.total;
   const commesse = inPageOrder(await prisma.commessa.findMany({
-    where: { id: { in: pagination.ids } },
+    where: { id: { in: pagination.ids }, ...commessaScope(user) },
     include: { cliente: true, pm: true },
   }), pagination.ids);
 
@@ -85,7 +86,7 @@ export default async function CommessePage({
               <th className="px-4 py-3 font-medium">PM</th>
               <th className="px-4 py-3 font-medium">Stato</th>
               <th className="px-4 py-3 font-medium">Tip.</th>
-              <th className="px-6 py-3 text-right font-medium">Offerta</th>
+               {puoLeggereEconomia(user) && <th className="px-6 py-3 text-right font-medium">Offerta</th>}
             </tr>
           </thead>
           <tbody>
@@ -113,9 +114,9 @@ export default async function CommessePage({
                 <td className="px-4 py-3">
                   <TipologiaBadge tipologia={c.tipologia} />
                 </td>
-                <td className="px-6 py-3 text-right tabular-nums">
-                  {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
-                </td>
+                 {puoLeggereEconomia(user) && <td className="px-6 py-3 text-right tabular-nums">
+                   {c.importoOfferta ? formatEuro(c.importoOfferta) : "—"}
+                 </td>}
               </tr>
             ))}
             {commesse.length === 0 && (

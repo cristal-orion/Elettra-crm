@@ -34,7 +34,7 @@ export default function TodayTasks({ data }: { data: Awaited<ReturnType<typeof g
             {task.cliente && <Link href={`/anagrafiche/${task.cliente.id}`} className="inline-flex min-h-11 max-w-full items-center break-words py-2 text-brand-deep underline">{task.cliente.ragioneSociale}</Link>}
           </div>
         </div>
-        <TaskActions task={{ id: task.id, titolo: task.titolo, stato: task.stato, updatedAt: task.updatedAt.toISOString() }} showDelete={false} />
+        <TaskActions task={{ id: task.id, problemaId: task.problemaId, titolo: task.titolo, stato: task.stato, updatedAt: task.updatedAt.toISOString() }} showDelete={false} />
       </li>)}
     </ul>}
     <div className="mt-3 flex flex-wrap justify-between gap-x-5 gap-y-2 border-t border-line pt-2 text-sm">

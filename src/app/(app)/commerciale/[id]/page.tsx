@@ -2,7 +2,7 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { puoGestireCommesse, puoGestireDocumenti, TIPOLOGIE } from "@/lib/enums";
 import { giornoAttivita } from "@/lib/attivita";
 import { formatDate, formatEuro } from "@/lib/format";

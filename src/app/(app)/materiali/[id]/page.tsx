@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { puoLeggereEconomia } from "@/lib/access";
 import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/dal";
@@ -118,7 +119,7 @@ export default async function MaterialeDetailPage({
       </div>
 
       {/* Storico prezzi agganciato (per codice/descrizione) */}
-      <section className="rounded-xl border border-line bg-panel">
+      {user && puoLeggereEconomia(user) && <section className="rounded-xl border border-line bg-panel">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-sm font-semibold">Storico prezzi acquisti</h2>
           <Link
@@ -178,7 +179,7 @@ export default async function MaterialeDetailPage({
             {prodotto.codice ? "codice" : "nome"} del materiale.
           </p>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

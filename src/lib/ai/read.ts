@@ -4,30 +4,35 @@ import { avanzamento, statoAvanzamento, haPianificazioneDimostrativa } from "../
 import { CrmError } from "../crm/commands";
 import type { AiContext } from "./http";
 import { attivitaHref, attivitaScope } from "../attivita";
+import { commessaScope, documentoScope, puoLeggereEconomia, type Actor } from "../access";
 
 export const serialize = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const userSelect = { id: true, nome: true, cognome: true, ruolo: true } as const;
 
-export async function readCommessa(idOrNumero: string) {
+export async function readCommessa(idOrNumero: string, actor: Actor) {
   const c = await prisma.commessa.findFirst({
-    where: { OR: [{ id: idOrNumero }, { numero: idOrNumero }] },
+    where: { AND: [commessaScope(actor), { OR: [{ id: idOrNumero }, { numero: idOrNumero }] }] },
     include: { cliente: { select: { id: true, ragioneSociale: true, codiceCliente: true } }, pm: { select: userSelect }, referente: true,
       milestone: { orderBy: { ordine: "asc" }, take: 300 }, assegnazioni: { include: { operaio: true }, take: 100 },
-      documenti: { select: { id: true, nomeFile: true, categoria: true, tipoMime: true }, take: 100 },
-      _count: { select: { ordiniFornitore: true, milestone: true, assegnazioni: true, documenti: true } } },
+      documenti: { where: documentoScope(actor), select: { id: true, nomeFile: true, categoria: true, tipoMime: true }, take: 100 },
+      problemi: { select: { id: true, titolo: true, stato: true, priorita: true, scadenza: true, assegnatarioId: true }, orderBy: { updatedAt: "desc" }, take: 30 },
+      aggiornamenti: { select: { tipo: true, data: true, nota: true, autoreNome: true, prima: true, dopo: true }, orderBy: { createdAt: "desc" }, take: 20 },
+      _count: { select: { ordiniFornitore: puoLeggereEconomia(actor), milestone: true, assegnazioni: true, documenti: { where: documentoScope(actor) } } } },
   });
   if (!c) throw new CrmError("Commessa non trovata.", "NOT_FOUND");
-  const costi = await prisma.rigaOrdineFornitore.aggregate({ where: { ordine: { commessaId: c.id } }, _sum: { imponibile: true } });
+  const costi = puoLeggereEconomia(actor) ? await prisma.rigaOrdineFornitore.aggregate({ where: { ordine: { commessaId: c.id } }, _sum: { imponibile: true } }) : null;
   const partial = c._count.milestone > c.milestone.length;
-  return serialize({ ...c, href: `/commesse/${c.id}`, progettoHref: `/progetti/${c.id}`, avanzamento: partial ? null : avanzamento(c.milestone), statoAvanzamento: partial ? null : statoAvanzamento(c), dettaglioParziale: partial || c._count.assegnazioni > c.assegnazioni.length || c._count.documenti > c.documenti.length, dimostrativo: haPianificazioneDimostrativa(c.milestone), acquisti: costi._sum.imponibile?.toString() ?? "0", documenti: c.documenti.map((d) => ({ ...d, href: `/documenti/${d.id}` })) });
+  return serialize({ ...c, importoOfferta: costi ? c.importoOfferta : undefined, importoOrdine: costi ? c.importoOrdine : undefined, href: `/commesse/${c.id}`, progettoHref: `/progetti/${c.id}`, avanzamento: partial || !avanzamento(c.milestone).totali ? null : avanzamento(c.milestone), statoAvanzamento: partial ? null : statoAvanzamento(c), dettaglioParziale: partial || c._count.assegnazioni > c.assegnazioni.length || c._count.documenti > c.documenti.length, dimostrativo: haPianificazioneDimostrativa(c.milestone), acquisti: costi ? costi._sum.imponibile?.toString() ?? "0" : undefined, problemi: c.problemi.map((p) => ({ ...p, href: `/problemi/${p.id}` })), documenti: c.documenti.map((d) => ({ ...d, href: `/documenti/${d.id}` })), datiAl: new Date().toISOString(), limiteStorico: "Ultimi 20 aggiornamenti e 30 problemi. SAL solo su milestone reali, peso uguale." });
 }
-export async function readCliente(id: string) {
+export async function readCliente(id: string, actor: Actor) {
   const a = await prisma.anagrafica.findUnique({ where: { id }, include: { referenti: true, destinazioni: { take: 100, orderBy: { codice: "asc" } }, _count: { select: { commesse: true, ordiniFornitore: true, destinazioni: true } } } });
   if (!a) throw new CrmError("Anagrafica non trovata.", "NOT_FOUND");
-  const commesse = await prisma.commessa.findMany({ where: { clienteId: id }, take: 20, orderBy: { updatedAt: "desc" }, select: { id: true, numero: true, stato: true, descrizione: true, importoOrdine: true, updatedAt: true } });
-  return serialize({ ...a, href: `/anagrafiche/${id}`, commesse: commesse.map((c) => ({ ...c, href: `/commesse/${c.id}` })), altreCommesse: a._count.commesse > commesse.length, altreDestinazioni: a._count.destinazioni > a.destinazioni.length });
+  const where = { clienteId: id, ...commessaScope(actor) };
+  const [commesse, total] = await Promise.all([prisma.commessa.findMany({ where, take: 20, orderBy: { updatedAt: "desc" }, select: { id: true, numero: true, stato: true, descrizione: true, importoOrdine: puoLeggereEconomia(actor), updatedAt: true } }), prisma.commessa.count({ where })]);
+  return serialize({ ...a, _count: { commesse: total, destinazioni: a._count.destinazioni }, href: `/anagrafiche/${id}`, commesse: commesse.map((c) => ({ ...c, href: `/commesse/${c.id}` })), altreCommesse: total > commesse.length, altreDestinazioni: a._count.destinazioni > a.destinazioni.length });
 }
-export async function readOrdine(id: string, pagina = 1, limite = 25) {
+export async function readOrdine(id: string, actor: Actor, pagina = 1, limite = 25) {
+  if (!puoLeggereEconomia(actor)) throw new CrmError("Dati economici riservati ai ruoli amministrativi.", "FORBIDDEN");
   const ordine = await prisma.ordineFornitore.findUnique({ where: { id }, include: {
     fornitore: { select: { id: true, ragioneSociale: true, email: true, telefono: true } },
     commessa: { select: { id: true, numero: true, descrizione: true } },
@@ -62,11 +67,16 @@ export async function readAttivita(id: string, userId?: string) {
   if (!task) throw new CrmError("Attività non trovata.", "NOT_FOUND");
   return serialize({ ...task, href: attivitaHref(task.id) });
 }
-export async function contextData(context: AiContext) {
-  if (context.type === "cliente") return readCliente(context.id);
-  if (context.type === "ordine") return readOrdine(context.id);
+export async function contextData(context: AiContext, actor: Actor) {
+  if (context.type === "cliente") return readCliente(context.id, actor);
+  if (context.type === "ordine") return readOrdine(context.id, actor);
   if (context.type === "materiale") return readMateriale(context.id);
-  return readCommessa(context.id);
+  if (context.type === "problema") {
+    const p = await prisma.problemaCantiere.findFirst({ where: { id: context.id, commessa: commessaScope(actor) }, include: { eventi: { orderBy: { createdAt: "desc" }, take: 30 }, commessa: { select: { id: true, numero: true } } } });
+    if (!p) throw new CrmError("Problema non trovato.", "NOT_FOUND");
+    return serialize({ ...p, href: `/problemi/${p.id}`, datiAl: new Date().toISOString(), limite: "Ultimi 30 eventi" });
+  }
+  return readCommessa(context.id, actor);
 }
 export function commessaWhere(input: { testo?: string; stato?: string; clienteId?: string; pmId?: string; dal?: string; al?: string }): Prisma.CommessaWhereInput {
   return {

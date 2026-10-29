@@ -173,6 +173,9 @@ model Commessa {
   dataFineLavori    DateTime? // chiusura effettiva del cantiere
   noteCantiere      String?
   indirizzoCantiere String?
+  sospeso          Boolean @default(false)
+  motivoSospensione String?
+  versioneOperativa Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -189,11 +192,72 @@ model Commessa {
   opportunitaId   String? @unique
   opportunita     Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
   bozzaOrigine    BozzaCommessa?
+  aggiornamenti  AggiornamentoCantiere[]
+  problemi       ProblemaCantiere[]
 
   @@index([clienteId])
   @@index([stato])
   @@index([anno])
   @@index([scadenzaLavori])
+  @@index([pmId, stato])
+}
+
+/// Registro operativo append-only: fotografia delle variazioni, non un secondo SAL.
+model AggiornamentoCantiere {
+  id String @id @default(cuid())
+  richiestaId String @unique
+  richiestaHash String
+  commessaId String
+  autoreId String
+  autoreNome String
+  tipo String @default("SAL")
+  data DateTime @db.Date
+  nota String?
+  prima Json
+  dopo Json
+  createdAt DateTime @default(now())
+  commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Restrict)
+  documenti Documento[]
+  @@index([commessaId, createdAt])
+}
+
+model ProblemaCantiere {
+  id String @id @default(cuid())
+  richiestaId String @unique
+  richiestaHash String
+  commessaId String
+  titolo String
+  descrizione String
+  priorita String @default("MEDIA")
+  stato String @default("APERTA")
+  autoreId String
+  autoreNome String
+  assegnatarioId String?
+  scadenza DateTime? @db.Date
+  versione Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  commessa Commessa @relation(fields: [commessaId], references: [id], onDelete: Restrict)
+  eventi EventoProblema[]
+  documenti Documento[]
+  attivita Attivita?
+  @@index([commessaId, stato])
+  @@index([assegnatarioId, stato, scadenza])
+}
+
+model EventoProblema {
+  id String @id @default(cuid())
+  richiestaId String @unique
+  richiestaHash String
+  problemaId String
+  autoreId String
+  autoreNome String
+  testo String
+  prima Json?
+  dopo Json?
+  createdAt DateTime @default(now())
+  problema ProblemaCantiere @relation(fields: [problemaId], references: [id], onDelete: Restrict)
+  @@index([problemaId, createdAt])
 }
 
 /// Preparazione privata: non è una commessa e non entra nei KPI o nelle risorse.
@@ -431,6 +495,8 @@ model Documento {
   commessaId String?
   opportunitaId String?
   bozzaId    String?
+  aggiornamentoId String?
+  problemaId String?
   nomeFile   String
   categoria  String   @default("ALTRO") // vedi CATEGORIE_DOCUMENTO in enums.ts
   tipoMime   String?
@@ -441,10 +507,14 @@ model Documento {
   commessa Commessa? @relation(fields: [commessaId], references: [id], onDelete: Cascade)
   opportunita Opportunita? @relation(fields: [opportunitaId], references: [id], onDelete: Restrict)
   bozza BozzaCommessa? @relation(fields: [bozzaId], references: [id], onDelete: Restrict)
+  aggiornamento AggiornamentoCantiere? @relation(fields: [aggiornamentoId], references: [id], onDelete: Restrict)
+  problema ProblemaCantiere? @relation(fields: [problemaId], references: [id], onDelete: Restrict)
 
   @@index([commessaId])
   @@index([opportunitaId])
   @@index([bozzaId])
+  @@index([aggiornamentoId])
+  @@index([problemaId])
 }
 
 /// Nomi/ordine configurabili, significato stabile per conversione e indicatori.
@@ -586,6 +656,7 @@ model AiConversation {
   userId String
   title String
   context Json?
+  accessKey String?
   busyUntil DateTime?
   lockToken String?
   createdAt DateTime @default(now())
@@ -611,6 +682,7 @@ model AiOperation {
   userId String
   conversationId String?
   requestKey String @unique
+  accessKey String?
   command Json
   preview Json
   status String @default("PENDING")
@@ -666,6 +738,7 @@ model Notifica {
   titolo String
   testo String
   href String
+  eventoKey String? @unique
   letta Boolean @default(false)
   createdAt DateTime @default(now())
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -684,6 +757,8 @@ model Attivita {
   commessaId String?
   clienteId String?
   opportunitaId String?
+  problemaId String? @unique
+  problema ProblemaCantiere? @relation(fields: [problemaId], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation(fields: [userId], references: [id])

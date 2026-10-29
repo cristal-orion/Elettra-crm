@@ -9,6 +9,7 @@ import { salvaFile, eliminaFile, sanitizeFilename } from "@/lib/storage";
 import { serializable } from "@/lib/transaction";
 import { eventoCommerciale } from "@/lib/commerciale";
 import { ownedDraft } from "@/lib/commessa-wizard";
+import { assertCommessaAccess, commessaScope, documentoScope, puoCaricareDocumento } from "@/lib/access";
 
 export type UploadState = { error?: string; ok?: number } | undefined;
 
@@ -69,7 +70,7 @@ async function upload(tipo: "commessa" | "opportunita" | "bozza", id: string, fo
     } catch { return { error: "Bozza non disponibile per questo utente." }; }
   }
 
-  const commessa = tipo === "commessa" ? await prisma.commessa.findUnique({ where: { id }, select: { numero: true, opportunitaId: true } }) : null;
+  const commessa = tipo === "commessa" ? await prisma.commessa.findFirst({ where: { id, ...commessaScope(user) }, select: { numero: true, opportunitaId: true } }) : null;
   const opportunitaId = tipo === "opportunita" ? id : commessa?.opportunitaId;
   if (tipo === "commessa" && !commessa) return { error: "Commessa non trovata." };
   if (opportunitaId && !await prisma.opportunita.findUnique({ where: { id: opportunitaId }, select: { id: true } })) return { error: "Trattativa non trovata." };
@@ -81,6 +82,7 @@ async function upload(tipo: "commessa" | "opportunita" | "bozza", id: string, fo
 
   const catRaw = String(formData.get("categoria") ?? "").trim();
   const categoria = CATEGORIE_VALIDE.includes(catRaw) ? catRaw : "ALTRO";
+  if (!puoCaricareDocumento(user, tipo, categoria)) return { error: "Puoi caricare foto e disegni nei cantieri accessibili. Per altri allegati operativi usa SAL o Problemi." };
 
   const files = formData
     .getAll("files")
@@ -107,7 +109,8 @@ async function upload(tipo: "commessa" | "opportunita" | "bozza", id: string, fo
       const savedPath = percorso;
       await serializable(async (tx) => {
         const actor = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
-        if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) throw new Error("Non autorizzato");
+        if (!actor.attivo || !puoGestireDocumenti(actor.ruolo) || !puoCaricareDocumento(actor, tipo, categoria)) throw new Error("Non autorizzato");
+        if (tipo === "commessa") await assertCommessaAccess(tx, actor, id);
         if (tipo === "bozza") {
           const draft = await ownedDraft(tx, actor.id, id);
           if (draft.commessaId) throw new Error("Bozza già confermata");
@@ -150,8 +153,11 @@ export async function deleteDocumento(
   const doc = await serializable(async (tx) => {
     const actor = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
     if (!actor.attivo || !puoGestireDocumenti(actor.ruolo)) return null;
-    const row = await tx.documento.findUnique({ where: { id: documentoId } });
+    const row = await tx.documento.findFirst({ where: { id: documentoId, ...documentoScope(actor) } });
     if (!row) return null;
+    if (row.commessaId) await assertCommessaAccess(tx, actor, row.commessaId);
+    if (row.aggiornamentoId || row.problemaId) return null;
+    if (row.opportunitaId && !row.commessaId && actor.ruolo === "PROJECT_MANAGER") return null;
     if (row.bozzaId) {
       const draft = await ownedDraft(tx, actor.id, row.bozzaId);
       if (draft.commessaId) return null;

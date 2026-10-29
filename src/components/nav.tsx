@@ -113,7 +113,7 @@ const items: NavItem[] = [
   },
   {
     href: "/assistente",
-    label: "Assistente",
+    label: "Elettro",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className={iconClass}>
         <path
@@ -123,7 +123,9 @@ const items: NavItem[] = [
       </svg>
     ),
   },
-  { href: "/attivita", label: "Attività", icon: <span className={iconClass} aria-hidden>✓</span> },
+  { href: "/problemi", label: "Problemi cantiere", icon: <svg viewBox="0 0 24 24" fill="none" className={iconClass} aria-hidden><path d="M12 3 2 21h20L12 3Zm0 6v5m0 3v1" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg> },
+  { href: "/risorse", label: "Risorse e squadre", icon: <svg viewBox="0 0 24 24" fill="none" className={iconClass} aria-hidden><path d="M8 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm9 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20v-3a6 6 0 0 1 12 0v3Zm14 0h6v-3a5 5 0 0 0-6-5" stroke="currentColor" strokeWidth="1.5" /></svg> },
+  { href: "/attivita", label: "Attività", icon: <svg viewBox="0 0 24 24" fill="none" className={iconClass} aria-hidden><path d="m4 12 5 5L20 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> },
   { href: "/notifiche", label: "Notifiche", icon: <span className={iconClass} aria-hidden>◉</span> },
 ];
 
@@ -157,9 +159,11 @@ const adminItems: NavItem[] = [
 
 export default function Nav({
   canManageUsers = false,
+  canEconomia = true,
   mobile = false,
 }: {
   canManageUsers?: boolean;
+  canEconomia?: boolean;
   mobile?: boolean;
 }) {
   const pathname = usePathname();
@@ -168,10 +172,10 @@ export default function Nav({
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const voci = canManageUsers ? [...items, ...adminItems] : items;
+  const voci = (canManageUsers ? [...items, ...adminItems] : items).filter((item) => canEconomia || !["/commerciale", "/ordini", "/statistiche"].includes(item.href));
 
-  return (
-    <nav aria-label={mobile ? "Navigazione mobile" : "Navigazione principale"} className={mobile ? "flex gap-1 overflow-x-auto border-b border-line bg-panel px-3 py-2" : "flex flex-col gap-1"}>
+  const links = (
+    <nav aria-label={mobile ? "Navigazione mobile" : "Navigazione principale"} className={mobile ? "grid grid-cols-2 gap-1 pb-3" : "flex flex-col gap-1"}>
       {voci.map((item) => {
         const active = isActive(item.href);
         const base =
@@ -197,19 +201,23 @@ export default function Nav({
           <Link
             key={item.href}
             href={item.href}
+            onClick={mobile ? (event) => event.currentTarget.closest("details")?.removeAttribute("open") : undefined}
             aria-current={active ? "page" : undefined}
             className={`${base} ${
               mobile ? active ? "bg-brand-soft font-semibold text-brand-deep" : "text-ink-soft hover:bg-paper" : active
                 ? "bg-brand-light/15 font-medium text-white"
-                : "text-white/60 hover:bg-white/5 hover:text-white"
+                : "text-white/75 hover:bg-white/5 hover:text-white"
             }`}
           >
             {!mobile && <span aria-hidden className={active ? "text-brand-light" : ""}>{item.icon}</span>}
              <span>{item.label}</span>
-             {item.href === "/notifiche" && unread > 0 && <span aria-label={`${unread} notifiche da leggere`} className={`rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${mobile ? "bg-brand-soft text-brand-deep" : "bg-brand-light/20 text-brand-light"}`}>{unread > 99 ? "99+" : unread}</span>}
+              {item.href === "/notifiche" && unread > 0 && <span aria-label={`${unread} notifiche da leggere`} className={`rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${mobile ? "bg-brand-soft text-brand-deep" : "bg-white/10 text-white"}`}>{unread > 99 ? "99+" : unread}</span>}
           </Link>
         );
       })}
     </nav>
   );
+  if (!mobile) return links;
+  const current = voci.find((item) => isActive(item.href));
+  return <details key={pathname} className="border-b border-line bg-panel px-5"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm"><span className="font-semibold">{current?.label ?? "Sezioni CRM"}</span><span className="flex items-center gap-2 text-brand-deep">Menu<svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.5" /></svg></span></summary>{links}</details>;
 }

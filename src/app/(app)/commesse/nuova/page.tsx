@@ -34,16 +34,25 @@ export default async function NuovaCommessaPage({ searchParams }: { searchParams
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
+      <header className="flex flex-col gap-4">
         <DetailNavigation listPath="/commesse" listLabel="Commesse" currentLabel="Nuova commessa" />
-        <h1 className="mt-2 text-2xl font-bold tracking-tight">
-          Nuova commessa
-        </h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Cinque passi, con bozze recuperabili. Il numero viene assegnato solo alla conferma dell’incarico.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 basis-64">
+            <h1 className="text-2xl font-bold tracking-tight">Nuova commessa</h1>
+            <p className="mt-1 text-sm text-ink-soft">
+              Cinque passi, con bozze recuperabili. Il numero viene assegnato solo alla conferma dell’incarico.
+            </p>
+          </div>
+          <Link href="/commesse/bozze" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-brand/40 bg-brand-soft px-5 py-3 text-sm font-semibold text-brand-deep shadow-sm transition hover:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+            </svg>
+            Le mie bozze
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </header>
-      <p className="text-sm text-ink-soft">Incarico ancora da acquisire? <Link href="/commerciale/nuova" className="text-brand-deep underline">Apri una trattativa</Link>. <Link href="/commesse/bozze" className="text-brand-deep underline">Le mie bozze →</Link></p>
+      <p className="text-sm text-ink-soft">Incarico ancora da acquisire? <Link href="/commerciale/nuova" className="text-brand-deep underline">Apri una trattativa</Link>.</p>
       <CommessaWizard key={draft?.id ?? "nuova"} id={draft?.id ?? randomUUID()} initial={draft ? WizardData.parse(draft.dati) : emptyWizard}
         initialVersion={draft?.versione ?? 0} initialStep={draft?.passo ?? 0}
         clienti={anagrafiche} pms={pms} operai={operai} manageCustomers={manageCustomers}

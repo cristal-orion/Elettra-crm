@@ -27,7 +27,7 @@
   --color-slatepanel: #15243a;
 
   /* Semantici */
-  --color-ok: #2f7d4e;
+  --color-ok: #276d43;
   --color-ok-soft: #e4f1e8;
   --color-warn: #855800;
   --color-warn-soft: #fbf1da;
@@ -64,12 +64,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* CTA con il gradiente di brand (come i pulsanti del sito) */
+/* Una sola tinta di brand sulle azioni, per contrasto e leggibilità. */
 .bg-elettra {
-  background-image: var(--gradient-elettra);
+  background-color: var(--color-brand);
 }
 .bg-elettra:hover {
-  filter: brightness(1.06);
+  background-color: var(--color-brand-deep);
 }
 
 /* Testo/marchio con il gradiente di brand */

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { commessaScope, puoLeggereEconomia } from "@/lib/access";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import TaskContext from "@/components/task-context";
@@ -30,6 +31,7 @@ export default async function AnagraficaDetailPage({
     include: {
       referenti: { orderBy: [{ principale: "desc" }, { cognome: "asc" }] },
       commesse: {
+        where: commessaScope(user),
         orderBy: { createdAt: "desc" },
         include: {
           pm: true,
@@ -49,6 +51,7 @@ export default async function AnagraficaDetailPage({
   });
 
   if (!anagrafica) notFound();
+  if (!puoLeggereEconomia(user)) return <div className="space-y-6"><header><DetailNavigation listPath="/anagrafiche" listLabel="Anagrafiche" currentLabel={anagrafica.ragioneSociale} /><h1 className="mt-3 break-words text-2xl font-semibold">{anagrafica.ragioneSociale}</h1></header><section className="space-y-3 rounded-xl border border-line bg-panel p-5"><h2 className="font-semibold">Contatti</h2><p className="text-sm">{[anagrafica.indirizzo, anagrafica.localita].filter(Boolean).join(" · ") || "Indirizzo non registrato"}</p><p className="text-sm">{anagrafica.telefono || "Telefono non registrato"} · {anagrafica.email || "Email non registrata"}</p>{anagrafica.referenti.map((r) => <p key={r.id} className="break-words text-sm">{r.nome} {r.cognome} · {r.telefono} · {r.email}</p>)}</section><section className="rounded-xl border border-line bg-panel p-5"><h2 className="mb-3 font-semibold">Commesse accessibili ({anagrafica.commesse.length})</h2>{anagrafica.commesse.map((c) => <Link key={c.id} href={`/commesse/${c.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-t border-line py-3 text-sm"><span className="text-brand-deep">{c.numero} · {c.descrizione}</span><StatoBadge stato={c.stato} /></Link>)}{!anagrafica.commesse.length && <p className="text-sm text-ink-soft">Nessuna commessa accessibile per questa anagrafica.</p>}</section><TaskContext user={user} clienteId={id} /><AiContextPanel type="cliente" id={id} /></div>;
 
   const puoModificare = user ? puoGestireAnagrafiche(user.ruolo) : false;
   const economics = calcolaEconomics(anagrafica.commesse);

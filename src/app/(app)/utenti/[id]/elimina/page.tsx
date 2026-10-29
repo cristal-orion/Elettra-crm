@@ -2,7 +2,7 @@ import { DetailNavigation } from "@/components/navigation-context";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRuolo } from "@/lib/dal";
-import { etichettaRuolo, puoGestireCommesse } from "@/lib/enums";
+import { etichettaRuolo, puoGestireCommesse, puoGestireProgetti } from "@/lib/enums";
 import EliminaUtenteForm from "../../elimina-utente-form";
 
 export const metadata = { title: "Elimina utente — CRM Elettra" };
@@ -18,9 +18,10 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
     },
   });
   if (!utente) notFound();
-  const haDati = Object.values(utente._count).some((n) => n > 0);
+  const problemi = await prisma.problemaCantiere.count({ where: { assegnatarioId: id } });
+  const haDati = problemi > 0 || Object.values(utente._count).some((n) => n > 0);
   const subentranti = haDati && id !== me.id ? await prisma.user.findMany({
-    where: { id: { not: id }, attivo: true, ...(utente._count.commesse > 0 ? { ruolo: "PROJECT_MANAGER" } : {}) },
+    where: { id: { not: id }, attivo: true, ...(utente._count.commesse > 0 ? { ruolo: { in: ["PROJECT_MANAGER", "SUPER_ADMIN"] } } : {}) },
     orderBy: [{ cognome: "asc" }, { nome: "asc" }],
     select: { id: true, nome: true, cognome: true, ruolo: true },
   }) : [];
@@ -40,7 +41,7 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
           <section className="rounded-xl border border-line bg-panel p-5">
             <h2 className="font-semibold">Dati collegati all’utente</h2>
             <dl className="mt-4 grid grid-cols-3 gap-3">
-              {[["Commesse", utente._count.commesse], ["Attività", utente._count.attivita], ["Segnalazioni", utente._count.segnalazioni], ["Trattative", utente._count.opportunita]].map(([label, n]) => (
+              {[["Commesse", utente._count.commesse], ["Attività", utente._count.attivita], ["Segnalazioni", utente._count.segnalazioni], ["Trattative", utente._count.opportunita], ["Problemi cantiere", problemi]].map(([label, n]) => (
                 <div key={label}><dt className="text-xs text-ink-soft">{label}</dt><dd className="mt-1 font-mono text-xl tabular-nums">{n}</dd></div>
               ))}
             </dl>
@@ -53,7 +54,7 @@ export default async function EliminaUtentePage({ params }: { params: Promise<{ 
             email={utente.email}
             haDati={haDati}
             richiedePM={utente._count.commesse > 0}
-            subentranti={subentranti.filter((u) => !utente._count.opportunita || puoGestireCommesse(u.ruolo))}
+            subentranti={subentranti.filter((u) => (!utente._count.opportunita || puoGestireCommesse(u.ruolo)) && (!problemi || puoGestireProgetti(u.ruolo)))}
           />
         </>
       )}

@@ -3,7 +3,7 @@ import { formatEuro } from "@/lib/format";
 import { winRate } from "@/lib/statistiche";
 import { BarraEsito, IstogrammaMensile } from "@/components/charts";
 import { getStatisticheGlobali } from "./data";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 
 export default async function StatistichePage() {
   await requireUser();

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { puoGestireCommesse } from "@/lib/enums";
+import { commessaScope } from "@/lib/access";
 
 export async function getTaskOptions(user: { id: string; ruolo: string }, currentUserId?: string) {
   const [utenti, commesse, clienti] = await Promise.all([
@@ -8,7 +9,7 @@ export async function getTaskOptions(user: { id: string; ruolo: string }, curren
       orderBy: [{ cognome: "asc" }, { nome: "asc" }],
       select: { id: true, nome: true, cognome: true, attivo: true },
     }),
-    prisma.commessa.findMany({ orderBy: { numero: "desc" }, select: { id: true, numero: true, clienteId: true, cliente: { select: { ragioneSociale: true } } } }),
+    prisma.commessa.findMany({ where: commessaScope(user), orderBy: { numero: "desc" }, select: { id: true, numero: true, clienteId: true, cliente: { select: { ragioneSociale: true } } } }),
     prisma.anagrafica.findMany({ orderBy: { ragioneSociale: "asc" }, select: { id: true, ragioneSociale: true, codiceCliente: true } }),
   ]);
   return { utenti, commesse, clienti };

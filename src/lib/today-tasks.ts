@@ -28,7 +28,7 @@ export async function getTodayTasks(db: PrismaClient, user: { id: string; ruolo:
       tx.attivita.findMany({
         where: attivitaWhere(user, personalFilters("entro_oggi"), now), take: 6,
         orderBy: [{ scadenza: "asc" }, { createdAt: "desc" }, { id: "asc" }],
-        select: { id: true, titolo: true, stato: true, scadenza: true, updatedAt: true,
+        select: { id: true, titolo: true, stato: true, scadenza: true, updatedAt: true, problemaId: true,
           commessa: { select: { id: true, numero: true } }, cliente: { select: { id: true, ragioneSociale: true } },
         },
       }),

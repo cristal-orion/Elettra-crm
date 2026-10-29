@@ -94,6 +94,8 @@ test("revoca del ruolo dopo la proposta impedisce la conferma", async () => {
 });
 
 test("assegnazioni: operaio attivo, intervalli validi e sovrapposizioni", async () => {
+  await assert.rejects(run("pm", { type: "assegnaOperaio", commessaId: "project", operaioId: "worker" }), /non assegnata/);
+  await db.commessa.updateMany({ where: { id: { in: ["project", "project2"] } }, data: { pmId: "pm" } });
   await run("pm", { type: "assegnaOperaio", commessaId: "project", operaioId: "worker", dal: "2026-10-01", al: "2026-10-10" });
   await assert.rejects(run("pm", { type: "assegnaOperaio", commessaId: "project2", operaioId: "worker", dal: "2026-10-05", al: "2026-10-12" }), /sovrapposto/);
   await run("pm", { type: "assegnaOperaio", commessaId: "project2", operaioId: "worker", dal: "2026-10-11", al: "2026-10-12" });

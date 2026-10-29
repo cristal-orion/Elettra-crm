@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/dal";
+import { commessaScope } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { etichettaStato, etichettaStatoMilestone, etichettaRuoloCantiere } from "@/lib/enums";
@@ -9,13 +10,13 @@ import PrintDocument, { PrintField, PrintNotes, PrintSection } from "@/component
 export const metadata = { title: "Stampa scheda cantiere — Elettra" };
 
 export default async function PrintProjectPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
   // Proiezione operativa: la scheda cantiere contiene pianificazione e squadra.
-  const c = await prisma.commessa.findUnique({
-    where: { id },
+  const c = await prisma.commessa.findFirst({
+    where: { id, ...commessaScope(user) },
     select: {
-      numero: true, stato: true, descrizione: true, dataInizioLavori: true, scadenzaLavori: true, dataFineLavori: true, noteCantiere: true,
+      numero: true, stato: true, sospeso: true, descrizione: true, dataInizioLavori: true, scadenzaLavori: true, dataFineLavori: true, noteCantiere: true,
       cliente: { select: { ragioneSociale: true, telefono: true, email: true } },
       pm: { select: { nome: true, cognome: true, email: true } },
       referente: { select: { nome: true, cognome: true, telefono: true, email: true } },

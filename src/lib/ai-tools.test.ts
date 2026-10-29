@@ -77,7 +77,7 @@ test("AI catalogo: trova prodotti senza confonderli con lo storico e non espone 
   const { contextData } = await import("./ai/read");
   const { ContextSchema } = await import("./ai/http");
   for (const [type, id, href] of [["ordine", "order", "/ordini/order"], ["materiale", "product", "/materiali/product"]]) {
-    assert.equal((await contextData(ContextSchema.parse({ type, id }))).href, href);
+    assert.equal((await contextData(ContextSchema.parse({ type, id }), { id: "admin", ruolo: "SUPER_ADMIN" })).href, href);
   }
 });
 
@@ -139,6 +139,24 @@ test("AI documenti: errori espliciti e limite condiviso fra documenti commessa e
     assert.equal((await call<{ error: string }>(t, "leggiSchedaMateriale", { prodottoId: "missing", domanda: "Riassumi" })).error, "Scheda tecnica non disponibile per questo materiale.");
   }
   assert.match((await call<{ error: string }>(t, "leggiDocumentoCommessa", { documentoId: "missing", domanda: "Riassumi" })).error, /Limite di 3/);
+});
+
+test("AI cantieri: sospesi filtrabili, SAL assente distinto da zero e conteggi documenti autorizzati", async () => {
+  await db.commessa.create({ data: { id: "operativo", numero: "261002", anno: 2026, progressivo: 1002, clienteId: "supplier", pmId: "worker", stato: "IN_ESECUZIONE", sospeso: true, importoOrdine: 10000,
+    milestone: { create: { titolo: "Esempio completato", ordine: 0, stato: "COMPLETATA", dimostrativa: true } },
+    documenti: { create: [{ nomeFile: "quadro.jpg", percorso: "test/quadro.jpg", categoria: "FOTO" }, { nomeFile: "offerta.pdf", percorso: "test/offerta.pdf", categoria: "OFFERTA" }] } } });
+  const t = tools("worker", "PROJECT_MANAGER");
+  type Projects = { totale: number; progetti: { id: string; avanzamento: { percentuale: number } | null }[] };
+  const result = await call<Projects>(t, "cercaProgetti", { situazione: "SOSPESO" });
+  assert.equal(result.totale, 1); assert.equal(result.progetti[0].id, "operativo"); assert.equal(result.progetti[0].avanzamento, null);
+  const detail = await call<{ _count: { documenti: number; ordiniFornitore?: number }; documenti: { nomeFile: string }[]; dettaglioParziale: boolean; importoOrdine?: string; avanzamento: unknown }>(t, "dettaglioCommessa", { numero: "261002" });
+  assert.equal(detail._count.documenti, 1); assert.equal(detail._count.ordiniFornitore, undefined);
+  assert.deepEqual(detail.documenti.map((d) => d.nomeFile), ["quadro.jpg"]);
+  assert.equal(detail.dettaglioParziale, false); assert.equal(detail.importoOrdine, undefined); assert.equal(detail.avanzamento, null);
+  await db.milestone.create({ data: { commessaId: "operativo", titolo: "Posa reale", ordine: 1 } });
+  const real = await call<Projects>(t, "cercaProgetti", { situazione: "SOSPESO" });
+  assert.equal(real.progetti[0].avanzamento?.percentuale, 0);
+  assert.equal((await call<typeof detail>(tools(), "dettaglioCommessa", { numero: "261002" }))._count.documenti, 2);
 });
 
 test("AI SDK: dalla ricerca all'ordine, ai dati reali di consegna senza scritture", async () => {

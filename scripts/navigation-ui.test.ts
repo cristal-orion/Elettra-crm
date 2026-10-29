@@ -13,6 +13,7 @@ import { giornoAttivita } from "../src/lib/attivita";
 import { verifyConsuntiviUi } from "./consuntivi-ui";
 import { verifyCommercialeUi } from "./commerciale-ui";
 import { verifyWizardUi } from "./commessa-wizard-ui";
+import { verifyOperativoUi } from "./operativo-ui";
 
 test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e commerciale su dati isolati", { timeout: 420_000 }, async () => {
   const database = testDatabase();
@@ -25,8 +26,9 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
   await new Promise<void>((resolve) => portServer.close(() => resolve()));
   const origin = `http://127.0.0.1:${port}`;
   const uploads = await mkdtemp("/tmp/opencode/elettra-ui-uploads-");
-  const app = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)], {
-    env: { ...process.env, NODE_ENV: "development", DATABASE_URL: database.url, SESSION_SECRET: secret, DATA_ENCRYPTION_SECRET: randomBytes(48).toString("hex"), APP_ORIGIN: origin, GEMINI_API_KEY: "", UPLOADS_DIR: uploads },
+  const production = process.env.UI_PRODUCTION === "1";
+  const app = spawn(process.execPath, ["node_modules/next/dist/bin/next", ...(production ? ["start"] : ["dev", "--webpack"]), "--hostname", "127.0.0.1", "--port", String(port)], {
+    env: { ...process.env, NODE_ENV: production ? "production" : "development", DATABASE_URL: database.url, SESSION_SECRET: secret, DATA_ENCRYPTION_SECRET: randomBytes(48).toString("hex"), APP_ORIGIN: origin, GEMINI_API_KEY: "", UPLOADS_DIR: uploads },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let logs = "";
@@ -57,6 +59,11 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    if (process.env.UI_SUITE === "operativo") {
+      await verifyOperativoUi({ page, browser, db, origin, secret, uploads });
+      assert.deepEqual(errors, []);
+      return;
+    }
     if (process.env.UI_SUITE === "commerciale" || process.env.UI_SUITE === "commessa") {
       const reader = await db.user.create({ data: { email: "commercial-reader@example.test", passwordHash: "unused", nome: "Reader", cognome: "UI", ruolo: "AMMINISTRAZIONE", guidaVista: "*" } });
       const readerToken = await new SignJWT({ userId: reader.id, ruolo: reader.ruolo, nome: reader.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
@@ -202,7 +209,7 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     await page.route("**/assistente/api/analysis", async (route) => {
       attemptedTask = route.request().postDataJSON().task;
       if (++analysisCalls === 1) await route.fulfill({ status: 503, headers: { "Retry-After": "1" }, json: { error: "Gemini è temporaneamente sovraccarico.", retryable: true } });
-      else await route.fulfill({ json: { sintesi: "Analisi completata dopo indisponibilità.", punti: [], azioniSuggerite: [] } });
+      else await route.fulfill({ json: { sintesi: "Analisi completata dopo indisponibilità.", punti: [], azioniSuggerite: [], fonte: { href: "/progetti/ui-project", label: "Cantiere" } } });
     });
     await panel.getByRole("button", { name: "Proponi piano", exact: true }).click();
     await panel.getByRole("alert").filter({ hasText: "sovraccarico" }).waitFor();
@@ -456,6 +463,7 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     await page.setViewportSize({ width: 1280, height: 800 });
     await verifyCommercialeUi({ page, context, browser, db, origin, readerToken });
     await verifyWizardUi({ page, context, browser, db, origin, readerToken });
+    await verifyOperativoUi({ page, browser, db, origin, secret, uploads });
     assert.deepEqual(errors, []);
     console.log("PASS: ingresso diretto con fallback e filtri mobile senza overflow");
   } catch (error) {

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatEuro, toNumber } from "@/lib/format";
 import { etichettaStatoOrdine } from "@/lib/enums";

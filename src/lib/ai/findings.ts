@@ -1,16 +1,18 @@
 import { prisma } from "../prisma";
 import { STATI_PROGETTO_ATTIVO } from "../progetti";
 import { romeDay } from "./schedule-time";
+import { commessaScope, type Actor } from "../access";
 
 export type Finding = { key: string; tipo: string; titolo: string; dettaglio: string; href: string; context: { type: "commessa" | "progetto"; id: string } };
-export async function collectFindings(followupDays: number, horizonDays: number, now = new Date()) {
+export async function collectFindings(followupDays: number, horizonDays: number, now = new Date(), actor?: Actor) {
+  const scope = actor ? commessaScope(actor) : {};
   const today = new Date(`${romeDay(now)}T00:00:00Z`);
   const horizon = new Date(today.getTime() + horizonDays * 86400000);
   const cutoff = new Date(now.getTime() - followupDays * 86400000);
   const [commesse, total, assegnazioni] = await Promise.all([
-    prisma.commessa.findMany({ where: { stato: { notIn: ["FATTURATA", "PERSA"] } }, take: 5000, orderBy: { numero: "asc" }, select: { id: true, numero: true, stato: true, updatedAt: true, importoOrdine: true, dataInizioLavori: true, dataFineLavori: true, scadenzaLavori: true, pmId: true, milestone: { select: { id: true, titolo: true, stato: true, dataPianificata: true, dimostrativa: true } } } }),
-    prisma.commessa.count({ where: { stato: { notIn: ["FATTURATA", "PERSA"] } } }),
-    prisma.assegnazioneOperaio.findMany({ where: { commessa: { stato: { in: [...STATI_PROGETTO_ATTIVO] }, dataFineLavori: null }, OR: [{ al: null }, { al: { gte: today } }] }, take: 5000, orderBy: [{ operaioId: "asc" }, { dal: "asc" }, { id: "asc" }], include: { operaio: { select: { nome: true, cognome: true } }, commessa: { select: { numero: true } } } }),
+    prisma.commessa.findMany({ where: { ...scope, stato: { notIn: ["FATTURATA", "PERSA"] }, sospeso: false }, take: 5000, orderBy: { numero: "asc" }, select: { id: true, numero: true, stato: true, updatedAt: true, importoOrdine: true, dataInizioLavori: true, dataFineLavori: true, scadenzaLavori: true, pmId: true, milestone: { select: { id: true, titolo: true, stato: true, dataPianificata: true, dimostrativa: true } } } }),
+    prisma.commessa.count({ where: { ...scope, stato: { notIn: ["FATTURATA", "PERSA"] }, sospeso: false } }),
+    prisma.assegnazioneOperaio.findMany({ where: { commessa: { ...scope, stato: { in: [...STATI_PROGETTO_ATTIVO] }, dataFineLavori: null }, OR: [{ al: null }, { al: { gte: today } }] }, take: 5000, orderBy: [{ operaioId: "asc" }, { dal: "asc" }, { id: "asc" }], include: { operaio: { select: { nome: true, cognome: true } }, commessa: { select: { numero: true } } } }),
   ]);
   const findings: Finding[] = [];
   const add = (c: { id: string; numero: string }, tipo: string, dettaglio: string, suffix = "") => findings.push({ key: `${tipo}:${c.id}:${suffix}`, tipo, titolo: `Commessa ${c.numero}`, dettaglio, href: `/${tipo === "FOLLOWUP" ? "commesse" : "progetti"}/${c.id}`, context: { type: tipo === "FOLLOWUP" ? "commessa" : "progetto", id: c.id } });

@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma";
 import { STATI_PROGETTO, STATI_PROGETTO_ATTIVO } from "./progetti";
 import { queryText } from "./list-state";
 
-const urgencyByState = { IN_RITARDO: 0, IN_CORSO: 1, DA_PIANIFICARE: 2, COMPLETATO: 3 } as const;
+const urgencyByState = { IN_RITARDO: 0, IN_CORSO: 1, DA_PIANIFICARE: 2, COMPLETATO: 3, SOSPESO: 4 } as const;
 export function projectFilters(params: Record<string, unknown>) {
   const vista = params.vista === "tutti" || params.vista === "ritardo" ? params.vista : "attivi";
   const avanzamento = typeof params.avanzamento === "string" && Object.hasOwn(urgencyByState, params.avanzamento)
@@ -34,7 +34,8 @@ export function projectListSource(now = new Date()) {
       date_trunc('day', (c."scadenzaLavori" AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}) AS "dueDay",
       CASE
         WHEN c."dataFineLavori" IS NOT NULL OR c.stato = 'FATTURATA' OR (m.total > 0 AND m.total = m.done) THEN 3
-        WHEN c."scadenzaLavori" < ${today} OR m.late > 0 THEN 0
+        WHEN c.sospeso THEN 4
+        WHEN (NOT EXISTS (SELECT 1 FROM "Milestone" d WHERE d."commessaId" = c.id AND d.dimostrativa) AND c."scadenzaLavori" < ${today}) OR m.late > 0 THEN 0
         WHEN m.total = 0 AND c."dataInizioLavori" IS NULL AND c."scadenzaLavori" IS NULL THEN 2
         ELSE 1
       END AS urgency
@@ -42,6 +43,6 @@ export function projectListSource(now = new Date()) {
     LEFT JOIN LATERAL (
       SELECT count(*) AS total, count(*) FILTER (WHERE stato = 'COMPLETATA') AS done,
         count(*) FILTER (WHERE stato <> 'COMPLETATA' AND "dataPianificata" < ${today}) AS late
-      FROM "Milestone" WHERE "commessaId" = c.id
+      FROM "Milestone" WHERE "commessaId" = c.id AND NOT dimostrativa
     ) m ON true`;
 }

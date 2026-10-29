@@ -34,6 +34,9 @@ test("tariffari e consuntivi: calcoli decimali, fotografie delle tariffe e audit
       assert.equal(await db.modificaEconomica.count({ where: { entitaId: rate.id } }), 1);
     });
     await t.test("override locali, costi base espliciti, arrotondamenti e totale ricalcolato sul server", async () => {
+      await assert.rejects(tx((d) => saveConsuntivo(d, "pm", "job", sheetInput)), /permessi/);
+      // Il nuovo preset economico consente la valorizzazione al Backoffice.
+      await db.user.update({ where: { id: "pm" }, data: { ruolo: "BACKOFFICE" } });
       await assert.rejects(tx((d) => saveConsuntivo(d, "reader", "job", sheetInput)), /permessi/);
       await assert.rejects(tx((d) => saveConsuntivo(d, "admin", "other-job", sheetInput)), /modificati|tariffario/);
       await assert.rejects(tx((d) => saveConsuntivo(d, "admin", "job", { ...sheetInput, totale: "1" })), /Unrecognized key/);

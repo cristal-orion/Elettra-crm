@@ -7,19 +7,20 @@ import { percorsoAssoluto } from "../storage";
 import { CrmError } from "../crm/commands";
 import { contextData } from "./read";
 import type { AiContext } from "./http";
+import { documentoScope, type Actor } from "../access";
 
 const AnalysisSchema = z.object({
   sintesi: z.string().max(2500),
   punti: z.array(z.object({ titolo: z.string().max(200), dettaglio: z.string().max(1200), priorita: z.enum(["ALTA", "MEDIA", "BASSA"]) })).max(8),
   azioniSuggerite: z.array(z.object({ titolo: z.string().max(150), richiesta: z.string().max(1200) })).max(5),
 });
-export async function analyzeContext(context: AiContext, task: string, signal?: AbortSignal) {
+export async function analyzeContext(context: AiContext, task: string, actor: Actor, signal?: AbortSignal) {
   const model = await getAssistantModel();
   if (!model) throw new CrmError("Configura Gemini nelle Impostazioni.");
-  const data = await contextData(context);
+  const data = await contextData(context, actor);
   const { output, usage } = await generateContextAnalysis(model, data, task, signal);
-  const labels = { cliente: "Scheda cliente/fornitore", commessa: "Scheda commessa", progetto: "Scheda progetto", ordine: "Scheda ordine", materiale: "Scheda materiale" };
-  return { ...output, fonte: { label: labels[context.type], href: context.type === "progetto" ? `/progetti/${context.id}` : data.href }, usage };
+  const labels = { cliente: "Scheda cliente/fornitore", commessa: "Scheda commessa", progetto: "Scheda progetto", ordine: "Scheda ordine", materiale: "Scheda materiale", problema: "Problema di cantiere" };
+  return { ...output, datiAl: new Date().toISOString(), fonte: { label: labels[context.type], href: context.type === "progetto" ? `/progetti/${context.id}` : data.href }, usage };
 }
 
 export async function generateContextAnalysis(model: LanguageModel, data: unknown, task: string, signal?: AbortSignal) {
@@ -33,9 +34,9 @@ export async function generateContextAnalysis(model: LanguageModel, data: unknow
   return { output, usage };
 }
 
-export async function analyzeDocument(documentoId: string, domanda: string, signal?: AbortSignal) {
+export async function analyzeDocument(documentoId: string, domanda: string, actor: Actor, signal?: AbortSignal) {
   // Le bozze sono private e non fanno parte del contesto CRM dell'assistente.
-  const doc = await prisma.documento.findUnique({ where: { id: documentoId, bozzaId: null }, select: { nomeFile: true, percorso: true, tipoMime: true, commessaId: true } });
+  const doc = await prisma.documento.findFirst({ where: { id: documentoId, bozzaId: null, ...documentoScope(actor) }, select: { nomeFile: true, percorso: true, tipoMime: true, commessaId: true } });
   if (!doc) throw new CrmError("Documento non trovato.");
   const result = await analyzeFile(doc, domanda, signal);
   return { documentoId, nome: doc.nomeFile, commessaId: doc.commessaId, href: `/documenti/${documentoId}`, ...result };

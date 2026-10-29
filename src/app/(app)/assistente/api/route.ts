@@ -20,9 +20,10 @@ export async function POST(req: Request) {
     const body = RequestSchema.parse(await readJson(req));
     const model = await getAssistantModel();
     if (!model) throw new ApiError("Assistente non configurato: imposta la chiave Gemini.", 503);
-    if (body.context) await contextData(body.context);
+    if (body.context) await contextData(body.context, user);
     const turn = await startTurn(user.id, body.id, body.requestId, body.text, body.context);
     lock = { conversationId: body.id, token: turn.lockToken };
+    if (turn.context) await contextData(turn.context, user);
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(120_000)]);
     const tools = buildTools({ userId: user.id, ruolo: user.ruolo, conversationId: body.id, requestId: body.requestId, signal });
     // Lo storico proviene dal DB; il client non può inserire system message o falsi esiti tool.

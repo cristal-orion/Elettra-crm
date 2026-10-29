@@ -145,12 +145,13 @@ test("controlli programmati: notifica a destinatari attivi e apertura del riepil
   const schedule = await db.aiSchedule.create({ data: { userId: "admin", name: "Riepilogo test", recipientIds: ["reader", "pm", "inactive", "inesistente"] } });
   const result = await runSchedule(schedule.id, "test-slot");
   assert.equal(result.skipped, false);
-  assert.equal(await db.notifica.count({ where: { runId: result.id } }), 2);
+  assert.equal(await db.notifica.count({ where: { runId: result.id } }), 1);
+  assert.equal(await db.notifica.count({ where: { runId: result.id, userId: "pm" } }), 0, "Il riepilogo globale non deve essere inviato al PM");
   const note = await db.notifica.findFirstOrThrow({ where: { runId: result.id, userId: "reader" } });
   assert.equal(await notifications.openUserNotification("reader", note.id), `/assistente/automazioni/${result.id}`);
   assert.equal((await db.notifica.findUniqueOrThrow({ where: { id: note.id } })).letta, true);
   assert.equal((await runSchedule(schedule.id, "test-slot")).skipped, true);
-  assert.equal(await db.notifica.count({ where: { runId: result.id } }), 2);
+  assert.equal(await db.notifica.count({ where: { runId: result.id } }), 1);
 });
 
 test("link notifiche: rifiuta destinazioni esterne, script e URL non supportati", () => {
@@ -174,7 +175,8 @@ test("eliminazione: autorizzazione, conflitti e pulizia notifiche senza cancella
 
 test("AI: eliminazione richiede conferma e una proposta non espone le attività altrui", async () => {
   const { submitOperation, decideOperation } = await import("./ai/operations");
-  for (const userId of ["reader", "other"]) await db.aiConversation.create({ data: { id: `chat-${userId}`, userId, title: "Test" } });
+  const { historyAccess } = await import("./ai/history-access");
+  for (const userId of ["reader", "other"]) await db.aiConversation.create({ data: { id: `chat-${userId}`, userId, accessKey: (await historyAccess(db, userId)).key, title: "Test" } });
   const a = await run("reader", { type: "creaAttivita", titolo: "Privata da eliminare" });
   const forbidden = await submitOperation("other", "chat-other", "forbidden", { type: "eliminaAttivita", id: a.id });
   assert.equal(forbidden.status, "FAILED");

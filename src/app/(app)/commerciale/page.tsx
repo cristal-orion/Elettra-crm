@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { isSuperAdmin, puoGestireCommesse } from "@/lib/enums";
 import { formatDate, formatEuro } from "@/lib/format";
 import { commercialeList, SITUAZIONI_COMMERCIALI, type CommercialeParams } from "@/lib/commerciale-list";

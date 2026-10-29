@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { puoGestireAnagrafiche } from "@/lib/enums";
 import { tariffarioValues } from "@/lib/consuntivi";

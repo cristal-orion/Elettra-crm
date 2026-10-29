@@ -48,13 +48,13 @@ test("Commerciale: flusso, conversione concorrente, audit e perimetro indicatori
       assert.ok(await db.eventoCommerciale.findFirst({ where: { testo: { contains: "Budget insufficiente" } } }));
     });
     await t.test("contatti idempotenti, attività e notifiche atomiche, filtro stampa", async () => {
-      const contact = { versione: 3, richiestaId: randomUUID(), tipo: "EMAIL", data: today, testo: "Cliente interessato", esito: "Preparare offerta", rispostaCliente: true, attivita: { titolo: "Inviare offerta", userId: "pm", scadenza: today } };
+      const contact = { versione: 3, richiestaId: randomUUID(), tipo: "EMAIL", data: today, testo: "Cliente interessato", esito: "Preparare offerta", rispostaCliente: true, attivita: { titolo: "Inviare offerta", userId: "owner", scadenza: today } };
       await assert.rejects(tx((d) => registraInterazione(d, "admin", "opp", { ...contact, attivita: { ...contact.attivita, userId: "missing" } })), /Responsabile/);
       assert.equal((await current("opp")).versione, 3);
       const result = await Promise.all([tx((d) => registraInterazione(d, "admin", "opp", contact)), tx((d) => registraInterazione(d, "admin", "opp", contact))]);
       assert.equal(result[0].id, result[1].id); assert.equal(await db.attivita.count({ where: { opportunitaId: "opp" } }), 1);
       const task = await db.attivita.findFirstOrThrow({ where: { opportunitaId: "opp" } });
-      assert.equal(task.clienteId, "prospect"); assert.equal(await db.notifica.count({ where: { userId: "pm" } }), 1);
+      assert.equal(task.clienteId, "prospect"); assert.equal(await db.notifica.count({ where: { userId: "owner" } }), 1);
       await assert.rejects(tx((d) => registraInterazione(d, "admin", "opp", { ...contact, testo: "Cambiato" })), /già stata usata/);
       assert.equal((await getPrintableTasks({ id: "reader", ruolo: "AMMINISTRAZIONE" }, { vista: "team", opportunitaId: "opp" }, db)).tasks.length, 0);
       assert.equal((await getPrintableTasks({ id: "admin", ruolo: "SUPER_ADMIN" }, { vista: "team", opportunitaId: "opp" }, db)).tasks.length, 1);
@@ -122,8 +122,8 @@ test("Commerciale: flusso, conversione concorrente, audit e perimetro indicatori
     await t.test("eliminazione owner trasferisce responsabilità, incrementa versione e preserva autore", async () => {
       await assert.rejects(eliminaUtente("admin", "owner", { emailConferma: "owner@example.test", subentranteId: "reader" }, db), /gestione commerciale/);
       const before = await current("opp");
-      await eliminaUtente("admin", "owner", { emailConferma: "owner@example.test", subentranteId: "pm" }, db);
-      const row = await current("opp"); assert.equal(row.responsabileId, "pm"); assert.equal(row.versione, before.versione + 1);
+      await eliminaUtente("admin", "owner", { emailConferma: "owner@example.test", subentranteId: "admin" }, db);
+      const row = await current("opp"); assert.equal(row.responsabileId, "admin"); assert.equal(row.versione, before.versione + 1);
       const event = await db.eventoCommerciale.findFirstOrThrow({ where: { tipo: "CREAZIONE", opportunitaId: "opp" } });
       assert.equal(event.autoreId, null); assert.equal(event.autoreNome, "owner Test");
       assert.ok(await db.eventoCommerciale.findFirst({ where: { tipo: "RESPONSABILE", opportunitaId: "opp" } }));

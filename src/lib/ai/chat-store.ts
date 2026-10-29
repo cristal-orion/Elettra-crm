@@ -3,15 +3,19 @@ import type { UIMessage } from "ai";
 import { prisma } from "../prisma";
 import { jsonValue } from "./operations";
 import { ApiError, type AiContext } from "./http";
+import { historyAccess } from "./history-access";
 
 export async function startTurn(userId: string, conversationId: string, requestId: string, text: string, context?: AiContext) {
   return prisma.$transaction(async (db) => {
+    const access = await historyAccess(db, userId);
     const since = new Date(Date.now() - 15 * 60_000);
     const recent = await db.aiMessage.count({ where: { conversation: { userId }, createdAt: { gte: since } } });
     if (recent >= 60) throw new ApiError("Hai raggiunto il limite di richieste. Riprova tra qualche minuto.", 429);
     let conversation = await db.aiConversation.findUnique({ where: { id: conversationId } });
     if (conversation && conversation.userId !== userId) throw new ApiError("Conversazione non trovata.", 404);
-    if (!conversation) conversation = await db.aiConversation.create({ data: { id: conversationId, userId, title: text.slice(0, 90), context: context ? jsonValue(context) : undefined } });
+    if (conversation) access.assert(conversation.accessKey);
+    if (!conversation) conversation = await db.aiConversation.create({ data: { id: conversationId, userId, accessKey: access.key, title: text.slice(0, 90), context: context ? jsonValue(context) : undefined } });
+    if (conversation.accessKey === null) await db.aiConversation.update({ where: { id: conversationId }, data: { accessKey: access.key } });
     if (conversation.busyUntil && conversation.busyUntil > new Date()) throw new ApiError("Attendi la fine della risposta corrente.", 409);
     const count = await db.aiMessage.count({ where: { conversationId } });
     if (count >= 100) throw new ApiError("Questa conversazione ha raggiunto il limite. Avvia una nuova conversazione.", 409);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/dal";
+import { requireEconomia as requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import type { Finding } from "@/lib/ai/findings";
 import Markdown from "@/components/ai/markdown";

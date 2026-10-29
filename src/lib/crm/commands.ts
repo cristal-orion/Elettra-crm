@@ -8,6 +8,8 @@ import { commessaHaAcquisti, tipologiaForzata } from "../regole";
 import { CommandSchema, dateValue, type CrmCommand } from "./schemas";
 import { notificaAttivita, notificheAttivitaWhere } from "../notifiche";
 import { attivitaHref } from "../attivita";
+import { assertCommessaAccess, puoLeggereEconomia, type Actor } from "../access";
+import { randomUUID } from "node:crypto";
 
 export class CrmError extends InputError {
   constructor(message: string, public code = "INVALID_INPUT") { super(message); }
@@ -45,8 +47,8 @@ export async function checkPermission(db: Db, actorId: string, command: CrmComma
 function checkVersion(row: { updatedAt: Date }, expected?: string) {
   if (expected && row.updatedAt.toISOString() !== expected) throw new CrmError("Il record è stato modificato. Rileggi i dati prima di riprovare.", "CONFLICT");
 }
-async function project(db: Db, id: string) {
-  const c = await db.commessa.findUnique({ where: { id } });
+async function project(db: Db, id: string, actor: Actor) {
+  const c = await assertCommessaAccess(db, actor, id);
   if (!c || !isProgetto(c.stato)) throw new CrmError("Serve una commessa acquisita per gestire il progetto.");
   return c;
 }
@@ -114,6 +116,8 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
     case "salvaCommessa": {
       const existing = c.id ? await db.commessa.findUnique({ where: { id: c.id } }) : null;
       if (c.id && !existing) throw new CrmError("Commessa non trovata.");
+      if (existing) await assertCommessaAccess(db, actor, existing.id);
+      if (actor.ruolo === "PROJECT_MANAGER" && !existing && c.data.pmId !== actor.id) throw new CrmError("Assegna a te la nuova commessa.");
       if (existing) checkVersion(existing, c.expectedUpdatedAt);
       const clienteId = c.data.clienteId ?? existing?.clienteId;
       if (existing?.opportunitaId && clienteId !== existing.clienteId) throw new CrmError("La commessa deriva da una trattativa: il cliente deve restare quello dell'incarico confermato.");
@@ -129,6 +133,11 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (existing) {
         const tipologia = tipologiaForzata(c.data.tipologia === undefined ? existing.tipologia : c.data.tipologia, await commessaHaAcquisti(db, existing.id));
         const row = await db.commessa.update({ where: { id: existing.id }, data: { ...values, tipologia } });
+        const audit = await db.modificaEconomica.aggregate({ where: { entita: "COMMESSA", entitaId: row.id }, _max: { versione: true } });
+        const author = await db.user.findUniqueOrThrow({ where: { id: actor.id }, select: { nome: true, cognome: true } });
+        await db.modificaEconomica.create({ data: { entita: "COMMESSA", entitaId: row.id, versione: (audit._max.versione ?? 0) + 1,
+          autoreId: actor.id, autoreNome: `${author.nome} ${author.cognome}`, autoreRuolo: actor.ruolo,
+          prima: JSON.parse(JSON.stringify(existing)), dopo: JSON.parse(JSON.stringify(row)) } });
         return { id: row.id, href: `/commesse/${row.id}`, message: "Commessa aggiornata." };
       }
       const { _max } = await db.commessa.aggregate({ _max: { progressivo: true } });
@@ -139,22 +148,23 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       return { id: row.id, href: `/commesse/${row.id}`, message: `Commessa ${numero} creata.` };
     }
     case "pianificaProgetto": {
-      const p = await project(db, c.id);
+      const p = await project(db, c.id, actor);
       checkVersion(p, c.expectedUpdatedAt);
       const data = { ...c.data, dataInizioLavori: dateValue(c.data.dataInizioLavori), scadenzaLavori: dateValue(c.data.scadenzaLavori), dataFineLavori: dateValue(c.data.dataFineLavori) };
       range(data.dataInizioLavori === undefined ? p.dataInizioLavori : data.dataInizioLavori, data.scadenzaLavori === undefined ? p.scadenzaLavori : data.scadenzaLavori);
       range(data.dataInizioLavori === undefined ? p.dataInizioLavori : data.dataInizioLavori, data.dataFineLavori === undefined ? p.dataFineLavori : data.dataFineLavori);
-      await db.commessa.update({ where: { id: p.id }, data });
+      await db.commessa.update({ where: { id: p.id }, data: { ...data, versioneOperativa: { increment: 1 } } });
       return { id: p.id, href: `/progetti/${p.id}`, message: "Pianificazione aggiornata." };
     }
     case "creaMilestone": {
-      const p = await project(db, c.commessaId);
+      const p = await project(db, c.commessaId, actor);
       const { _max } = await db.milestone.aggregate({ where: { commessaId: p.id }, _max: { ordine: true } });
       const ids: string[] = [];
       for (const [i, m] of c.milestone.entries()) {
         const row = await db.milestone.create({ data: { ...m, commessaId: p.id, ordine: (_max.ordine ?? -1) + 1 + i, dataPianificata: dateValue(m.dataPianificata) } });
         ids.push(row.id);
       }
+      await db.commessa.update({ where: { id: p.id }, data: { versioneOperativa: { increment: 1 } } });
       return { id: p.id, ids, href: `/progetti/${p.id}`, message: `${ids.length} milestone aggiunte.` };
     }
     case "aggiornaMilestone":
@@ -162,7 +172,7 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
     case "spostaMilestone": {
       const m = await db.milestone.findUnique({ where: { id: c.id } });
       if (!m) throw new CrmError("Milestone non trovata.");
-      await project(db, m.commessaId);
+      await project(db, m.commessaId, actor);
       checkVersion(m, c.expectedUpdatedAt);
       if (c.type === "eliminaMilestone") await db.milestone.delete({ where: { id: m.id } });
       else if (c.type === "spostaMilestone") {
@@ -175,10 +185,16 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
         const stato = c.data.stato ?? m.stato;
         await db.milestone.update({ where: { id: m.id }, data: { ...c.data, dataPianificata: dateValue(c.data.dataPianificata), dataEffettiva: stato === "COMPLETATA" ? dateValue(c.data.dataEffettiva) ?? m.dataEffettiva ?? new Date() : null } });
       }
+      const author = await db.user.findUniqueOrThrow({ where: { id: actor.id }, select: { nome: true, cognome: true } });
+      const next = await db.milestone.findUnique({ where: { id: m.id } });
+      await db.aggiornamentoCantiere.create({ data: { commessaId: m.commessaId, richiestaId: randomUUID(), richiestaHash: "legacy-command",
+        autoreId: actor.id, autoreNome: `${author.nome} ${author.cognome}`, tipo: "MILESTONE", data: new Date(), nota: `${m.titolo}: ${c.type === "eliminaMilestone" ? "eliminata" : "aggiornata"}`,
+        prima: JSON.parse(JSON.stringify(m)), dopo: next ? JSON.parse(JSON.stringify(next)) : { eliminata: true } } });
+      await db.commessa.update({ where: { id: m.commessaId }, data: { versioneOperativa: { increment: 1 } } });
       return { id: m.id, href: `/progetti/${m.commessaId}`, message: c.type === "eliminaMilestone" ? "Milestone eliminata." : "Milestone aggiornata." };
     }
     case "assegnaOperaio": {
-      await project(db, c.commessaId);
+      await project(db, c.commessaId, actor);
       if (!await db.operaio.findFirst({ where: { id: c.operaioId, attivo: true } })) throw new CrmError("Seleziona un operaio attivo.");
       const existing = await db.assegnazioneOperaio.findUnique({ where: { commessaId_operaioId: { commessaId: c.commessaId, operaioId: c.operaioId } } });
       if (existing && !c.aggiornaEsistente) throw new CrmError("Operaio già assegnato. Usa aggiornaEsistente per modificare l'intervallo.");
@@ -194,7 +210,7 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
     case "rimuoviAssegnazione": {
       const a = await db.assegnazioneOperaio.findUnique({ where: { id: c.id } });
       if (!a) throw new CrmError("Assegnazione non trovata.");
-      await project(db, a.commessaId);
+      await project(db, a.commessaId, actor);
       await db.assegnazioneOperaio.delete({ where: { id: a.id } });
       return { id: a.id, href: `/progetti/${a.commessaId}`, message: "Assegnazione rimossa." };
     }
@@ -202,15 +218,20 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       const userId = c.userId ?? actor.id;
       if (userId !== actor.id && !puoGestireCommesse(actor.ruolo)) throw new CrmError("Puoi creare attività solo per te.", "FORBIDDEN");
       if (!await db.user.findFirst({ where: { id: userId, attivo: true } })) throw new CrmError("Responsabile non valido.");
+      if (c.opportunitaId && !puoLeggereEconomia(actor)) throw new CrmError("Attività commerciale non disponibile.", "FORBIDDEN");
       const opportunita = c.opportunitaId ? await db.opportunita.findUnique({ where: { id: c.opportunitaId }, include: { commessa: { select: { id: true } } } }) : null;
       if (c.opportunitaId && !opportunita) throw new CrmError("Trattativa non trovata.");
       const commessaId = c.commessaId ?? opportunita?.commessa?.id;
       const commessa = commessaId ? await db.commessa.findUnique({ where: { id: commessaId } }) : null;
       if (c.commessaId && !commessa) throw new CrmError("Commessa non trovata.");
+      if (commessa) await assertCommessaAccess(db, actor, commessa.id);
       const clienteId = c.clienteId ?? opportunita?.anagraficaId ?? commessa?.clienteId;
       if (opportunita && (clienteId !== opportunita.anagraficaId || (commessaId && commessaId !== opportunita.commessa?.id))) throw new CrmError("I collegamenti non corrispondono alla trattativa.");
       if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
       if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
+      const recipient = await db.user.findUniqueOrThrow({ where: { id: userId } });
+      if (opportunita && !puoLeggereEconomia(recipient)) throw new CrmError("Il responsabile deve poter accedere alla trattativa.");
+      if (commessa) await assertCommessaAccess(db, recipient, commessa.id);
       const a = await db.attivita.create({ data: { titolo: c.titolo, note: c.note, scadenza: dateValue(c.scadenza), userId, commessaId, clienteId, opportunitaId: c.opportunitaId } });
       await notificaAttivita(db, actor.id, a, true);
       return { id: a.id, href: attivitaHref(a.id), message: "Attività creata." };
@@ -219,6 +240,9 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
     case "eliminaAttivita": {
       const a = await db.attivita.findUnique({ where: { id: c.id } });
       if (!a) throw new CrmError("Attività non trovata.");
+      if (a.opportunitaId && !puoLeggereEconomia(actor)) throw new CrmError("Attività commerciale non disponibile.", "FORBIDDEN");
+      if (a.commessaId) await assertCommessaAccess(db, actor, a.commessaId);
+      if (a.problemaId) throw new CrmError("Questa attività segue un problema di cantiere. Aggiorna stato, responsabile e scadenza dalla scheda problema.");
       if (a.userId !== actor.id && !puoGestireCommesse(actor.ruolo)) throw new CrmError("Non puoi modificare questa attività.", "FORBIDDEN");
       checkVersion(a, c.expectedUpdatedAt);
       if (c.type === "eliminaAttivita") {
@@ -234,6 +258,7 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       const commessaId = c.commessaId === undefined ? a.commessaId : c.commessaId;
       const commessa = commessaId ? await db.commessa.findUnique({ where: { id: commessaId } }) : null;
       if (commessaId && !commessa) throw new CrmError("Commessa non trovata.");
+      if (commessa) await assertCommessaAccess(db, actor, commessa.id);
       const clienteId = c.clienteId === undefined ? commessa?.clienteId ?? a.clienteId : c.clienteId;
       if (a.opportunitaId) {
         const opp = await db.opportunita.findUniqueOrThrow({ where: { id: a.opportunitaId }, include: { commessa: { select: { id: true } } } });
@@ -242,6 +267,9 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
       if (clienteId && !await db.anagrafica.findUnique({ where: { id: clienteId } })) throw new CrmError("Cliente non trovato.");
       if (commessa && clienteId !== commessa.clienteId) throw new CrmError("Cliente e commessa non corrispondono.");
       const data = { titolo: c.titolo, note: c.note, stato: c.stato, scadenza: dateValue(c.scadenza), userId, commessaId, clienteId };
+      const recipient = await db.user.findUniqueOrThrow({ where: { id: userId } });
+      if (a.opportunitaId && !puoLeggereEconomia(recipient)) throw new CrmError("Il responsabile deve poter accedere alla trattativa.");
+      if (commessa) await assertCommessaAccess(db, recipient, commessa.id);
       const unchanged = (c.titolo === undefined || c.titolo === a.titolo)
         && (c.note === undefined || c.note === a.note) && (c.stato === undefined || c.stato === a.stato)
         && (c.scadenza === undefined || dateValue(c.scadenza)?.getTime() === a.scadenza?.getTime())

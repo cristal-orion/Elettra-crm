@@ -2,6 +2,8 @@ import { Prisma, type PrismaClient } from "@/generated/prisma";
 import { prisma } from "./prisma";
 import { puoGestireUtenti, puoGestireCommesse } from "./enums";
 import { eventoCommerciale } from "./commerciale";
+import { puoGestireProgetti } from "./enums";
+import { randomUUID } from "node:crypto";
 
 export class UtenteError extends Error {}
 
@@ -42,7 +44,8 @@ export async function eliminaUtente(
       if (!altriAdmin) throw new UtenteError("Deve restare almeno un Super Admin attivo.");
     }
 
-    const haDati = Object.values(target._count).some((n) => n > 0);
+    const problemi = await tx.problemaCantiere.findMany({ where: { assegnatarioId: userId } });
+    const haDati = problemi.length > 0 || Object.values(target._count).some((n) => n > 0);
     if (haDati) {
       const subentrante = input.subentranteId && input.subentranteId !== userId
         ? await tx.user.findUnique({
@@ -52,10 +55,15 @@ export async function eliminaUtente(
       if (!subentrante?.attivo) {
         throw new UtenteError("Seleziona un altro utente attivo a cui trasferire i dati collegati.");
       }
-      if (target._count.commesse > 0 && subentrante.ruolo !== "PROJECT_MANAGER") {
+      if (target._count.commesse > 0 && !["PROJECT_MANAGER", "SUPER_ADMIN"].includes(subentrante.ruolo)) {
         throw new UtenteError("Le commesse devono essere trasferite a un Project Manager attivo.");
       }
       if (target._count.opportunita > 0 && !puoGestireCommesse(subentrante.ruolo)) throw new UtenteError("Le trattative richiedono un subentrante abilitato alla gestione commerciale.");
+      if (problemi.length && !puoGestireProgetti(subentrante.ruolo)) throw new UtenteError("I problemi richiedono un responsabile operativo attivo.");
+      for (const problem of problemi) {
+        await tx.problemaCantiere.update({ where: { id: problem.id }, data: { assegnatarioId: input.subentranteId, versione: { increment: 1 } } });
+        await tx.eventoProblema.create({ data: { richiestaId: randomUUID(), richiestaHash: "trasferimento-account", problemaId: problem.id, autoreId: actor.id, autoreNome: `${actor.nome} ${actor.cognome}`, testo: `Responsabilità trasferita da ${target.nome} ${target.cognome} a ${subentrante.nome} ${subentrante.cognome} per eliminazione account.` } });
+      }
       const opportunita = await tx.opportunita.findMany({ where: { responsabileId: userId }, select: { id: true } });
       for (const row of opportunita) {
         await tx.opportunita.update({ where: { id: row.id }, data: { responsabileId: input.subentranteId, versione: { increment: 1 } } });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireEconomia } from "@/lib/dal";
 import { formatEuro, formatDate } from "@/lib/format";
 import { getStoricoMateriali, type MaterialeStorico } from "../data";
 import { DetailNavigation } from "@/components/navigation-context";
@@ -12,6 +13,7 @@ export default async function StoricoPrezziPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireEconomia();
   const sp = await searchParams;
   const q = queryText(sp.q);
   const materiali = await getStoricoMateriali(q);

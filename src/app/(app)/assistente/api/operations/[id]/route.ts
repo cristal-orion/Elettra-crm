@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { apiError, ApiError, readJson } from "@/lib/ai/http";
 import { decideOperation, operationOutput } from "@/lib/ai/operations";
+import { historyAccess } from "@/lib/ai/history-access";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -11,6 +12,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     if (!user) throw new ApiError("Non autenticato", 401);
     const op = await prisma.aiOperation.findFirst({ where: { id: (await ctx.params).id, userId: user.id } });
     if (!op) throw new ApiError("Operazione non trovata", 404);
+    (await historyAccess(prisma, user.id)).assert(op.accessKey);
     return Response.json(operationOutput(op));
   } catch (e) { return apiError(e); }
 }

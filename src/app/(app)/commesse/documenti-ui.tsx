@@ -9,8 +9,10 @@ const inputCls =
 
 export function DocumentiUploader({
   action,
+  operativo = false,
 }: {
   action: (state: UploadState, formData: FormData) => Promise<UploadState>;
+  operativo?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
@@ -42,8 +44,8 @@ export function DocumentiUploader({
           <span className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">
             Categoria
           </span>
-          <select name="categoria" defaultValue="ALTRO" className={inputCls}>
-            {Object.entries(CATEGORIE_DOCUMENTO).map(([key, label]) => (
+          <select name="categoria" defaultValue={operativo ? "FOTO" : "ALTRO"} className={inputCls}>
+            {Object.entries(CATEGORIE_DOCUMENTO).filter(([key]) => !operativo || ["FOTO", "DISEGNO"].includes(key)).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
               </option>

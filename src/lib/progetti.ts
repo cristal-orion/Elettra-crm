@@ -66,6 +66,7 @@ export type Avanzamento = {
 };
 
 export function avanzamento(milestone: MilestoneCalcolo[]): Avanzamento {
+  milestone = milestone.filter((m) => !m.dimostrativa);
   const totali = milestone.length;
   const completate = milestone.filter((m) => m.stato === "COMPLETATA").length;
   const inCorso = milestone.filter((m) => m.stato === "IN_CORSO").length;
@@ -96,7 +97,7 @@ function scaduta(data: Date | null | undefined, oggi: Date): boolean {
  * È il mattone del calcolo di ritardo, esposto perché la UI evidenzi la riga.
  */
 export function milestoneScaduta(m: MilestoneCalcolo): boolean {
-  return m.stato !== "COMPLETATA" && scaduta(m.dataPianificata, inizioGiornoOggi());
+  return !m.dimostrativa && m.stato !== "COMPLETATA" && scaduta(m.dataPianificata, inizioGiornoOggi());
 }
 
 /**
@@ -107,6 +108,7 @@ export function milestoneScaduta(m: MilestoneCalcolo): boolean {
  * - DA_PIANIFICARE: nessuna milestone e nessuna data di cantiere
  */
 export type StatoAvanzamento =
+  | "SOSPESO"
   | "COMPLETATO"
   | "IN_RITARDO"
   | "IN_CORSO"
@@ -114,6 +116,7 @@ export type StatoAvanzamento =
 
 export type ProgettoCalcolo = {
   stato: string;
+  sospeso?: boolean;
   dataInizioLavori?: Date | null;
   scadenzaLavori?: Date | null;
   dataFineLavori?: Date | null;
@@ -130,7 +133,9 @@ export function statoAvanzamento(p: ProgettoCalcolo): StatoAvanzamento {
     return "COMPLETATO";
   }
 
-  if (scaduta(p.scadenzaLavori, oggi)) return "IN_RITARDO";
+  if (p.sospeso) return "SOSPESO";
+
+  if (!haPianificazioneDimostrativa(p.milestone) && scaduta(p.scadenzaLavori, oggi)) return "IN_RITARDO";
   if (p.milestone.some(milestoneScaduta)) return "IN_RITARDO";
 
   const senzaPiano =
@@ -139,6 +144,7 @@ export function statoAvanzamento(p: ProgettoCalcolo): StatoAvanzamento {
 }
 
 export const ETICHETTE_AVANZAMENTO: Record<StatoAvanzamento, string> = {
+  SOSPESO: "Sospeso",
   COMPLETATO: "Completato",
   IN_RITARDO: "In ritardo",
   IN_CORSO: "In corso",
@@ -163,11 +169,12 @@ export function giorniAllaScadenza(
  * Prima milestone non completata, in ordine di sequenza: è la "fase corrente"
  * mostrata in lista. null se non ci sono milestone o sono tutte completate.
  */
-export function faseCorrente<T extends { stato: string; ordine: number }>(
+export function faseCorrente<T extends { stato: string; ordine: number; dimostrativa?: boolean }>(
   milestone: T[],
 ): T | null {
   return (
     [...milestone]
+      .filter((m) => !m.dimostrativa)
       .sort((a, b) => a.ordine - b.ordine)
       .find((m) => m.stato !== "COMPLETATA") ?? null
   );

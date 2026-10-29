@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { commessaScope, commessaScopeSql } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/dal";
 import { puoGestireOperai } from "@/lib/enums";
@@ -46,9 +47,9 @@ export default async function ProgettiPage({
   const user = await requireUser();
   const puoOperai = user ? puoGestireOperai(user.ruolo) : false;
   const [managers, clienti, squadre] = await Promise.all([
-    prisma.user.findMany({ where: { commesse: { some: { stato: { in: STATI_PROGETTO } } } }, select: { id: true, nome: true, cognome: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }] }),
-    prisma.anagrafica.findMany({ where: { commesse: { some: { stato: { in: STATI_PROGETTO } } } }, select: { id: true, ragioneSociale: true }, orderBy: { ragioneSociale: "asc" } }),
-    prisma.operaio.findMany({ where: { squadra: { not: null }, assegnazioni: { some: { commessa: { stato: { in: STATI_PROGETTO } } } } }, distinct: ["squadra"], select: { squadra: true }, orderBy: { squadra: "asc" } }),
+    prisma.user.findMany({ where: { commesse: { some: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } }, select: { id: true, nome: true, cognome: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }] }),
+    prisma.anagrafica.findMany({ where: { commesse: { some: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } }, select: { id: true, ragioneSociale: true }, orderBy: { ragioneSociale: "asc" } }),
+    prisma.operaio.findMany({ where: { squadra: { not: null }, assegnazioni: { some: { commessa: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } } }, distinct: ["squadra"], select: { squadra: true }, orderBy: { squadra: "asc" } }),
   ]);
   const pmOptions = managers.map((p) => ({ value: p.id, label: `${p.cognome} ${p.nome}` }));
   const clientOptions = clienti.map((c) => ({ value: c.id, label: c.ragioneSociale }));
@@ -59,13 +60,13 @@ export default async function ProgettiPage({
   if (squadra && !teamOptions.some((o) => o.value === squadra)) teamOptions.push({ value: squadra, label: squadra });
   const pagination = await searchListPage(prisma, projectListSource(), {
     query: q, page: sp.pagina,
-    scope: projectListScope(filters),
+    scope: Prisma.sql`(${projectListScope(filters)}) AND ${commessaScopeSql(user)}`,
     orderBy: Prisma.sql`s.urgency ASC, s."dueDay" ASC NULLS LAST, s.anno DESC, s.progressivo DESC`,
     extraCount: Prisma.sql`count(*) FILTER (WHERE s.urgency = 0)`,
   });
 
   const commesse = inPageOrder(await prisma.commessa.findMany({
-    where: { id: { in: pagination.ids } },
+    where: { id: { in: pagination.ids }, ...commessaScope(user) },
     include: {
       cliente: { select: { id: true, ragioneSociale: true } },
       pm: { select: { nome: true, cognome: true } },

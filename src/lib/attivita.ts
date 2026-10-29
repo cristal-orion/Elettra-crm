@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import { puoGestireCommesse } from "./enums";
 import { romeDay } from "./ai/schedule-time";
+import { commessaScope, puoLeggereEconomia } from "./access";
 
 export function giornoAttivita(now = new Date()) {
   return new Date(`${romeDay(now)}T00:00:00.000Z`);
@@ -9,7 +10,7 @@ export function giornoAttivita(now = new Date()) {
 export function attivitaScope(user: { id: string; ruolo: string }, vista?: string, responsabile?: string): Prisma.AttivitaWhereInput {
   return vista === "team" && puoGestireCommesse(user.ruolo)
     ? { userId: responsabile || undefined }
-    : { userId: user.id };
+    : { userId: user.id, ...(!puoLeggereEconomia(user) ? { opportunitaId: null } : {}), ...(user.ruolo === "PROJECT_MANAGER" ? { OR: [{ commessa: commessaScope(user) }, { commessaId: null }] } : {}) };
 }
 
 export type AttivitaFilters = {

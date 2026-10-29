@@ -303,6 +303,8 @@ opportunità già esistente rimane invariata: non creare una seconda commessa da
 - **Salva bozza** accetta dati incompleti. Avanti/indietro salvano il passo sul
   server; i passaggi in avanti validano i campi precedenti. Le bozze personali si
   riprendono da `/commesse/bozze` (ultime 100), anche dopo una nuova sessione.
+  **Le mie bozze** è un pulsante in evidenza nella testata di Nuova commessa,
+  accanto al titolo su desktop e a larghezza piena su mobile.
   Non hanno numero e non sono commesse: nessun KPI, importo o risorsa prenotata.
   Il modulo segnala modifiche non salvate e conserva i campi se una richiesta fallisce.
 - Il cliente esistente mostra dati anagrafici e referenti senza riscriverli.

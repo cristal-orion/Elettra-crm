@@ -1,11 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { deleteTask, toggleTask } from "./actions";
 
-export default function TaskActions({ task, showDelete = true }: { task: { id: string; titolo: string; stato: string; updatedAt: string }; showDelete?: boolean }) {
+export default function TaskActions({ task, showDelete = true }: { task: { id: string; titolo: string; stato: string; updatedAt: string; problemaId?: string | null }; showDelete?: boolean }) {
   const [toggle, toggleAction, toggling] = useActionState(toggleTask.bind(null, task.id, task.updatedAt, task.stato === "COMPLETATA" ? "DA_FARE" : "COMPLETATA"), undefined);
   const [deletion, deleteAction, deleting] = useActionState(deleteTask.bind(null, task.id, task.updatedAt), undefined);
+  if (task.problemaId) return <Link href={`/problemi/${task.problemaId}`} className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 py-2 text-sm text-brand-deep">Aggiorna problema collegato →</Link>;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">

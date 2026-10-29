@@ -21,6 +21,7 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
     await db.user.createMany({ data: [
       { id: "admin", email: "admin@test.invalid", nome: "Admin", cognome: "Test", ruolo: "SUPER_ADMIN", passwordHash: "unused" },
       { id: "pm", email: "pm@test.invalid", nome: "PM", cognome: "Test", ruolo: "PROJECT_MANAGER", passwordHash: "unused" },
+      { id: "collega", email: "collega@test.invalid", nome: "Collega", cognome: "Test", ruolo: "BACKOFFICE", passwordHash: "unused" },
       { id: "reader", email: "reader@test.invalid", nome: "Reader", cognome: "Test", ruolo: "AMMINISTRAZIONE", passwordHash: "unused" },
     ] });
     await db.anagrafica.createMany({ data: [{ id: "client", ragioneSociale: "Cliente", isCliente: true }, { id: "supplier", ragioneSociale: "Fornitore", isFornitore: true, partitaIva: "12345678900" }] });
@@ -33,7 +34,7 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
       assert.equal((await save(id, emptyWizard)).versione, 1);
       assert.equal(await db.commessa.count(), 0); assert.equal(await db.assegnazioneOperaio.count(), 0); assert.equal(await db.anagrafica.count(), 2);
       await assert.rejects(save(id, { ...emptyWizard, descrizione: "altro" }), /altra finestra/);
-      await assert.rejects(save(id, emptyWizard, 1, 0, "pm"), /non disponibile/);
+      await assert.rejects(save(id, emptyWizard, 1, 0, "collega"), /non disponibile/);
       await assert.rejects(tx((d) => ownedDraft(d, "reader", id)), /permessi/);
       await assert.rejects(tx((d) => confirmWizard(d, "admin", id, 1, true)), /Seleziona|Descrivi/);
     });
@@ -53,7 +54,7 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
       const audit = await db.modificaEconomica.findUniqueOrThrow({ where: { entita_entitaId_versione: { entita: "COMMESSA_CREAZIONE", entitaId: job.id, versione: 1 } } });
       assert.equal(audit.autoreNome, "Admin Test"); assert.equal(audit.prima, null);
       await assert.rejects(save(id, values, 1), (e) => e instanceof WizardAlreadyConfirmedError && e.commessaId === first);
-      await assert.rejects(save(id, values, 1, 0, "pm"), /non disponibile/);
+      await assert.rejects(save(id, values, 1, 0, "collega"), /non disponibile/);
     });
     await t.test("versioni concorrenti non sovrascrivono; il riepilogo obsoleto non conferma", async () => {
       const id = randomUUID(); await save(id);
@@ -119,10 +120,11 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
       await assert.rejects(tx((d) => confirmWizard(d, "admin", blocked, 2, true)), /operaio attivo/);
     });
     await t.test("revoca accesso e permessi anagrafica effettivi anche su payload forgiati", async () => {
-      const id = randomUUID(); await save(id, { ...values, nuovoCliente: true, ragioneSociale: "Creazione non consentita" }, 0, 0, "pm");
-      await assert.rejects(tx((d) => confirmWizard(d, "pm", id, 1, true)), /Backoffice/);
-      await db.user.update({ where: { id: "pm" }, data: { attivo: false } });
-      await assert.rejects(tx((d) => ownedDraft(d, "pm", id)), /permessi/);
+      const id = randomUUID();
+      await assert.rejects(save(id, { ...values, nuovoCliente: true, ragioneSociale: "Creazione non consentita" }, 0, 0, "pm"), /permessi/);
+      await save(id, values, 0, 0, "collega");
+      await db.user.update({ where: { id: "collega" }, data: { attivo: false } });
+      await assert.rejects(tx((d) => ownedDraft(d, "collega", id)), /permessi/);
       await assert.rejects(save(randomUUID(), values, 0, 0, "reader"), /permessi/);
     });
   } finally { await database.cleanup(db); }

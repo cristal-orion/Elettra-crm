@@ -220,8 +220,7 @@ export function puoGestireAnagrafiche(ruolo: string): boolean {
 export function puoGestireCommesse(ruolo: string): boolean {
   return (
     ruolo === "SUPER_ADMIN" ||
-    ruolo === "BACKOFFICE" ||
-    ruolo === "PROJECT_MANAGER"
+    ruolo === "BACKOFFICE"
   );
 }
 
@@ -229,9 +228,7 @@ export function puoGestireCommesse(ruolo: string): boolean {
 export function puoGestireOrdini(ruolo: string): boolean {
   return (
     ruolo === "SUPER_ADMIN" ||
-    ruolo === "BACKOFFICE" ||
-    ruolo === "PROJECT_MANAGER" ||
-    ruolo === "UFFICIO_TECNICO"
+    ruolo === "BACKOFFICE"
   );
 }
 

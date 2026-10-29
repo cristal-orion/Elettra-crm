@@ -76,7 +76,7 @@ export default async function TasksPage({ searchParams }: {
             {t.note && <p className="line-clamp-3 whitespace-pre-wrap text-sm text-ink-soft">{t.note}</p>}
             {t.opportunitaId && <Link href={`/commerciale/${t.opportunitaId}`} className="inline-flex min-h-11 items-center text-sm text-brand-deep underline">Trattativa collegata</Link>}
             <div className="flex flex-wrap gap-4 text-sm">{t.commessaId && <Link href={`/commesse/${t.commessaId}`} className="text-brand-deep underline">Commessa {t.commessa?.numero}</Link>}{t.clienteId && <Link href={`/anagrafiche/${t.clienteId}`} className="text-brand-deep underline">{t.cliente?.ragioneSociale}</Link>}<Link href={attivitaHref(t.id)} className="text-brand-deep underline">Apri / modifica</Link></div>
-            <TaskActions task={{ id: t.id, titolo: t.titolo, stato: t.stato, updatedAt: t.updatedAt.toISOString() }} />
+            <TaskActions task={{ id: t.id, problemaId: t.problemaId, titolo: t.titolo, stato: t.stato, updatedAt: t.updatedAt.toISOString() }} />
           </li>;
         })}</ul>
       </section>

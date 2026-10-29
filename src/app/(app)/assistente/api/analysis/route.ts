@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const { context, task } = z.object({ context: ContextSchema, task: z.string().trim().min(1).max(2000) }).strict().parse(await readJson(req));
     const op = await reserveAnalysis(user.id, { context, task });
     try {
-      const result = await analyzeContext(context, task, req.signal);
+      const result = await analyzeContext(context, task, user, req.signal);
       await prisma.aiOperation.update({ where: { id: op.id }, data: { status: "COMPLETED", result: jsonValue(result) } });
       return Response.json(result);
     } catch (e) {

@@ -5,6 +5,7 @@ import TaskForm from "../task-form";
 import { getTaskOptions } from "../data";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { puoLeggereEconomia } from "@/lib/access";
 
 export const metadata = { title: "Nuova attività — CRM Elettra" };
 
@@ -12,6 +13,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
   const user = await requireUser();
   const options = await getTaskOptions(user);
   const params = await searchParams;
+  if (params.opportunitaId && !puoLeggereEconomia(user)) notFound();
   const opportunita = params.opportunitaId ? await prisma.opportunita.findUnique({ where: { id: params.opportunitaId }, include: { commessa: { select: { id: true } } } }) : null;
   if (params.opportunitaId && !opportunita) notFound();
   const commessa = options.commesse.find((c) => c.id === (opportunita?.commessa?.id ?? params.commessaId));
