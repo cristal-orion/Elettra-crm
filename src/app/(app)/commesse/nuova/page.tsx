@@ -28,7 +28,7 @@ export default async function NuovaCommessaPage({ searchParams }: { searchParams
       indirizzo: true, localita: true,
       referenti: { orderBy: [{ principale: "desc" }, { cognome: "asc" }], select: { id: true, nome: true, cognome: true, titolo: true } },
     } }),
-    prisma.operaio.findMany({ where: { attivo: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }], select: { id: true, nome: true, cognome: true, squadra: true } }),
+    prisma.operaio.findMany({ where: { attivo: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }], select: { id: true, nome: true, cognome: true, squadre: { select: { nome: true }, orderBy: { nome: "asc" } } } }),
     prisma.user.findMany({ where: { attivo: true, ruolo: "PROJECT_MANAGER" }, orderBy: [{ cognome: "asc" }, { nome: "asc" }], select: { id: true, nome: true, cognome: true } }),
   ]);
 

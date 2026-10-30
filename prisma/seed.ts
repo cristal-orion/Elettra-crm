@@ -433,7 +433,7 @@ async function main() {
         attivo: false,
         note: "In distacco su un altro cantiere fino a settembre.",
       },
-    ].map((data) => prisma.operaio.create({ data })),
+    ].map(({ squadra, ...data }) => prisma.operaio.create({ data: { ...data, squadre: squadra ? { connect: { nome: squadra } } : undefined } })),
   );
 
   const [improta, ferrara, coppola, ruggiero, pasquale] = operai;

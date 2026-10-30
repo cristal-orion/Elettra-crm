@@ -7,6 +7,8 @@ import { SospensioneForm } from "@/components/operativo-forms";
 import { DetailNavigation } from "@/components/navigation-context";
 import AiContextPanel from "@/components/ai/context-panel";
 import PrintLink from "@/components/print-link";
+import AvvisiAssegnazioni from "@/components/avvisi-assegnazioni";
+import { avvisiAssegnazioni } from "@/lib/assegnazioni";
 import { AssegnaSquadraForm } from "../../risorse/squadre/squadre-ui";
 import CommessaDocumenti from "@/components/commessa-documenti";
 import TaskContext from "@/components/task-context";
@@ -78,7 +80,7 @@ export default async function ProgettoDetailPage({
       milestone: { orderBy: { ordine: "asc" } },
       _count: { select: { documenti: { where: documentoScope(user) }, problemi: { where: { stato: { not: "RISOLTA" } } } } },
       assegnazioni: {
-        include: { operaio: true },
+        include: { operaio: { include: { squadre: { select: { nome: true }, orderBy: { nome: "asc" } } } } },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -130,6 +132,7 @@ export default async function ProgettoDetailPage({
   const squadre = puoModificare && tab === "squadra" ? await prisma.squadra.findMany({ where: { attiva: true }, orderBy: { nome: "asc" }, include: { membri: { where: { attivo: true }, select: { nome: true, cognome: true }, orderBy: { cognome: "asc" } } } }) : [];
 
   const ultimoOrdine = commessa.milestone.length - 1;
+  const avvisiImpegni = tab === "squadra" ? await avvisiAssegnazioni(prisma, id, commessa.assegnazioni.map((a) => ({ ...a, ...a.operaio }))) : [];
   const aggiornamenti = tab === "avanzamento" ? await prisma.aggiornamentoCantiere.findMany({ where: { commessaId: id }, orderBy: { createdAt: "desc" }, take: 50, include: { documenti: { select: { id: true, nomeFile: true } } } }) : [];
   const problemi = tab === "problemi" ? await prisma.problemaCantiere.findMany({ where: { commessaId: id }, orderBy: [{ updatedAt: "desc" }], take: 100 }) : [];
 
@@ -468,6 +471,7 @@ export default async function ProgettoDetailPage({
           </Link>
         </div>
 
+        {avvisiImpegni.length > 0 && <div className="mt-4"><AvvisiAssegnazioni warnings={avvisiImpegni} /></div>}
         {commessa.assegnazioni.length === 0 ? (
           <p className="mt-4 text-sm text-ink-faint">
             Nessun operaio assegnato.
@@ -489,9 +493,9 @@ export default async function ProgettoDetailPage({
                     {etichettaRuoloCantiere(a.ruoloCantiere)}
                   </span>
                 )}
-                {a.operaio.squadra && (
-                  <span className="text-xs text-ink-soft">
-                    {a.operaio.squadra}
+                {a.operaio.squadre.length > 0 && (
+                  <span className="break-words text-xs text-ink-soft">
+                    {a.operaio.squadre.map((s) => s.nome).join(", ")}
                   </span>
                 )}
                 <span className="font-mono text-xs text-ink-faint">

@@ -31,10 +31,6 @@ export default async function ImpostazioniPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold">Import dati da Excel</h2>
-            <p className="mt-1 max-w-xl text-sm text-ink-soft">
-              Carica gli elenchi storici di anagrafiche e offerte direttamente
-              da qui: i file non passano dal repository.
-            </p>
           </div>
           <Link
             href="/impostazioni/import"

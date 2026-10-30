@@ -27,6 +27,8 @@ import {
 } from "@/components/badges";
 import { BarraAvanzamento } from "@/components/charts";
 import CommessaDocumenti from "@/components/commessa-documenti";
+import AvvisiAssegnazioni from "@/components/avvisi-assegnazioni";
+import { avvisiAssegnazioni } from "@/lib/assegnazioni";
 
 export default async function CommessaDetailPage({
   params,
@@ -65,6 +67,9 @@ export default async function CommessaDetailPage({
     select: { autoreNome: true, autoreRuolo: true, createdAt: true, dopo: true },
   });
   const valoriIniziali = confermaIniziale?.dopo as { importoOfferta?: string; importoOrdine?: string } | undefined;
+  const impegni = isProgetto(commessa.stato) && commessa._count.assegnazioni > 0
+    ? await prisma.assegnazioneOperaio.findMany({ where: { commessaId: id }, select: { operaioId: true, dal: true, al: true, operaio: { select: { nome: true, cognome: true } } } }) : [];
+  const warnings = await avvisiAssegnazioni(prisma, id, impegni.map((a) => ({ ...a, ...a.operaio })));
 
   const puoModificare = user ? puoGestireCommesse(user.ruolo) : false;
   const puoAddOrdine = user ? puoGestireOrdini(user.ruolo) : false;
@@ -117,6 +122,7 @@ export default async function CommessaDetailPage({
           )}
         </div>
       </header>
+      <AvvisiAssegnazioni warnings={warnings} />
 
       <nav aria-label="Sezioni della commessa" className="flex flex-wrap gap-2 text-sm">
         <a href="#dati-commessa" className="min-h-11 rounded-lg border border-line px-4 py-3 text-brand-deep">Cliente, PM e importi</a>

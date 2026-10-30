@@ -21,8 +21,10 @@ async function main() {
     stato: "IN_ESECUZIONE", descrizione: "Impianto elettrico officina", indirizzoCantiere: "Località Pian del Bosco · Belluno", importoOrdine: 18500, scadenzaLavori: new Date("2026-11-15"),
     milestone: { create: [{ titolo: "Rilievo e tracciamento", ordine: 0, durataGiorni: 1, stato: "COMPLETATA" }, { titolo: "Posa canaline", ordine: 1, durataGiorni: 60, stato: "IN_CORSO" }, { titolo: "Cablaggio quadro", ordine: 2, durataGiorni: 20 }, { titolo: "Collaudo impianto", ordine: 3, durataGiorni: 2 }] } } });
   await db.squadra.create({ data: { id: "preview-squadra", nome: "Installazioni" } });
-  await db.operaio.create({ data: { nome: "Luca", cognome: "Marini", qualifica: "Elettricista", squadra: "Installazioni", assegnazioni: { create: { commessaId: "preview-cantiere" } } } });
-  await db.operaio.create({ data: { nome: "Giulia", cognome: "Ferri", qualifica: "Caposquadra", squadra: "Installazioni" } });
+  await db.squadra.create({ data: { id: "preview-manutenzione", nome: "Manutenzione" } });
+  await db.commessa.create({ data: { id: "preview-altro", clienteId: "preview-cliente", numero: "269002", anno: 2026, progressivo: 9002, stato: "IN_ESECUZIONE", descrizione: "Manutenzione impianti" } });
+  await db.operaio.create({ data: { nome: "Luca", cognome: "Marini", qualifica: "Elettricista", squadre: { connect: [{ id: "preview-squadra" }, { id: "preview-manutenzione" }] }, assegnazioni: { create: [{ commessaId: "preview-cantiere" }, { commessaId: "preview-altro" }] } } });
+  await db.operaio.create({ data: { nome: "Giulia", cognome: "Ferri", qualifica: "Caposquadra", squadre: { connect: { id: "preview-squadra" } } } });
   await db.operaio.create({ data: { nome: "Paolo", cognome: "Bassi", qualifica: "Elettricista" } });
   await db.attivita.create({ data: { titolo: "Confermare accesso al cantiere", userId: admin.id, commessaId: "preview-cantiere", scadenza: new Date() } });
   const problema = await db.$transaction((tx) => createProblema(tx, "preview-pm", "preview-cantiere", { richiestaId: randomUUID(), titolo: "Interruttore del quadro da consegnare", descrizione: "La posa è pronta. Attendiamo il componente per completare il cablaggio e programmare il collaudo.", priorita: "ALTA", assegnatarioId: admin.id, scadenza: new Date().toISOString().slice(0, 10), creaAttivita: true }));

@@ -13,7 +13,8 @@ export const listSources = {
   ordini: Prisma.sql`SELECT o.*, concat_ws(' ', o.numero, a."ragioneSociale", c.numero) AS text FROM "OrdineFornitore" o JOIN "Anagrafica" a ON a.id = o."fornitoreId" LEFT JOIN "Commessa" c ON c.id = o."commessaId"`,
   materiali: Prisma.sql`SELECT p.*, concat_ws(' ', p.codice, p.descrizione, p.marca, p.categoria) AS text FROM "Prodotto" p`,
   segnalazioni: Prisma.sql`SELECT s.*, concat_ws(' ', s.titolo, s.descrizione) AS text FROM "Segnalazione" s`,
-  operai: Prisma.sql`SELECT o.*, concat_ws(' ', o.nome, o.cognome, o.qualifica, o.squadra) AS text FROM "Operaio" o`,
+  operai: Prisma.sql`SELECT o.*, concat_ws(' ', o.nome, o.cognome, o.qualifica,
+    (SELECT string_agg(s.nome, ' ' ORDER BY s.nome) FROM "_ComponentiSquadra" m JOIN "Squadra" s ON s.id = m."B" WHERE m."A" = o.id)) AS text FROM "Operaio" o`,
   utenti: Prisma.sql`SELECT u.id, u.nome, u.cognome, u.email, u.ruolo, u.attivo, concat_ws(' ', u.nome, u.cognome, u.email) AS text FROM "User" u`,
 };
 

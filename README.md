@@ -122,7 +122,7 @@ concorrenza reali; Storico prezzi conserva l'aggregazione applicativa esistente.
 ## Progetti e cantieri
 
 La lista combina situazione, avanzamento, PM (anche non assegnato), cliente e
-squadra con la ricerca. Il filtro squadra usa il gruppo dell'operaio collegato
+squadra con la ricerca. Il filtro squadra usa le appartenenze del personale collegato
 alle assegnazioni registrate, anche passate/future: non misura la disponibilità
 odierna. I filtri sono applicati nel database prima di conteggio e paginazione.
 
@@ -152,19 +152,30 @@ Database e allegati del collaudo vengono creati in spazi temporanei isolati.
 
 `/risorse` raccoglie Assegnazioni, Personale (`/risorse/operai`) e Squadre
 (`/risorse/squadre`). Il vecchio `/progetti/operai` reindirizza conservando i
-parametri della lista. Ogni persona appartiene al massimo a una squadra centrale.
+parametri della lista. Ogni persona può appartenere a più squadre centrali,
+indipendentemente dalla qualifica (PM e operai inclusi).
 Super Admin, Backoffice e PM gestiscono personale e composizione; anche Ufficio
 Tecnico può assegnare una squadra ai cantieri autorizzati.
 
-L'assegnazione completa è atomica e include solo i membri attivi: una
-sovrapposizione annulla tutta l'operazione. Chi è già nel cantiere mantiene date,
+L'assegnazione completa è atomica e include solo i membri attivi. Gli impegni
+contemporanei sono consentiti: un avviso non bloccante indica le persone già
+assegnate ad altri cantieri nel periodo, senza rivelare dati dei cantieri riservati.
+L'avviso compare anche dopo il refresh e nella commessa creata dal wizard.
+Date mancanti indicano intervalli aperti; gli estremi sono inclusivi.
+Chi è già nel cantiere mantiene date,
 ruolo e note; le assegnazioni sono poi modificabili singolarmente. Rinomine,
 cambi di composizione e archiviazione della squadra centrale non cambiano le
 assegnazioni esistenti. La rimozione di personale già assegnato lo disattiva,
-conservando lo storico. I cantieri non accessibili restano anonimizzati in Risorse.
+conservando lo storico. Squadre con componenti condivisi non duplicano le persone
+nello stesso cantiere. Modificare un'appartenenza non modifica le altre squadre.
+I cantieri non accessibili restano anonimizzati in Risorse.
 
 La migrazione `20261029140000_sal_durata_squadre` converte i raggruppamenti
 preesistenti in squadre, senza inventare durate o riscrivere i SAL storici.
+La successiva `20261030120000_personale_multisquadra` trasferisce le appartenenze
+nella relazione molti-a-molti `ComponentiSquadra`, conservando anche personale
+inattivo e squadre archiviate. L'import offline SQLite converte la colonna storica
+`Operaio.squadra` e verifica integralmente le appartenenze copiate.
 Il collaudo dedicato si esegue con
 `UI_PRODUCTION=1 UI_SUITE=risorse npm run test:ui` dopo la build; copre anche
 coerenza SAL, privacy, navigazione, scroll dei consuntivi e viste responsive.

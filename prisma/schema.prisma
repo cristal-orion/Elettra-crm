@@ -371,8 +371,7 @@ model Operaio {
   nome      String
   cognome   String
   qualifica String? // es. "Elettricista", "Capo squadra"
-  squadra   String? // nome della squadra centrale; rinomina in cascata
-  gruppo    Squadra? @relation(fields: [squadra], references: [nome], onDelete: Restrict, onUpdate: Cascade)
+  squadre   Squadra[] @relation("ComponentiSquadra")
   telefono  String?
   attivo    Boolean @default(true)
   note      String?
@@ -383,21 +382,20 @@ model Operaio {
   assegnazioni AssegnazioneOperaio[]
 
   @@index([cognome, nome])
-  @@index([squadra])
 }
 
-/// Assegnazione di un operaio a un progetto/cantiere (Fase 7).
-/// Un operaio può stare su più progetti, ma una sola volta per progetto.
+/// Squadra centrale: ogni persona può appartenere a più squadre.
 model Squadra {
   id        String @id @default(cuid())
   nome      String @unique
   note      String?
   attiva    Boolean @default(true)
-  membri    Operaio[]
+  membri    Operaio[] @relation("ComponentiSquadra")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+/// Una persona può lavorare su più cantieri contemporaneamente, una volta per cantiere.
 model AssegnazioneOperaio {
   id         String @id @default(cuid())
   commessaId String

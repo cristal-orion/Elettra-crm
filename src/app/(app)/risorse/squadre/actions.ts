@@ -6,7 +6,7 @@ import { serializable } from "@/lib/transaction";
 import { assignSquadra, saveSquadra } from "@/lib/risorse";
 import { publicError } from "@/lib/crm/commands";
 
-export type SquadraState = { error?: string; ok?: string; href?: string } | undefined;
+export type SquadraState = { error?: string; ok?: string; href?: string; warnings?: string[] } | undefined;
 const value = (f: FormData, k: string) => String(f.get(k) ?? "").trim() || null;
 
 export async function salvaSquadra(id: string | null, _state: SquadraState, f: FormData): Promise<SquadraState> {
@@ -24,8 +24,8 @@ export async function salvaSquadra(id: string | null, _state: SquadraState, f: F
 export async function assegnaSquadra(commessaId: string, _state: SquadraState, f: FormData): Promise<SquadraState> {
   const user = await requireUser();
   try {
-    const ok = await serializable((db) => assignSquadra(db, user.id, commessaId, Object.fromEntries(["squadraId", "expectedUpdatedAt", "dal", "al"].map((k) => [k, value(f, k)]))));
+    const result = await serializable((db) => assignSquadra(db, user.id, commessaId, Object.fromEntries(["squadraId", "expectedUpdatedAt", "dal", "al"].map((k) => [k, value(f, k)]))));
     revalidatePath("/", "layout");
-    return { ok };
+    return { ok: result.message, warnings: result.warnings };
   } catch (e) { return { error: publicError(e) }; }
 }

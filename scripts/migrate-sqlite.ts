@@ -66,6 +66,7 @@ export async function migrateSqlite(source: string, url: string, execute = false
       if (!table.startsWith("_") && !table.startsWith("sqlite_") && !models.some((m) => (m.dbName ?? m.name) === table)) throw new Error(`Tabella sorgente non riconosciuta: ${table}`);
     }
     const summary: { table: string; rows: number; sha256: string }[] = [];
+    const legacyMemberships: { operaioId: string; nome: string }[] = [];
     await db.$transaction(async (tx) => {
       for (const m of models) {
         // La migrazione Commerciale installa le fasi di configurazione. Lo storico
@@ -79,10 +80,15 @@ export async function migrateSqlite(source: string, url: string, execute = false
         if (!sourceTables.has(table)) continue;
         const columns = new Set(sqlite.prepare(`PRAGMA table_info(${quote(table)})`).all().map((r) => String(r.name)));
         const fields = m.fields.filter((f) => f.kind !== "object" && columns.has(f.dbName ?? f.name));
-        for (const column of columns) if (!fields.some((f) => (f.dbName ?? f.name) === column)) throw new Error(`Colonna sorgente non riconosciuta: ${table}.${column}`);
+        for (const column of columns) if (!(table === "Operaio" && column === "squadra") && !fields.some((f) => (f.dbName ?? f.name) === column)) throw new Error(`Colonna sorgente non riconosciuta: ${table}.${column}`);
         const pk = m.fields.find((f) => f.isId);
         if (!pk) throw new Error(`Chiave primaria mancante: ${table}`);
         const sourceRows = sqlite.prepare(`SELECT * FROM ${quote(table)} ORDER BY ${quote(pk.dbName ?? pk.name)}`).all();
+        if (table === "Operaio" && columns.has("squadra")) for (const row of sourceRows) {
+          if (row.squadra === null) continue;
+          if (typeof row.squadra !== "string") throw new Error("Squadra SQLite non valida.");
+          legacyMemberships.push({ operaioId: String(row.id), nome: row.squadra });
+        }
         const rows = sourceRows.map((r) =>
           Object.fromEntries(fields.map((f) => [f.name, value(f.type, r[f.dbName ?? f.name], true)])));
         const expected = digest(rows);
@@ -100,6 +106,22 @@ export async function migrateSqlite(source: string, url: string, execute = false
           if (digest(sort(normalized)) !== digest(sort(rows))) throw new Error(`Verifica dati fallita: ${table}. Transazione annullata.`);
         }
         summary.push({ table, rows: rows.length, sha256: expected });
+      }
+      // La vecchia colonna non è più scalare Prisma: trasferirla dopo personale e squadre.
+      // Include appartenenze di persone inattive e conserva i nomi esatti.
+      if (legacyMemberships.length) {
+        if (execute) {
+          for (const nome of new Set(legacyMemberships.map((m) => m.nome))) await tx.squadra.upsert({
+            where: { nome }, update: {}, create: { id: `legacy-${createHash("md5").update(nome).digest("hex")}`, nome },
+          });
+          for (const { operaioId, nome } of legacyMemberships) await tx.$executeRaw`
+            INSERT INTO "_ComponentiSquadra" ("A", "B") SELECT ${operaioId}, id FROM "Squadra" WHERE nome = ${nome}`;
+          const copied = await tx.$queryRaw<{ operaioId: string; nome: string }[]>`
+            SELECT m."A" AS "operaioId", s.nome FROM "_ComponentiSquadra" m JOIN "Squadra" s ON s.id = m."B"`;
+          const sort = (rows: typeof copied) => rows.sort((a, b) => a.operaioId.localeCompare(b.operaioId) || a.nome.localeCompare(b.nome));
+          if (digest(sort(copied)) !== digest(sort(legacyMemberships))) throw new Error("Verifica appartenenze fallita. Transazione annullata.");
+        }
+        summary.push({ table: "Operaio.squadra → ComponentiSquadra", rows: legacyMemberships.length, sha256: digest(legacyMemberships) });
       }
     }, { timeout: 300_000, maxWait: 10_000 });
     return summary;

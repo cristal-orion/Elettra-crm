@@ -19,8 +19,9 @@ export function projectListScope(filters: ReturnType<typeof projectFilters>) {
     AND ${filters.pm === "non_assegnato" ? Prisma.sql`s."pmId" IS NULL` : filters.pm ? Prisma.sql`s."pmId" = ${filters.pm}` : Prisma.sql`true`}
     AND ${filters.cliente ? Prisma.sql`s."clienteId" = ${filters.cliente}` : Prisma.sql`true`}
     AND ${filters.squadra ? Prisma.sql`EXISTS (
-      SELECT 1 FROM "AssegnazioneOperaio" a JOIN "Operaio" o ON o.id = a."operaioId"
-      WHERE a."commessaId" = s.id AND o.squadra = ${filters.squadra}
+      SELECT 1 FROM "AssegnazioneOperaio" a
+      JOIN "_ComponentiSquadra" m ON m."A" = a."operaioId" JOIN "Squadra" team ON team.id = m."B"
+      WHERE a."commessaId" = s.id AND team.nome = ${filters.squadra}
     )` : Prisma.sql`true`}`;
 }
 

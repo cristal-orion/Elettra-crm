@@ -70,9 +70,10 @@ export function buildReadTools(context?: ToolContext): ToolSet {
       return serialize({ totale: all.length, totaleArchivio, analisiParziale: totaleArchivio > rows.length, pagina, progetti: all.slice((pagina - 1) * limite, pagina * limite) });
     } }),
     cercaOperai: tool({ description: "Operai attivi per nome, squadra o qualifica, con assegnazioni attuali e future e loro intervalli. Non sono disponibili ferie o turni.", inputSchema: z.object({ testo: text.optional(), ...pagination }), execute: async ({ testo, limite, pagina }) => {
-      const where = { attivo: true, OR: testo ? ["nome", "cognome", "squadra", "qualifica"].map((field) => ({ [field]: { contains: testo, mode: "insensitive" as const } })) : undefined };
+      const match = { contains: testo, mode: "insensitive" as const };
+      const where = { attivo: true, OR: testo ? [{ nome: match }, { cognome: match }, { qualifica: match }, { squadre: { some: { nome: match } } }] : undefined };
       const user = await actor();
-      const [totale, rows] = await Promise.all([prisma.operaio.count({ where }), prisma.operaio.findMany({ where, skip: (pagina - 1) * limite, take: limite, orderBy: [{ cognome: "asc" }, { id: "asc" }], include: { assegnazioni: { where: { commessa: { ...commessaScope(user), stato: { in: ["ORDINE_CONFERMATO", "IN_ESECUZIONE", "CONSUNTIVO"] }, dataFineLavori: null } }, include: { commessa: { select: { id: true, numero: true } } } } } })]);
+      const [totale, rows] = await Promise.all([prisma.operaio.count({ where }), prisma.operaio.findMany({ where, skip: (pagina - 1) * limite, take: limite, orderBy: [{ cognome: "asc" }, { id: "asc" }], include: { squadre: { select: { id: true, nome: true }, orderBy: { nome: "asc" } }, assegnazioni: { where: { commessa: { ...commessaScope(user), stato: { in: ["ORDINE_CONFERMATO", "IN_ESECUZIONE", "CONSUNTIVO"] }, dataFineLavori: null } }, include: { commessa: { select: { id: true, numero: true } } } } } })]);
       return serialize({ totale, pagina, operai: rows, limiteDati: "Disponibilità basata esclusivamente sulle assegnazioni registrate." });
     } }),
     cercaUtenti: tool({ description: "Trova utenti attivi e Project Manager per assegnare commesse o attività. Nessuna credenziale viene restituita.", inputSchema: z.object({ testo: text.optional(), soloPM: z.boolean().default(false) }), execute: async ({ testo, soloPM }) => prisma.user.findMany({ where: { attivo: true, ruolo: soloPM ? "PROJECT_MANAGER" : undefined, OR: testo ? [{ nome: { contains: testo, mode: "insensitive" } }, { cognome: { contains: testo, mode: "insensitive" } }] : undefined }, take: 25, select: { id: true, nome: true, cognome: true, ruolo: true } }) }),
@@ -132,7 +133,7 @@ const descriptions: Record<string, string> = {
   aggiornaMilestone: "Aggiorna una milestone. COMPLETATA imposta data effettiva, riaprirla la azzera. Usa ID e versione letti dal dettaglio.",
   spostaMilestone: "Sposta una milestone di una posizione su o giù nella sequenza.",
   eliminaMilestone: "Propone l'eliminazione di una milestone: richiede conferma nella UI.",
-  assegnaOperaio: "Assegna un operaio attivo a un progetto oppure aggiorna l'intervallo esistente. Blocca sovrapposizioni con cantieri aperti. Non inventare disponibilità.",
+  assegnaOperaio: "Assegna un operaio attivo a un progetto oppure aggiorna l'intervallo esistente. Consente sovrapposizioni con altri cantieri e restituisce avvisi non bloccanti da comunicare all'utente. Non inventare disponibilità.",
   rimuoviAssegnazione: "Propone la rimozione di un'assegnazione: richiede conferma nella UI.",
   creaAttivita: "Registra attività/follow-up con scadenza e responsabile; default utente corrente. Non invia email.",
    aggiornaAttivita: "Modifica titolo, note, scadenza, collegamenti, stato o responsabile di un'attività consentita al ruolo. Campi omessi invariati; leggi prima versione e ID con dettaglioAttivita.",

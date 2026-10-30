@@ -1,6 +1,6 @@
 # Operatività cantiere — implementazione e collaudo
 
-Stato al 29 ottobre 2026. La release operativa `b461bf9` e la migrazione `20261029100000_operativita_cantiere` sono pubblicate e verificate online. La tranche SAL ponderato / personale / squadre è implementata nella worktree `elettra-crm-sal-risorse`, branch `feat/sal-risorse`, con collaudo su database isolati e pubblicazione su `main` autorizzata dall'utente. Deploy e nuova migrazione in produzione restano da verificare. Il commit chatbot locale `66b0c12` non è incluso nel branch.
+Stato al 30 ottobre 2026. La release operativa `b461bf9` e la tranche SAL ponderato / personale / squadre `dee2080` sono pubblicate. L'utente ha confermato online il SAL al 10%, salvataggio, riepilogo e storico e ha autorizzato la successiva modifica multisquadra con avvisi non bloccanti. Questa tranche è sviluppata nella worktree `elettra-crm-sal-risorse`, branch `feat/sal-risorse`; il redeploy sarà avviato dall'utente. Il commit chatbot locale `66b0c12` non è incluso nel branch.
 
 ## Percorso disponibile
 
@@ -24,8 +24,9 @@ La sospensione/ripresa del cantiere dispone di un motivo e di uno storico dedica
 - Creare un'attività dal problema richiede responsabile e scadenza. Finché l'attività resta collegata, questi due campi sono obbligatori anche negli aggiornamenti del problema.
 - I consuntivi del cruscotto sono valori di ore/materiali **al cliente**, per data del rendiconto: non sono costi interni, acquisti, ordini acquisiti o incassi. L'assenza di rendiconti non viene rappresentata come importo zero.
 - Risorse senza assegnazioni registrate non sono automaticamente disponibili. Assegnazioni senza estremi temporali occupano il periodo aperto; quelle dei cantieri sospesi restano visibili.
-- Una persona appartiene a una squadra centrale. Assegnare la squadra aggiunge atomicamente i membri attivi; un conflitto temporale di un componente annulla tutto. Le persone già nel cantiere mantengono date, ruolo e note locali.
-- Le modifiche alla composizione e l'archiviazione della squadra centrale valgono per nuove assegnazioni. Il cantiere conserva quelle già presenti, modificabili singolarmente. Personale con assegnazioni viene disattivato invece di eliminato.
+- Ogni persona può appartenere a più squadre centrali, PM e operai inclusi, senza categorie speciali da autorizzare. Assegnare la squadra aggiunge atomicamente i membri attivi e consente impegni contemporanei: l'avviso elenca le persone coinvolte senza bloccare il salvataggio. Le persone già nel cantiere mantengono date, ruolo e note locali e non sono duplicate da squadre con membri condivisi.
+- Gli avvisi considerano gli estremi inclusivi e le date mancanti come intervalli aperti. Si confrontano con i cantieri acquisiti ancora aperti, anche sospesi; sono esclusi quelli conclusi o fatturati. Compaiono nei risultati delle assegnazioni individuali/complete e sono ricalcolati nella scheda Squadra e nel dettaglio economico della commessa, anche all'arrivo dal wizard e dopo refresh.
+- Le modifiche alla composizione e l'archiviazione della squadra centrale valgono per nuove assegnazioni. Le altre appartenenze e le assegnazioni nei cantieri sono conservate. Personale con assegnazioni viene disattivato invece di eliminato. Le squadre archiviate già associate possono essere mantenute, ma non aggiunte a nuove persone.
 - Numero cantiere, cliente e luogo effettivo compaiono nelle assegnazioni autorizzate. Il luogo usa `Commessa.indirizzoCantiere`, modificabile dalla pianificazione e ricercabile in Progetti; nessun ripiego automatico sulla sede cliente.
 - `/risorse/operai` mantiene attiva la voce Risorse e squadre. `/progetti/operai` reindirizza conservando i parametri della lista. I link periodo dei consuntivi in dashboard usano `scroll={false}`.
 
@@ -57,11 +58,35 @@ Le notifiche ricalcolano l'accesso anche ai titoli salvati in passato. `AiConver
 - Il reinvio della stessa richiesta recupera l'esito senza duplicare storico, attività, notifiche o allegati; riusare la richiesta con contenuto diverso viene rifiutato.
 - File nuovi rimossi in caso di rollback; file riutilizzati nei retry e copie concorrenti inutilizzate ripulite.
 - Migrazione operativa `20261029100000_operativita_cantiere`: storico SAL/sospensioni, problemi/eventi, collegamenti documenti/attività, deduplicazione notifiche e chiavi di accesso AI; già applicata in produzione con `b461bf9`.
-- Nuova migrazione `20261029140000_sal_durata_squadre`: durata nullable con vincolo DB, tabella `Squadra` e conversione esatta dei raggruppamenti preesistenti, anche di personale inattivo. `Operaio.squadra` resta il nome, ora FK verso `Squadra.nome` con rinomina in cascata. Assegnazioni e snapshot rimangono intatti. Verificata su schemi isolati, ancora da applicare in produzione.
+- Migrazione `20261029140000_sal_durata_squadre`, pubblicata con `dee2080`: durata nullable con vincolo DB, tabella `Squadra` e conversione esatta dei raggruppamenti preesistenti, anche di personale inattivo. Assegnazioni e snapshot rimangono intatti.
+- Migrazione `20261030120000_personale_multisquadra`: crea la relazione molti-a-molti `_ComponentiSquadra`, copia ogni appartenenza dalla precedente FK `Operaio.squadra`, poi elimina la colonna. Conserva ID, metadati, squadre archiviate, personale inattivo, assegnazioni e storico. PK composta e indice inverso coerenti con Prisma 6.
+- L'import SQLite storico trasforma la colonna `Operaio.squadra` in appartenenze e verifica il digest delle relazioni, mantenendo nomi esatti e timestamp delle persone; dry run senza scritture e import in un'unica transazione.
 - Servizi personale/squadre in `src/lib/risorse.ts`: transazioni serializzabili, controllo versioni di personale e squadra, rollback dell'assegnazione completa. Cambiare un membro invalida la versione della squadra; cambiare la composizione invalida le versioni delle persone coinvolte.
-- L'entrypoint Docker esegue `prisma migrate deploy` all'avvio con `RUN_MIGRATIONS=true` (valore predefinito). Il redeploy deve includere questa migrazione prima di avviare la nuova versione dell'applicazione.
+- L'entrypoint Docker esegue `prisma migrate deploy` all'avvio con `RUN_MIGRATIONS=true` (valore predefinito). Il prossimo redeploy applicherà la migrazione multisquadra prima di avviare la nuova versione dell'applicazione.
 
 ## Collaudo eseguito
+
+### Tranche multisquadra e avvisi non bloccanti (30 ottobre 2026)
+
+| Controllo | Esito |
+| --- | --- |
+| `npm test` | 150/150 passati |
+| Ricerca e duplicati PostgreSQL | 12/12 passati; ricerca per entrambe le squadre e filtri progetto senza duplicati |
+| `npx tsx --test scripts/production.test.ts src/lib/risorse.test.ts` | 17/17 passati nel run finale: import SQLite, schema Prisma senza drift, catena migrazioni, appartenenze multiple, concorrenza, privacy e storico |
+| `npm run lint`, `npx tsc --noEmit` | Passati; ricontrollati anche gli ultimi script UI |
+| `npm run build` | Passato; restano i 2 warning di tracing del client Prisma generato |
+| `UI_PRODUCTION=1 npm run test:ui` | Suite completa passata, compresi wizard con impegno contemporaneo e flusso operativo SAL/problemi |
+| `UI_PRODUCTION=1 UI_SUITE=risorse npm run test:ui` | Passata: stessa persona in due squadre, modifica appartenenze, assegnazione sovrapposta salvata, avviso persistente, modifiche locali conservate, privacy PM, testo Excel rimosso e 18 viste responsive |
+| Inspector e controllo immagini | 0 FAIL / 0 WARN su Squadra del cantiere e composizione squadra a 1440/768/390 px; esaminate 12 tavole e 3 schermate aggiuntive del form personale aperto |
+| `git diff --check` | Passato |
+
+Durante i controlli sono stati corretti la fixture SQLite (la tabella storica delle assegnazioni non ha `updatedAt`), la PK composta della relazione implicita richiesta da Prisma 6, l'attesa effettiva della risposta al salvataggio nel test browser e il conteggio delle assegnazioni preesistenti nella fixture wizard. I test interessati sono stati rieseguiti con esito positivo.
+
+Direzione Accent ladder, seed `2089620649`, palette e caratteri brand mantenuti. La composizione squadra risponde a «chi fa parte di questa squadra, anche se appartiene ad altre?»; il form personale a «quali squadre devo associare?»; la scheda cantiere a «chi è assegnato e quali impegni vanno coordinati?». Checkbox plurime con etichette leggibili, avviso ambra informativo distinto dall'esito di successo, campi a una colonna su telefono e due/tre su tablet/desktop. Nessun controllo inspector disabilitato. Il pulsante globale Segnala conserva il limite di sovrapposizione già annotato sotto; i nuovi campi e avvisi restano raggiungibili scorrendo.
+
+Log in `/tmp/opencode/multisquadra-*.log`, screenshot in `/tmp/opencode/multisquadra-inspect/`. Decisioni e implementazione registrate su Hindsight (memoria di riferimento `68a3c40b-c826-489c-8fee-36b2288bc52a`). Migrazione verificata soltanto su schemi temporanei: l'applicazione in produzione avverrà con il redeploy dell'utente.
+
+### Tranche SAL/personale precedente (`dee2080`)
 
 | Controllo | Esito |
 | --- | --- |
@@ -104,7 +129,7 @@ Domanda principale di ciascuna schermata:
 
 Inspector della tranche sulla build production locale: **0 FAIL, 0 WARN** in Risorse, dettaglio squadra e form SAL, ciascuno a 1440/768/390 px. Aperte le nove immagini iniziali e le nove tavole con le viste scorse. Nessun controllo disabilitato. Il pulsante globale «Segnala», fisso in basso a destra, può sovrapporsi a contenuti durante lo scorrimento; resta un limite della cornice applicativa esistente.
 
-La fixture di `scripts/operativo-preview.ts` contiene Officina Nord, Marco Rinaldi, Luca Marini, Giulia Ferri, Paolo Bassi, la squadra Installazioni, un cantiere con luogo a Belluno, quattro milestone e un problema: dati esclusivamente di collaudo in uno schema temporaneo, non contenuto da caricare in produzione.
+La fixture di `scripts/operativo-preview.ts` contiene Officina Nord, Marco Rinaldi, Luca Marini, Giulia Ferri, Paolo Bassi, le squadre Installazioni e Manutenzione, due cantieri con un componente condiviso e impegni contemporanei, quattro milestone e un problema: dati esclusivamente di collaudo in uno schema temporaneo, non contenuto da caricare in produzione.
 
 ## Anteprima locale riproducibile
 
@@ -126,4 +151,4 @@ Per convivere con un'altra anteprima, usare `PREVIEW_PORT=3237`: applicazione su
 - Suggerimenti materiali e ulteriori automatismi operativi.
 - Approvazione aziendale del SAL e manutenzione delle durate previste, ruoli economici e classificazione dello storico reale/dimostrativo.
 - what3words resta una proposta da discutere col cliente.
-- Rilascio della tranche SAL/squadre con la nuova migrazione e verifica nell'ambiente di destinazione; chatbot Elettro `66b0c12` gestito separatamente nell'albero originale.
+- Redeploy della tranche multisquadra e verifica nell'ambiente di destinazione; chatbot Elettro `66b0c12` gestito separatamente nell'albero originale.

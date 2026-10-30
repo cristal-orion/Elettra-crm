@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/dal";
 import { publicError, runCommand } from "@/lib/crm/commands";
 
-export type ProgettoState = { error?: string; ok?: string } | undefined;
+export type ProgettoState = { error?: string; ok?: string; warnings?: string[] } | undefined;
 const value = (f: FormData, k: string) => String(f.get(k) ?? "").trim() || null;
 const version = (f: FormData) => value(f, "expectedUpdatedAt") ?? undefined;
 
@@ -13,7 +13,7 @@ async function save(command: unknown): Promise<ProgettoState> {
   try {
     const result = await runCommand(user.id, command);
     revalidatePath("/", "layout");
-    return { ok: result.message };
+    return { ok: result.message, warnings: result.warnings };
   } catch (e) { return { error: publicError(e) }; }
 }
 async function quick(command: unknown) {

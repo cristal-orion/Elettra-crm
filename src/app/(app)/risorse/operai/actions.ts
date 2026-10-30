@@ -23,7 +23,7 @@ function estrai(formData: FormData) {
     nome: str(formData, "nome"),
     cognome: str(formData, "cognome"),
     qualifica: str(formData, "qualifica"),
-    squadra: str(formData, "squadra"),
+    squadre: formData.getAll("squadre"),
     telefono: str(formData, "telefono"),
     note: str(formData, "note"),
     attivo: formData.get("attivo") !== null,

@@ -13,7 +13,7 @@ export async function readCommessa(idOrNumero: string, actor: Actor) {
   const c = await prisma.commessa.findFirst({
     where: { AND: [commessaScope(actor), { OR: [{ id: idOrNumero }, { numero: idOrNumero }] }] },
     include: { cliente: { select: { id: true, ragioneSociale: true, codiceCliente: true } }, pm: { select: userSelect }, referente: true,
-      milestone: { orderBy: { ordine: "asc" }, take: 300 }, assegnazioni: { include: { operaio: true }, take: 100 },
+      milestone: { orderBy: { ordine: "asc" }, take: 300 }, assegnazioni: { include: { operaio: { include: { squadre: { select: { id: true, nome: true } } } } }, take: 100 },
       documenti: { where: documentoScope(actor), select: { id: true, nomeFile: true, categoria: true, tipoMime: true }, take: 100 },
       problemi: { select: { id: true, titolo: true, stato: true, priorita: true, scadenza: true, assegnatarioId: true }, orderBy: { updatedAt: "desc" }, take: 30 },
       aggiornamenti: { select: { tipo: true, data: true, nota: true, autoreNome: true, prima: true, dopo: true }, orderBy: { createdAt: "desc" }, take: 20 },

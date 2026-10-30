@@ -10,8 +10,9 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
 }) {
   const pm = await db.user.create({ data: { email: "wizard-pm@example.test", nome: "Pietro", cognome: "Wizard", ruolo: "PROJECT_MANAGER", passwordHash: "unused", guidaVista: "*" } });
   const customer = await db.anagrafica.create({ data: { ragioneSociale: "Storico Wizard Impianti", isCliente: true, partitaIva: "09876543210", email: "wizard@example.test", indirizzo: "Via Sede 1" } });
-  const worker = await db.operaio.create({ data: { nome: "Operaio", cognome: "Wizard", gruppo: { create: { nome: "Squadra Wizard" } } } });
+  const worker = await db.operaio.create({ data: { nome: "Operaio", cognome: "Wizard", squadre: { create: { nome: "Squadra Wizard" } } } });
   const previous = await db.commessa.create({ data: { numero: "268888", anno: 2026, progressivo: 8888, clienteId: customer.id, pmId: pm.id, tipologia: "P", importoOfferta: 9999, importoOrdine: 8888, indirizzoCantiere: "Via Storica 4", referenteCommerciale: "FG" } });
+  await db.commessa.update({ where: { id: previous.id }, data: { stato: "IN_ESECUZIONE", assegnazioni: { create: { operaioId: worker.id } } } });
   const jobsBefore = await db.commessa.count();
   const select = async (label: string, text: string) => {
     await page.getByRole("combobox", { name: label, exact: true }).click();
@@ -84,7 +85,7 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
   await next(4);
   await page.getByRole("checkbox", { name: "Operaio Wizard · Squadra Wizard", exact: true }).check();
   await save();
-  assert.equal(await db.assegnazioneOperaio.count({ where: { operaioId: worker.id } }), 0);
+  assert.equal(await db.assegnazioneOperaio.count({ where: { operaioId: worker.id, commessaId: { not: previous.id } } }), 0);
   await page.getByLabel("File (PDF, immagini, disegni…)", { exact: true }).setInputFiles({ name: "incarico-wizard.txt", mimeType: "text/plain", buffer: Buffer.from("Conferma incarico di prova") });
   await page.getByRole("button", { name: "Carica documenti", exact: true }).click();
   await page.getByRole("link", { name: "incarico-wizard.txt", exact: true }).waitFor();
@@ -123,9 +124,11 @@ export async function verifyWizardUi({ page, context, browser, db, origin, reade
   await page.waitForURL((u) => /^\/commesse\/[^/]+$/.test(u.pathname) && !u.pathname.endsWith("nuova"));
   const job = await db.commessa.findFirstOrThrow({ where: { descrizione: "Wizard — cliente storico" } });
   await page.getByText("Conferma iniziale dell’incarico", { exact: true }).waitFor();
+  await page.getByRole("status", { name: "Impegni contemporanei" }).filter({ hasText: "Operaio Wizard" }).waitFor();
   assert.equal(job.pmId, pm.id); assert.equal(job.importoOfferta?.toString(), "900.37"); assert.equal(job.importoOrdine?.toString(), "850.23");
   assert.equal(job.indirizzoCantiere, "Via Inserita 9"); assert.equal(job.opportunitaId, null);
   assert.equal(await db.assegnazioneOperaio.count({ where: { commessaId: job.id, operaioId: worker.id } }), 1);
+  assert.equal(await db.assegnazioneOperaio.count({ where: { operaioId: worker.id } }), 2);
   const transferred = await db.documento.findUniqueOrThrow({ where: { id: doc.id } });
   assert.equal(transferred.bozzaId, null); assert.equal(transferred.commessaId, job.id);
   assert.equal((await db.documento.findUniqueOrThrow({ where: { id: extraDoc.id } })).commessaId, job.id);

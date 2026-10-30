@@ -49,11 +49,11 @@ export default async function ProgettiPage({
   const [managers, clienti, squadre] = await Promise.all([
     prisma.user.findMany({ where: { commesse: { some: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } }, select: { id: true, nome: true, cognome: true }, orderBy: [{ cognome: "asc" }, { nome: "asc" }] }),
     prisma.anagrafica.findMany({ where: { commesse: { some: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } }, select: { id: true, ragioneSociale: true }, orderBy: { ragioneSociale: "asc" } }),
-    prisma.operaio.findMany({ where: { squadra: { not: null }, assegnazioni: { some: { commessa: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } } }, distinct: ["squadra"], select: { squadra: true }, orderBy: { squadra: "asc" } }),
+    prisma.squadra.findMany({ where: { membri: { some: { assegnazioni: { some: { commessa: { ...commessaScope(user), stato: { in: STATI_PROGETTO } } } } } } }, select: { nome: true }, orderBy: { nome: "asc" } }),
   ]);
   const pmOptions = managers.map((p) => ({ value: p.id, label: `${p.cognome} ${p.nome}` }));
   const clientOptions = clienti.map((c) => ({ value: c.id, label: c.ragioneSociale }));
-  const teamOptions = squadre.flatMap((o) => o.squadra ? [{ value: o.squadra, label: o.squadra }] : []);
+  const teamOptions = squadre.map((s) => ({ value: s.nome, label: s.nome }));
   // Un link salvato con un filtro ormai assente non deve apparire come "Tutti".
   if (pm && pm !== "non_assegnato" && !pmOptions.some((o) => o.value === pm)) pmOptions.push({ value: pm, label: "PM non presente nei progetti" });
   if (cliente && !clientOptions.some((o) => o.value === cliente)) clientOptions.push({ value: cliente, label: "Cliente non presente nei progetti" });

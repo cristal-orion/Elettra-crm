@@ -101,7 +101,7 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
       const job = await db.commessa.findUniqueOrThrow({ where: { id: jobId } });
       assert.equal(job.importoOfferta?.toFixed(2), "900.37"); assert.equal(job.importoOrdine?.toFixed(2), "0.00");
     });
-    await t.test("referente, PM e risorse ricontrollati; conflitti causano rollback anche del nuovo cliente", async () => {
+    await t.test("referente, PM e risorse ricontrollati; impegni contemporanei consentiti e dati invalidi annullati", async () => {
       const id = randomUUID(); await save(id, { ...values, referenteId: "wrong-contact" });
       await assert.rejects(tx((d) => confirmWizard(d, "admin", id, 1, true)), /referente/);
       await save(id, { ...values, pmId: "reader" }, 1);
@@ -111,13 +111,14 @@ test("commessa guidata: bozze isolate, conferma atomica, controlli e idempotenza
       const jobId = await tx((d) => confirmWizard(d, "admin", id, 3, true));
       assert.equal((await db.assegnazioneOperaio.findFirstOrThrow({ where: { commessaId: jobId } })).operaioId, "worker");
       assert.equal((await db.commessa.findUniqueOrThrow({ where: { id: jobId } })).indirizzoCantiere, "Via Cantiere 1");
-      const blocked = randomUUID(); await save(blocked, { ...resource, nuovoCliente: true, ragioneSociale: "Società Senza Conflitti", email: "seconda@example.test" });
+      const concurrent = randomUUID(); await save(concurrent, { ...resource, nuovoCliente: true, ragioneSociale: "Società Impegni Condivisi", email: "seconda@example.test" });
+      const secondId = await tx((d) => confirmWizard(d, "admin", concurrent, 1, true));
+      assert.equal(await db.assegnazioneOperaio.count({ where: { operaioId: "worker", commessaId: { in: [jobId, secondId] } } }), 2);
+      const blocked = randomUUID(); await save(blocked, { ...resource, operai: ["inactive"], nuovoCliente: true, ragioneSociale: "Società Non Salvata", email: "terza@example.test" });
       const before = await db.anagrafica.count(), jobsBefore = await db.commessa.count();
-      await assert.rejects(tx((d) => confirmWizard(d, "admin", blocked, 1, true)), /sovrapposto/);
+      await assert.rejects(tx((d) => confirmWizard(d, "admin", blocked, 1, true)), /operaio attivo/);
       assert.equal(await db.anagrafica.count(), before); assert.equal(await db.commessa.count(), jobsBefore);
       assert.equal((await db.bozzaCommessa.findUniqueOrThrow({ where: { id: blocked } })).commessaId, null);
-      await save(blocked, { ...resource, operai: ["inactive"] }, 1);
-      await assert.rejects(tx((d) => confirmWizard(d, "admin", blocked, 2, true)), /operaio attivo/);
     });
     await t.test("revoca accesso e permessi anagrafica effettivi anche su payload forgiati", async () => {
       const id = randomUUID();

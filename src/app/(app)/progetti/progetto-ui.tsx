@@ -9,6 +9,7 @@ import {
 } from "@/lib/enums";
 import type { ProgettoState } from "./actions";
 import SearchableSelect from "@/components/searchable-select";
+import AvvisiAssegnazioni from "@/components/avvisi-assegnazioni";
 
 type Azione = (
   state: ProgettoState,
@@ -45,7 +46,7 @@ function Esito({ state }: { state: ProgettoState }) {
     );
   }
   if (state?.ok) {
-    return <span role="status" className="text-xs font-medium text-ok">{state.ok}</span>;
+    return <><span role="status" className="text-xs font-medium text-ok">{state.ok}</span><AvvisiAssegnazioni warnings={state.warnings} /></>;
   }
   return null;
 }

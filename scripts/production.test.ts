@@ -33,12 +33,20 @@ test("migrazione SQLite → Postgres: conservazione dati, rollback, rate limit c
       INSERT INTO "AiConversation" (id,userId,title,context,updatedAt) VALUES ('chat','admin','Chat',NULL,1767225600123),('json-null','admin','JSON null','null',1767225600123);
       INSERT INTO "AiMessage" (id,conversationId,payload) VALUES ('msg','chat','{"nested":{"a":1},"array":[true,"è"]}');
       INSERT INTO "AiMessage" (id,conversationId,payload) VALUES ('json-string','chat','"ciao"');
+      INSERT INTO "Operaio" (id,nome,cognome,squadra,attivo,updatedAt) VALUES
+        ('worker','Luca','Rossi','Èquipe storica',1,1767225600123),
+        ('inactive','Giulia','Ferri','Èquipe storica',0,1767225600123),
+        ('solo','Paolo','Bassi',NULL,1,1767225600123);
+      INSERT INTO "AssegnazioneOperaio" (id,commessaId,operaioId,ruoloCantiere,note)
+        VALUES ('assignment','project','inactive','CAPO_SQUADRA','Accesso conservato');
     `);
     sqlite.close();
     await t.test("dry run non scrive, esecuzione verifica tutte le righe e rifiuta il secondo import", async () => {
       const dry = await migrateSqlite(source, database.url);
       assert.equal(dry.find((m) => m.table === "Commessa")?.rows, 1);
+      assert.equal(dry.find((m) => m.table === "Operaio.squadra → ComponentiSquadra")?.rows, 2);
       assert.equal(await db.user.count(), 0);
+      assert.equal(await db.squadra.count(), 0);
       await migrateSqlite(source, database.url, true);
       const user = await db.user.findUniqueOrThrow({ where: { id: "admin" } });
       assert.equal(user.passwordHash, "preserved-hash");
@@ -50,6 +58,12 @@ test("migrazione SQLite → Postgres: conservazione dati, rollback, rate limit c
       assert.equal((await db.aiMessage.findUniqueOrThrow({ where: { id: "json-string" } })).payload, "ciao");
       assert.equal(await db.aiConversation.count({ where: { context: { equals: Prisma.DbNull } } }), 1);
       assert.equal(await db.aiConversation.count({ where: { context: { equals: Prisma.JsonNull } } }), 1);
+      const team = await db.squadra.findUniqueOrThrow({ where: { nome: "Èquipe storica" }, include: { membri: { orderBy: { id: "asc" } } } });
+      assert.deepEqual(team.membri.map((m) => m.id), ["inactive", "worker"]);
+      assert.equal(team.membri[0].attivo, false);
+      assert.equal(team.membri[0].updatedAt.getTime(), 1767225600123);
+      assert.equal(await db.operaio.count({ where: { squadre: { none: {} } } }), 1);
+      assert.equal((await db.assegnazioneOperaio.findUniqueOrThrow({ where: { id: "assignment" } })).note, "Accesso conservato");
       await assert.rejects(migrateSqlite(source, database.url, true), /non vuota/);
       assert.equal(await db.user.count(), 1);
     });

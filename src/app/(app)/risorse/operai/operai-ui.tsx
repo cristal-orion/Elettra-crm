@@ -47,7 +47,7 @@ type Operaio = {
   nome: string;
   cognome: string;
   qualifica: string | null;
-  squadra: string | null;
+  squadre: string[];
   telefono: string | null;
   note: string | null;
   attivo: boolean;
@@ -61,7 +61,7 @@ function CampiOperaio({
 }: {
   operaio?: Operaio;
   conAttivo?: boolean;
-  squadre: { nome: string; attiva: boolean }[];
+  squadre: { id: string; nome: string; attiva: boolean }[];
 }) {
   return (
     <>
@@ -91,12 +91,6 @@ function CampiOperaio({
             className={inputCls}
           />
         </Campo>
-        <Campo label="Squadra">
-          <select name="squadra" defaultValue={operaio?.squadra ?? ""} className={inputCls}>
-            <option value="">Nessuna squadra</option>
-            {squadre.filter((s) => s.attiva || s.nome === operaio?.squadra).map((s) => <option key={s.nome} value={s.nome}>{s.nome}{s.attiva ? "" : " (archiviata)"}</option>)}
-          </select>
-        </Campo>
         <Campo label="Telefono">
           <input
             name="telefono"
@@ -116,6 +110,14 @@ function CampiOperaio({
           </label>
         )}
       </div>
+      <fieldset className="space-y-2">
+        <legend className={labelCls}>Squadre di appartenenza</legend>
+        <p className="text-xs text-ink-soft">Puoi selezionare più squadre, oppure nessuna.</p>
+        <div className="grid max-h-60 gap-x-4 overflow-y-auto sm:grid-cols-2">
+          {squadre.filter((s) => s.attiva || operaio?.squadre.includes(s.id)).map((s) => <label key={s.id} className="flex min-h-11 items-center gap-3 py-2 text-sm"><input type="checkbox" name="squadre" value={s.id} defaultChecked={operaio?.squadre.includes(s.id) ?? false} className="h-5 w-5 shrink-0 accent-brand" /><span className="break-words">{s.nome}{s.attiva ? "" : " (archiviata)"}</span></label>)}
+        </div>
+        {!squadre.length && <p className="text-sm text-ink-soft">Nessuna squadra creata. Potrai aggiungere la persona a una squadra in seguito.</p>}
+      </fieldset>
       <Campo label="Note">
         <textarea
           name="note"
@@ -128,7 +130,7 @@ function CampiOperaio({
   );
 }
 
-export function OperaioAddForm({ action, squadre }: { action: Azione; squadre: { nome: string; attiva: boolean }[] }) {
+export function OperaioAddForm({ action, squadre }: { action: Azione; squadre: { id: string; nome: string; attiva: boolean }[] }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -166,7 +168,7 @@ export function OperaioEditForm({
   action: Azione;
   eliminaAction: Azione;
   operaio: Operaio;
-  squadre: { nome: string; attiva: boolean }[];
+  squadre: { id: string; nome: string; attiva: boolean }[];
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
 

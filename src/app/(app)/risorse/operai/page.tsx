@@ -31,11 +31,11 @@ export default async function OperaiPage({
   });
   const operai = inPageOrder(await prisma.operaio.findMany({
     where: { id: { in: pagination.ids } },
-    include: { _count: { select: { assegnazioni: true } } },
+    include: { _count: { select: { assegnazioni: true } }, squadre: { select: { id: true, nome: true }, orderBy: { nome: "asc" } } },
   }), pagination.ids);
 
   const attivi = pagination.extra;
-  const squadre = await prisma.squadra.findMany({ orderBy: { nome: "asc" }, select: { nome: true, attiva: true } });
+  const squadre = await prisma.squadra.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true, attiva: true } });
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,8 +82,8 @@ export default async function OperaiPage({
                       {o.qualifica}
                     </span>
                   )}
-                  {o.squadra && (
-                    <span className="text-xs text-ink-soft">{o.squadra}</span>
+                  {o.squadre.length > 0 && (
+                    <span className="break-words text-xs text-ink-soft">{o.squadre.map((s) => s.nome).join(", ")}</span>
                   )}
                   {o.telefono && (
                     <span className="font-mono text-xs text-ink-faint">
@@ -123,7 +123,7 @@ export default async function OperaiPage({
                         nome: o.nome,
                         cognome: o.cognome,
                         qualifica: o.qualifica,
-                        squadra: o.squadra,
+                        squadre: o.squadre.map((s) => s.id),
                         telefono: o.telefono,
                         note: o.note,
                         attivo: o.attivo,

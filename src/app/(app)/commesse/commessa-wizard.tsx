@@ -13,7 +13,7 @@ import { saveCommessaDraft, confirmCommessaDraft, wizardCustomerContext } from "
 import type { ClienteOption, PmOption } from "./commessa-form";
 
 type Customer = ClienteOption & { isCliente: boolean; partitaIva: string | null; email: string | null; telefono: string | null; indirizzo: string | null; localita: string | null };
-type Worker = { id: string; nome: string; cognome: string; squadra: string | null };
+type Worker = { id: string; nome: string; cognome: string; squadre: { nome: string }[] };
 type TextField = { [K in keyof WizardValues]: WizardValues[K] extends string ? K : never }[keyof WizardValues];
 type Last = NonNullable<Awaited<ReturnType<typeof wizardCustomerContext>>["last"]>;
 const inputCls = "min-h-11 w-full min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -199,10 +199,10 @@ export default function CommessaWizard({ id, initial, initialVersion, initialSte
         {field("referenteCommerciale", "Referente commerciale")}{field("dataInizioLavori", "Inizio lavori", "date")}{field("scadenzaLavori", "Scadenza lavori", "date")}
         <label className="flex min-w-0 flex-col gap-1.5 sm:col-span-2"><span className="text-sm text-ink-soft">Note cantiere</span><textarea name="noteCantiere" value={v.noteCantiere} onChange={(e) => update("noteCantiere", e.target.value)} rows={3} maxLength={10000} className={inputCls} /></label>
       </div>}
-      {step === 3 && <div className="flex flex-col gap-4"><p className="text-sm text-ink-soft">Selezione facoltativa delle risorse per l’intervallo inizio–scadenza lavori. La disponibilità viene ricontrollata alla conferma; finché è una bozza non vengono prenotate.</p>
+      {step === 3 && <div className="flex flex-col gap-4"><p className="text-sm text-ink-soft">Selezione facoltativa delle risorse per l’intervallo inizio–scadenza lavori. Gli impegni contemporanei sono consentiti e segnalati nella commessa dopo la conferma. Finché è una bozza non vengono create assegnazioni.</p>
         {errorFor("operai")}
         {unavailableWorkers.length > 0 && <div className="rounded-lg border border-warn/40 p-3 text-sm"><p>Alcune risorse selezionate non sono più disponibili. Rimuovile per proseguire.</p><ul>{unavailableWorkers.map((id) => <li key={id} className="mt-2"><button type="button" className={buttonCls} onClick={() => update("operai", v.operai.filter((value) => value !== id))}>Rimuovi risorsa non disponibile · {id}</button></li>)}</ul></div>}
-        <ul className="max-h-80 overflow-auto rounded-lg border border-line p-3">{operai.map((o) => <li key={o.id}><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={v.operai.includes(o.id)} onChange={(e) => update("operai", e.target.checked ? [...v.operai, o.id] : v.operai.filter((x) => x !== o.id))} />{o.nome} {o.cognome}{o.squadra ? ` · ${o.squadra}` : ""}</label></li>)}{!operai.length && <li className="text-sm text-ink-faint">Nessuna risorsa attiva. Potrai assegnarla dal progetto.</li>}</ul>
+        <ul className="max-h-80 overflow-auto rounded-lg border border-line p-3">{operai.map((o) => <li key={o.id}><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={v.operai.includes(o.id)} onChange={(e) => update("operai", e.target.checked ? [...v.operai, o.id] : v.operai.filter((x) => x !== o.id))} />{o.nome} {o.cognome}{o.squadre.length ? ` · ${o.squadre.map((s) => s.nome).join(", ")}` : ""}</label></li>)}{!operai.length && <li className="text-sm text-ink-faint">Nessuna risorsa attiva. Potrai assegnarla dal progetto.</li>}</ul>
         <p className="text-sm text-ink-soft">Gli allegati si gestiscono nel riquadro sotto, dopo il salvataggio della bozza.</p>
         {errorFor("documenti")}
       </div>}

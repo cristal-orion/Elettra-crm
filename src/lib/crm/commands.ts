@@ -10,6 +10,7 @@ import { notificaAttivita, notificheAttivitaWhere } from "../notifiche";
 import { attivitaHref } from "../attivita";
 import { assertCommessaAccess, puoLeggereEconomia, type Actor } from "../access";
 import { randomUUID } from "node:crypto";
+import { avvisiAssegnazioni } from "../assegnazioni";
 
 export class CrmError extends InputError {
   constructor(message: string, public code = "INVALID_INPUT") { super(message); }
@@ -195,17 +196,17 @@ export async function executeCommand(db: Db, actorId: string, raw: unknown): Pro
     }
     case "assegnaOperaio": {
       await project(db, c.commessaId, actor);
-      if (!await db.operaio.findFirst({ where: { id: c.operaioId, attivo: true } })) throw new CrmError("Seleziona un operaio attivo.");
+      const worker = await db.operaio.findFirst({ where: { id: c.operaioId, attivo: true }, select: { nome: true, cognome: true } });
+      if (!worker) throw new CrmError("Seleziona un operaio attivo.");
       const existing = await db.assegnazioneOperaio.findUnique({ where: { commessaId_operaioId: { commessaId: c.commessaId, operaioId: c.operaioId } } });
       if (existing && !c.aggiornaEsistente) throw new CrmError("Operaio già assegnato. Usa aggiornaEsistente per modificare l'intervallo.");
       const dal = c.dal === undefined ? existing?.dal : dateValue(c.dal);
       const al = c.al === undefined ? existing?.al : dateValue(c.al);
       range(dal, al);
-      const conflicts = await db.assegnazioneOperaio.count({ where: { operaioId: c.operaioId, commessaId: { not: c.commessaId }, commessa: { stato: { in: ["ORDINE_CONFERMATO", "IN_ESECUZIONE", "CONSUNTIVO"] }, dataFineLavori: null }, AND: [{ OR: [{ al: null }, { al: { gte: dal ?? new Date(0) } }] }, { OR: [{ dal: null }, { dal: { lte: al ?? new Date("9999-12-31") } }] }] } });
-      if (conflicts) throw new CrmError("Intervallo sovrapposto ad altre assegnazioni attive. Scegli date diverse o aggiorna le assegnazioni esistenti.", "OVERLAP");
+      const warnings = await avvisiAssegnazioni(db, c.commessaId, [{ operaioId: c.operaioId, ...worker, dal, al }]);
       const data = { commessaId: c.commessaId, operaioId: c.operaioId, ruoloCantiere: c.ruoloCantiere, dal, al, note: c.note };
       const row = existing ? await db.assegnazioneOperaio.update({ where: { id: existing.id }, data }) : await db.assegnazioneOperaio.create({ data });
-      return { id: row.id, href: `/progetti/${c.commessaId}`, message: existing ? "Assegnazione aggiornata." : "Operaio assegnato." };
+      return { id: row.id, href: `/progetti/${c.commessaId}`, message: existing ? "Assegnazione aggiornata." : "Operaio assegnato.", warnings };
     }
     case "rimuoviAssegnazione": {
       const a = await db.assegnazioneOperaio.findUnique({ where: { id: c.id } });

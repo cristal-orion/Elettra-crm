@@ -52,7 +52,7 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
     const supplier = await db.anagrafica.create({ data: { id: "ui-supplier", ragioneSociale: "Fornitore Cavi", isFornitore: true } });
     await db.ordineFornitore.create({ data: { id: "ui-order", numero: "OD-123", fornitoreId: supplier.id, commessaId: "ui-job-0", righe: { create: { prodottoId: "ui-material", codiceProdotto: "CB-123", descrizione: "Càvo elettrico", quantita: 2, prezzoUnitario: 10, imponibile: 20 } } } });
     await db.segnalazione.create({ data: { id: "ui-feedback", titolo: "Pulsante attività", descrizione: "Verificare filtro", autoreId: user.id } });
-    await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", gruppo: { create: { nome: "Èquipe" } } } });
+    await db.operaio.create({ data: { nome: "Niccolò", cognome: "Rossi", squadre: { create: { nome: "Èquipe" } } } });
     const token = await new SignJWT({ userId: user.id, ruolo: user.ruolo, nome: user.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
