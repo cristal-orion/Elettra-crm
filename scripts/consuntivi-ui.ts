@@ -11,6 +11,10 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
   const consuntivoPath = "/commesse/ui-project/consuntivo";
   await page.goto(`${origin}/anagrafiche/${clienteId}`);
   await page.getByRole("link", { name: /^Tariffario cliente →/ }).click();
+  const bulk = page.getByRole("textbox", { name: "Ricarico unico (%)", exact: true });
+  const applyBulk = page.getByRole("button", { name: "Applica a tutti i materiali", exact: true });
+  assert.equal(await bulk.isDisabled(), true);
+  assert.equal(await applyBulk.isDisabled(), true);
   await page.getByRole("button", { name: "+ Aggiungi mansione", exact: true }).click();
   await page.getByLabel("Mansione", { exact: true }).fill("Elettricista");
   await page.getByLabel("Ordinaria (€/h)", { exact: true }).fill("35");
@@ -97,12 +101,61 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
   assert.doesNotMatch(await printed.innerText(), /Costo base|Ricarico|Storico modifiche/);
   await print.close();
 
+  const materials = ["Interruttore magnetotermico", "Presa industriale", "Canalina portacavi", "Quadro elettrico", "Contattore", "Morsettiera", "Lampada LED", "Relè ausiliario", "Trasformatore"];
+  await db.prodotto.createMany({ data: materials.map((descrizione, i) => ({ id: `ui-bulk-material-${i}`, descrizione, unitaMisura: "pz" })) });
+  await page.goto(`${origin}${tariffarioPath}`);
+  for (const name of materials) {
+    await page.getByRole("button", { name: "+ Aggiungi materiale", exact: true }).click();
+    await page.getByRole("combobox", { name: "Materiale", exact: true }).last().click();
+    await page.getByRole("option", { name, exact: true }).click();
+  }
+  const draft = () => page.locator('input[name="dati"]').inputValue().then((v) => JSON.parse(v));
+  const beforeBulk = await draft();
+  const percentages = page.getByLabel("Ricarico (%)", { exact: true });
+  for (const invalid of ["", "-1", "abc", "1000.0001", "12,34567"]) {
+    await bulk.fill(invalid);
+    await applyBulk.click();
+    await page.getByRole("alert").filter({ hasText: "Inserisci una percentuale da 0 a 1000" }).waitFor();
+    assert.deepEqual(await draft(), beforeBulk, "Un valore non valido non modifica nessuna riga");
+  }
+  for (const valid of ["1000", "0", "12,5"]) {
+    await bulk.fill(valid);
+    await bulk.press("Enter");
+    await page.getByRole("status").filter({ hasText: "applicato a 10 materiali" }).waitFor();
+    assert.deepEqual(await percentages.evaluateAll((inputs) => inputs.map((el) => (el as HTMLInputElement).value)), Array(10).fill(valid.replace(",", ".")));
+  }
+  const afterBulk = await draft();
+  assert.deepEqual(afterBulk.manodopera, beforeBulk.manodopera);
+  assert.deepEqual(afterBulk.materiali.map(({ id, prodottoId }: { id: string; prodottoId: string }) => ({ id, prodottoId })), beforeBulk.materiali.map(({ id, prodottoId }: { id: string; prodottoId: string }) => ({ id, prodottoId })));
+  assert.equal((await db.tariffarioCliente.findUniqueOrThrow({ where: { clienteId } })).versione, 1, "Applica aggiorna la bozza senza salvare o creare revisioni");
+  await percentages.first().fill("25");
+  assert.equal(await percentages.nth(1).inputValue(), "12.5");
+  assert.equal(await page.getByRole("status").filter({ hasText: "applicato a 10 materiali" }).count(), 0);
+  await applyBulk.click();
+  const savedSheet = await db.consuntivo.findUniqueOrThrow({ where: { commessaId: "ui-project" } });
+  await page.getByRole("button", { name: "Salva tariffario", exact: true }).click();
+  await page.getByRole("heading", { name: "Storico modifiche (2)", exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole("button", { name: "Salva tariffario", exact: true }).click({ trial: true });
+  assert.deepEqual(await percentages.evaluateAll((inputs) => inputs.map((el) => (el as HTMLInputElement).value)), Array(10).fill("12.5000"));
+  const bulkRate = tariffarioValues(await db.tariffarioCliente.findUniqueOrThrow({ where: { clienteId } }));
+  assert.equal(bulkRate.versione, 2);
+  assert.deepEqual(bulkRate.manodopera, rate.manodopera);
+  assert.deepEqual(await db.consuntivo.findUniqueOrThrow({ where: { commessaId: "ui-project" } }), savedSheet, "Il tariffario non rivaluta i lavori già salvati");
+  const history = await db.modificaEconomica.findFirstOrThrow({ where: { entita: "TARIFFARIO", versione: 2, entitaId: (await db.tariffarioCliente.findUniqueOrThrow({ where: { clienteId } })).id } });
+  assert.equal((history.dopo as { materiali: unknown[] }).materiali.length, 10);
+  await page.getByRole("button", { name: "Salva tariffario", exact: true }).click();
+  await page.waitForLoadState("networkidle");
+  assert.equal((await db.tariffarioCliente.findUniqueOrThrow({ where: { clienteId } })).versione, 2, "Il campo unico vuoto non blocca il salvataggio ordinario");
+  console.log("PASS: ricarico unico su 10 materiali — decimali, limiti/zero, tastiera, modifica individuale, salvataggio, audit e consuntivi conservati");
+
   const readContext = await browser.newContext();
   await readContext.addCookies([{ name: "elettra_session", value: readerToken, url: origin }]);
   const readPage = await readContext.newPage();
   for (const [path, button, sent] of [[tariffarioPath, "Salva tariffario", sentRate], [consuntivoPath, "Salva consuntivo", sentSheet]] as const) {
     await readPage.goto(`${origin}${path}`);
     assert.equal(await readPage.getByRole("button", { name: button, exact: true }).count(), 0);
+    assert.equal(await readPage.getByRole("button", { name: "Applica a tutti i materiali", exact: true }).count(), 0);
     for (const field of await readPage.getByRole("spinbutton").all()) assert.equal(await field.isDisabled(), true);
     const denied = await readContext.request.post(sent.url(), { headers: { "next-action": sent.headers()["next-action"], "content-type": sent.headers()["content-type"], origin }, data: sent.postDataBuffer()! });
     assert.match(await denied.text(), /Non hai i permessi/);
@@ -123,6 +176,15 @@ export async function verifyConsuntiviUi({ page, context, browser, db, origin, c
     await page.getByText(/^Versione 1 ·/).click();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow ${path}`);
     for (const button of await page.locator("form").getByRole("button").all()) assert.ok((await button.boundingBox())!.height >= 44);
+  }
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${origin}${tariffarioPath}`);
+    await bulk.fill("15");
+    await applyBulk.click();
+    assert.deepEqual(await percentages.evaluateAll((inputs) => inputs.map((el) => (el as HTMLInputElement).value)), Array(10).fill("15"));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    assert.ok((await applyBulk.boundingBox())!.height >= 44);
   }
   await page.setViewportSize({ width: 1280, height: 800 });
   console.log("PASS: Tariffari/consuntivi — default, fasce, override locali, audit, conflitti, stampa, permessi server e mobile");

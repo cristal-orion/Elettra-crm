@@ -302,6 +302,12 @@ con tariffe ordinarie, straordinarie feriali e straordinarie festive, e fino a 5
 materiali del catalogo con ricarico specifico per cliente. Le tariffe orarie sono
 valori di addebito al cliente, distinti dai costi interni del personale.
 
+Nella sezione **Ricarichi per materiale**, il campo **Ricarico unico (%)** e il
+comando **Applica a tutti i materiali** impostano la stessa percentuale su tutte
+le righe del tariffario aperto. Sono ammessi anche zero e decimali con virgola,
+da 0 a 1000% e fino a 4 cifre decimali. Le righe restano modificabili singolarmente;
+**Salva tariffario** conferma i valori e registra un'unica revisione nello storico.
+
 Da **Commesse → dettaglio → Consuntivo ore e materiali** si compila un rendiconto
 per lavoro, con data, note e fino a 200 righe. Il tariffario propone i valori delle
 nuove righe; ore, quantità, tariffe applicate, costo base unitario e ricarichi sono

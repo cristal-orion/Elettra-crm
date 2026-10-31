@@ -70,10 +70,11 @@ test("UX CRM: filtri, navigazione, progetti, anagrafiche, agenda, consuntivi e c
       assert.deepEqual(errors, []);
       return;
     }
-    if (process.env.UI_SUITE === "commerciale" || process.env.UI_SUITE === "commessa") {
+    if (["commerciale", "commessa", "consuntivi"].includes(process.env.UI_SUITE ?? "")) {
       const reader = await db.user.create({ data: { email: "commercial-reader@example.test", passwordHash: "unused", nome: "Reader", cognome: "UI", ruolo: "AMMINISTRAZIONE", guidaVista: "*" } });
       const readerToken = await new SignJWT({ userId: reader.id, ruolo: reader.ruolo, nome: reader.nome, sessionVersion: 0 }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(secret));
       if (process.env.UI_SUITE === "commessa") await verifyWizardUi({ page, context, browser, db, origin, readerToken });
+      else if (process.env.UI_SUITE === "consuntivi") await verifyConsuntiviUi({ page, context, browser, db, origin, clienteId: cliente.id, readerToken });
       else await verifyCommercialeUi({ page, context, browser, db, origin, readerToken });
       assert.deepEqual(errors, []);
       return;
