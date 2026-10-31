@@ -111,7 +111,14 @@ def api(token, method, path, data=None):
 
 
 def active(config):
-    return docker("ps", "--filter", f'label=coolify.applicationId={config["app_id"]}', "--format", "{{.ID}}").splitlines()
+    # Coolify recente espone applicationUuid al posto del vecchio applicationId.
+    # Un deploy può lasciare per poco entrambe le generazioni in esecuzione.
+    containers = set()
+    for label in [f'coolify.applicationUuid={config["app_uuid"]}',
+                  f'coolify.applicationId={config["app_id"]}']:
+        containers.update(docker("ps", "--filter", "label=" + label, "--format", "{{.ID}}").splitlines())
+    return [container for container in sorted(containers)
+            if str((inspect(container)["Config"].get("Labels") or {}).get("coolify.pullRequestId", "0")) == "0"]
 
 
 def no_deployment(config):
